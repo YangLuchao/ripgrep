@@ -10,10 +10,9 @@ use bstr::io::BufReadExt;
 
 use crate::escape::{escape, escape_os};
 
-/// An error that occurs when a pattern could not be converted to valid UTF-8.
+/// 在将模式转换为有效的UTF-8时出错的错误类型。
 ///
-/// The purpose of this error is to give a more targeted failure mode for
-/// patterns written by end users that are not valid UTF-8.
+/// 此错误的目的是为了提供更有针对性的故障模式，用于描述无效的UTF-8模式。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InvalidPatternError {
     original: String,
@@ -21,8 +20,7 @@ pub struct InvalidPatternError {
 }
 
 impl InvalidPatternError {
-    /// Returns the index in the given string up to which valid UTF-8 was
-    /// verified.
+    /// 返回在给定字符串中验证有效UTF-8的索引。
     pub fn valid_up_to(&self) -> usize {
         self.valid_up_to
     }
@@ -30,7 +28,7 @@ impl InvalidPatternError {
 
 impl error::Error for InvalidPatternError {
     fn description(&self) -> &str {
-        "invalid pattern"
+        "无效的模式"
     }
 }
 
@@ -38,9 +36,8 @@ impl fmt::Display for InvalidPatternError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "found invalid UTF-8 in pattern at byte offset {}: {} \
-             (disable Unicode mode and use hex escape sequences to match \
-             arbitrary bytes in a pattern, e.g., '(?-u)\\xFF')",
+            "在模式的字节偏移量 {} 处找到无效的UTF-8：{} \
+             （禁用Unicode模式并使用十六进制转义序列来匹配模式中的任意字节，例如 '(?-u)\\xFF'）",
             self.valid_up_to, self.original,
         )
     }
@@ -52,28 +49,24 @@ impl From<InvalidPatternError> for io::Error {
     }
 }
 
-/// Convert an OS string into a regular expression pattern.
+/// 将OS字符串转换为正则表达式模式。
 ///
-/// This conversion fails if the given pattern is not valid UTF-8, in which
-/// case, a targeted error with more information about where the invalid UTF-8
-/// occurs is given. The error also suggests the use of hex escape sequences,
-/// which are supported by many regex engines.
+/// 如果给定的模式无效的UTF-8，转换会失败，此时会返回一个带有更多关于无效UTF-8位置信息的有针对性的错误。
+/// 错误还会建议使用十六进制转义序列，这在许多正则表达式引擎中都支持。
 pub fn pattern_from_os(pattern: &OsStr) -> Result<&str, InvalidPatternError> {
     pattern.to_str().ok_or_else(|| {
         let valid_up_to = pattern
             .to_string_lossy()
             .find('\u{FFFD}')
-            .expect("a Unicode replacement codepoint for invalid UTF-8");
+            .expect("无效UTF-8的Unicode替换码点");
         InvalidPatternError { original: escape_os(pattern), valid_up_to }
     })
 }
 
-/// Convert arbitrary bytes into a regular expression pattern.
+/// 将任意字节转换为正则表达式模式。
 ///
-/// This conversion fails if the given pattern is not valid UTF-8, in which
-/// case, a targeted error with more information about where the invalid UTF-8
-/// occurs is given. The error also suggests the use of hex escape sequences,
-/// which are supported by many regex engines.
+/// 如果给定的模式无效的UTF-8，转换会失败，此时会返回一个带有更多关于无效UTF-8位置信息的有针对性的错误。
+/// 错误还会建议使用十六进制转义序列，这在许多正则表达式引擎中都支持。
 pub fn pattern_from_bytes(
     pattern: &[u8],
 ) -> Result<&str, InvalidPatternError> {
@@ -83,12 +76,10 @@ pub fn pattern_from_bytes(
     })
 }
 
-/// Read patterns from a file path, one per line.
+/// 从文件路径读取模式，每行一个。
 ///
-/// If there was a problem reading or if any of the patterns contain invalid
-/// UTF-8, then an error is returned. If there was a problem with a specific
-/// pattern, then the error message will include the line number and the file
-/// path.
+/// 如果读取出现问题，或者任何模式包含无效UTF-8，都会返回一个错误。
+/// 如果特定模式出现问题，错误消息将包括行号和文件路径。
 pub fn patterns_from_path<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
     let path = path.as_ref();
     let file = File::open(path).map_err(|err| {
@@ -105,12 +96,10 @@ pub fn patterns_from_path<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
     })
 }
 
-/// Read patterns from stdin, one per line.
+/// 从标准输入读取模式，每行一个。
 ///
-/// If there was a problem reading or if any of the patterns contain invalid
-/// UTF-8, then an error is returned. If there was a problem with a specific
-/// pattern, then the error message will include the line number and the fact
-/// that it came from stdin.
+/// 如果读取出现问题，或者任何模式包含无效UTF-8，都会返回一个错误。
+/// 如果特定模式出现问题，错误消息将包括行号和来自stdin的事实。
 pub fn patterns_from_stdin() -> io::Result<Vec<String>> {
     let stdin = io::stdin();
     let locked = stdin.lock();
@@ -119,18 +108,16 @@ pub fn patterns_from_stdin() -> io::Result<Vec<String>> {
     })
 }
 
-/// Read patterns from any reader, one per line.
+/// 从任何读取器读取模式，每行一个。
 ///
-/// If there was a problem reading or if any of the patterns contain invalid
-/// UTF-8, then an error is returned. If there was a problem with a specific
-/// pattern, then the error message will include the line number.
+/// 如果读取出现问题，或者任何模式包含无效UTF-8，都会返回一个错误。
+/// 如果特定模式出现问题，错误消息将包括行号。
 ///
-/// Note that this routine uses its own internal buffer, so the caller should
-/// not provide their own buffered reader if possible.
+/// 请注意，此函数使用自己的内部缓冲区，因此调用者不应该提供自己的缓冲读取器（如果可能的话）。
 ///
-/// # Example
+/// # 示例
 ///
-/// This shows how to parse patterns, one per line.
+/// 下面演示了如何解析每行一个的模式。
 ///
 /// ```
 /// use grep_cli::patterns_from_reader;

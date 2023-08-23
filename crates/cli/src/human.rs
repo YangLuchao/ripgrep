@@ -5,10 +5,9 @@ use std::num::ParseIntError;
 
 use regex::Regex;
 
-/// An error that occurs when parsing a human readable size description.
+/// 解析人类可读的大小描述时出现的错误。
 ///
-/// This error provides an end user friendly message describing why the
-/// description couldn't be parsed and what the expected format is.
+/// 此错误提供了一个用户友好的消息，描述了为什么无法解析描述以及预期的格式是什么。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseSizeError {
     original: String,
@@ -17,37 +16,37 @@ pub struct ParseSizeError {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum ParseSizeErrorKind {
-    InvalidFormat,
-    InvalidInt(ParseIntError),
-    Overflow,
+    无效的格式,
+    无效的整数(ParseIntError),
+    溢出,
 }
 
 impl ParseSizeError {
     fn format(original: &str) -> ParseSizeError {
         ParseSizeError {
             original: original.to_string(),
-            kind: ParseSizeErrorKind::InvalidFormat,
+            kind: ParseSizeErrorKind::无效的格式,
         }
     }
 
     fn int(original: &str, err: ParseIntError) -> ParseSizeError {
         ParseSizeError {
             original: original.to_string(),
-            kind: ParseSizeErrorKind::InvalidInt(err),
+            kind: ParseSizeErrorKind::无效的整数(err),
         }
     }
 
     fn overflow(original: &str) -> ParseSizeError {
         ParseSizeError {
             original: original.to_string(),
-            kind: ParseSizeErrorKind::Overflow,
+            kind: ParseSizeErrorKind::溢出,
         }
     }
 }
 
 impl error::Error for ParseSizeError {
     fn description(&self) -> &str {
-        "invalid size"
+        "无效的大小"
     }
 }
 
@@ -56,19 +55,17 @@ impl fmt::Display for ParseSizeError {
         use self::ParseSizeErrorKind::*;
 
         match self.kind {
-            InvalidFormat => write!(
+            无效的格式 => write!(
                 f,
-                "invalid format for size '{}', which should be a sequence \
-                     of digits followed by an optional 'K', 'M' or 'G' \
-                     suffix",
+                "大小 '{}' 的格式无效，应为一个由数字组成的序列，后面跟有可选的 'K'、'M' 或 'G' 后缀",
                 self.original
             ),
-            InvalidInt(ref err) => write!(
+            无效的整数(ref err) => write!(
                 f,
-                "invalid integer found in size '{}': {}",
+                "大小 '{}' 中的整数无效：{}",
                 self.original, err
             ),
-            Overflow => write!(f, "size too big in '{}'", self.original),
+            溢出 => write!(f, "大小过大：'{}'", self.original),
         }
     }
 }
@@ -79,19 +76,17 @@ impl From<ParseSizeError> for io::Error {
     }
 }
 
-/// Parse a human readable size like `2M` into a corresponding number of bytes.
+/// 解析人类可读的大小，如 `2M`，为相应的字节数。
 ///
-/// Supported size suffixes are `K` (for kilobyte), `M` (for megabyte) and `G`
-/// (for gigabyte). If a size suffix is missing, then the size is interpreted
-/// as bytes. If the size is too big to fit into a `u64`, then this returns an
-/// error.
+/// 支持的大小后缀为 `K`（千字节）、`M`（兆字节）和 `G`（千兆字节）。
+/// 如果缺少大小后缀，则将大小解释为字节。
+/// 如果大小太大无法适应 `u64`，则返回错误。
 ///
-/// Additional suffixes may be added over time.
+/// 随着时间的推移，可能会添加更多的后缀。
 pub fn parse_human_readable_size(size: &str) -> Result<u64, ParseSizeError> {
     lazy_static::lazy_static! {
-        // Normally I'd just parse something this simple by hand to avoid the
-        // regex dep, but we bring regex in any way for glob matching, so might
-        // as well use it.
+        // 通常，我会手动解析这么简单的内容，以避免使用 regex，
+        // 但是我们无论如何都会使用 regex 进行 glob 匹配，所以不妨就用它。
         static ref RE: Regex = Regex::new(r"^([0-9]+)([KMG])?$").unwrap();
     }
 
@@ -109,7 +104,7 @@ pub fn parse_human_readable_size(size: &str) -> Result<u64, ParseSizeError> {
         "K" => value.checked_mul(1 << 10),
         "M" => value.checked_mul(1 << 20),
         "G" => value.checked_mul(1 << 30),
-        // Because if the regex matches this group, it must be [KMG].
+        // 因为如果 regex 匹配了这个组，它必须是 [KMG]。
         _ => unreachable!(),
     };
     bytes.ok_or_else(|| ParseSizeError::overflow(size))

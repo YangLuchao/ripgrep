@@ -266,7 +266,7 @@ impl Args {
 
     /// 使用启用基于命令行配置的颜色支持的写入器执行给定函数。
     pub fn stdout(&self) -> cli::StandardStream {
-        let color = self.matches().color_choice();
+        let color: ColorChoice = self.matches().color_choice();
         if self.matches().is_present("line-buffered") {
             cli::stdout_buffered_line(color)
         } else if self.matches().is_present("block-buffered") {
@@ -336,43 +336,41 @@ impl Args {
             .build_parallel())
     }
 }
-
-/// ' ArgMatches '封装了' clap::ArgMatches '，并为解析后的参数提供了语义含义。
+/// 'ArgMatches'封装了'clap::ArgMatches'，并为解析后的参数提供了语义含义。
 #[derive(Clone, Debug)]
 struct ArgMatches(clap::ArgMatches<'static>);
 
-/// The output format. Generally, this corresponds to the printer that ripgrep
-/// uses to show search results.
+/// 输出格式。通常，这与ripgrep用于显示搜索结果的打印机对应。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum OutputKind {
-    /// Classic grep-like or ack-like format.
+    /// 类似于经典grep或ack格式。
     Standard,
-    /// Show matching files and possibly the number of matches in each file.
+    /// 显示匹配的文件以及可能在每个文件中的匹配数量。
     Summary,
-    /// Emit match information in the JSON Lines format.
+    /// 以JSON Lines格式发出匹配信息。
     JSON,
 }
 
-/// The sort criteria, if present.
+/// 排序标准，如果存在的话。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct SortBy {
-    /// Whether to reverse the sort criteria (i.e., descending order).
+    /// 是否反转排序标准（即，降序）。
     reverse: bool,
-    /// The actual sorting criteria.
+    /// 实际的排序标准。
     kind: SortByKind,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SortByKind {
-    /// No sorting at all.
+    /// 根本不排序。
     None,
-    /// Sort by path.
+    /// 按路径排序。
     Path,
-    /// Sort by last modified time.
+    /// 按上次修改时间排序。
     LastModified,
-    /// Sort by last accessed time.
+    /// 按上次访问时间排序。
     LastAccessed,
-    /// Sort by creation time.
+    /// 按创建时间排序。
     Created,
 }
 
@@ -389,8 +387,8 @@ impl SortBy {
         SortBy::asc(SortByKind::None)
     }
 
-    /// Try to check that the sorting criteria selected is actually supported.
-    /// If it isn't, then an error is returned.
+    /// 尝试检查所选的排序标准是否实际支持。
+    /// 如果不支持，则返回错误。
     fn check(&self) -> Result<()> {
         match self.kind {
             SortByKind::None | SortByKind::Path => {}
@@ -407,11 +405,9 @@ impl SortBy {
         Ok(())
     }
 
-    /// Load sorters only if they are applicable at the walk stage.
+    /// 仅在步行阶段适用时加载排序器。
     ///
-    /// In particular, sorts that involve `stat` calls are not loaded because
-    /// the walk inherently assumes that parent directories are aware of all its
-    /// decendent properties, but `stat` does not work that way.
+    /// 特别地，涉及`stat`调用的排序不会被加载，因为步行阶段本质上假设父目录了解其所有子项的属性，但`stat`并不是这样工作的。
     fn configure_builder_sort(self, builder: &mut WalkBuilder) {
         use SortByKind::*;
         match self.kind {
@@ -421,7 +417,7 @@ impl SortBy {
             Path => {
                 builder.sort_by_file_name(|a, b| a.cmp(b));
             }
-            // these use `stat` calls and will be sorted in Args::sort_by_stat()
+            // 这些使用`stat`调用，将在Args::sort_by_stat()中排序
             LastModified | LastAccessed | Created | None => {}
         };
     }
@@ -440,16 +436,14 @@ impl SortByKind {
     }
 }
 
-/// Encoding mode the searcher will use.
+/// 搜索器将使用的编码模式。
 #[derive(Clone, Debug)]
 enum EncodingMode {
-    /// Use an explicit encoding forcefully, but let BOM sniffing override it.
+    /// 强制使用显式编码，但BOM嗅探会覆盖它。
     Some(Encoding),
-    /// Use only BOM sniffing to auto-detect an encoding.
+    /// 仅使用BOM嗅探进行自动检测编码。
     Auto,
-    /// Use no explicit encoding and disable all BOM sniffing. This will
-    /// always result in searching the raw bytes, regardless of their
-    /// true encoding.
+    /// 不使用显式编码并禁用所有BOM嗅探。这将始终导致搜索原始字节，而不考虑其实际编码。
     Disabled,
 }
 
@@ -531,16 +525,13 @@ impl ArgMatches {
         })))
     }
 }
-
-/// High level routines for converting command line arguments into various
-/// data structures used by ripgrep.
+/// 将命令行参数转换为ripgrep使用的各种数据结构的高级方法。
 ///
-/// Methods are sorted alphabetically.
+/// 方法按字母顺序排序。
 impl ArgMatches {
-    /// Return the matcher that should be used for searching.
+    /// 返回应该用于搜索的匹配器。
     ///
-    /// If there was a problem building the matcher (e.g., a syntax error),
-    /// then this returns an error.
+    /// 如果构建匹配器时出现问题（例如语法错误），则返回错误。
     fn matcher(&self, patterns: &[String]) -> Result<PatternMatcher> {
         if self.is_present("pcre2") {
             self.matcher_engine("pcre2", patterns)
@@ -552,11 +543,9 @@ impl ArgMatches {
         }
     }
 
-    /// Return the matcher that should be used for searching using engine
-    /// as the engine for the patterns.
+    /// 返回应该用于使用引擎的搜索的匹配器。
     ///
-    /// If there was a problem building the matcher (e.g., a syntax error),
-    /// then this returns an error.
+    /// 如果构建匹配器时出现问题（例如语法错误），则返回错误。
     fn matcher_engine(
         &self,
         engine: &str,
@@ -578,9 +567,7 @@ impl ArgMatches {
                 Ok(PatternMatcher::PCRE2(matcher))
             }
             #[cfg(not(feature = "pcre2"))]
-            "pcre2" => Err(From::from(
-                "PCRE2 is not available in this build of ripgrep",
-            )),
+            "pcre2" => Err(From::from("在此构建的ripgrep中不可用PCRE2")),
             "auto" => {
                 let rust_err = match self.matcher_rust(patterns) {
                     Ok(matcher) => {
@@ -589,7 +576,7 @@ impl ArgMatches {
                     Err(err) => err,
                 };
                 log::debug!(
-                    "error building Rust regex in hybrid mode:\n{}",
+                    "在混合模式下构建Rust正则表达式时出错:\n{}",
                     rust_err,
                 );
 
@@ -598,27 +585,22 @@ impl ArgMatches {
                     Err(err) => err,
                 };
                 Err(From::from(format!(
-                    "regex could not be compiled with either the default \
-                     regex engine or with PCRE2.\n\n\
-                     default regex engine error:\n{}\n{}\n{}\n\n\
-                     PCRE2 regex engine error:\n{}",
+                    "无法使用默认正则引擎或PCRE2编译正则表达式。\n\n\
+                     默认正则引擎错误:\n{}\n{}\n{}\n\n\
+                     PCRE2正则引擎错误:\n{}",
                     "~".repeat(79),
                     rust_err,
                     "~".repeat(79),
                     pcre_err,
                 )))
             }
-            _ => Err(From::from(format!(
-                "unrecognized regex engine '{}'",
-                engine
-            ))),
+            _ => Err(From::from(format!("不识别的正则引擎'{}'", engine))),
         }
     }
 
-    /// Build a matcher using Rust's regex engine.
+    /// 使用Rust的正则引擎构建匹配器。
     ///
-    /// If there was a problem building the matcher (such as a regex syntax
-    /// error), then an error is returned.
+    /// 如果构建匹配器时出现问题（例如正则语法错误），则返回错误。
     fn matcher_rust(&self, patterns: &[String]) -> Result<RustRegexMatcher> {
         let mut builder = RustRegexMatcherBuilder::new();
         builder
@@ -640,11 +622,9 @@ impl ArgMatches {
             if self.is_present("crlf") {
                 builder.crlf(true);
             }
-            // We don't need to set this in multiline mode since mulitline
-            // matchers don't use optimizations related to line terminators.
-            // Moreover, a mulitline regex used with --null-data should
-            // be allowed to match NUL bytes explicitly, which this would
-            // otherwise forbid.
+            // 我们不需要在多行模式中设置这个，因为多行匹配器不使用与行终止符相关的优化。
+            // 此外，在使用--null-data的情况下，使用与原始字节匹配的多行正则表达式，
+            // 而这通常会被禁止。
             if self.is_present("null-data") {
                 builder.line_terminator(Some(b'\x00'));
             }
@@ -661,10 +641,9 @@ impl ArgMatches {
         }
     }
 
-    /// Build a matcher using PCRE2.
+    /// 使用PCRE2构建匹配器。
     ///
-    /// If there was a problem building the matcher (such as a regex syntax
-    /// error), then an error is returned.
+    /// 如果构建匹配器时出现问题（例如正则语法错误），则返回错误。
     #[cfg(feature = "pcre2")]
     fn matcher_pcre2(&self, patterns: &[String]) -> Result<PCRE2RegexMatcher> {
         let mut builder = PCRE2RegexMatcherBuilder::new();
@@ -675,14 +654,11 @@ impl ArgMatches {
             .fixed_strings(self.is_present("fixed-strings"))
             .whole_line(self.is_present("line-regexp"))
             .word(self.is_present("word-regexp"));
-        // For whatever reason, the JIT craps out during regex compilation with
-        // a "no more memory" error on 32 bit systems. So don't use it there.
+        // 不知何故，JIT在32位系统上的正则表达式编译过程中会出现“没有更多内存”的错误。因此在那里不要使用它。
         if cfg!(target_pointer_width = "64") {
             builder
                 .jit_if_available(true)
-                // The PCRE2 docs say that 32KB is the default, and that 1MB
-                // should be big enough for anything. But let's crank it to
-                // 10MB.
+                // PCRE2文档中说32KB是默认值，而1MB对于任何情况都足够了。但我们将其增加到10MB。
                 .max_jit_stack_size(Some(10 * (1 << 20)));
         }
         if self.unicode() {
@@ -697,7 +673,7 @@ impl ArgMatches {
         Ok(builder.build_many(patterns)?)
     }
 
-    /// Build a JSON printer that writes results to the given writer.
+    /// 构建一个将结果写入给定写入器的JSON打印机。
     fn printer_json<W: io::Write>(&self, wtr: W) -> Result<JSON<W>> {
         let mut builder = JSONBuilder::new();
         builder
@@ -707,18 +683,14 @@ impl ArgMatches {
         Ok(builder.build(wtr))
     }
 
-    /// Build a Standard printer that writes results to the given writer.
+    /// 构建一个将结果写入给定写入器的标准输出打印机。
     ///
-    /// The given paths are used to configure aspects of the printer.
+    /// 给定的路径用于配置打印机的各个方面。
     ///
-    /// If `separator_search` is true, then the returned printer will assume
-    /// the responsibility of printing a separator between each set of
-    /// search results, when appropriate (e.g., when contexts are enabled).
-    /// When it's set to false, the caller is responsible for handling
-    /// separators.
+    /// 如果`separator_search`为true，则返回的打印机将在适当时（例如启用上下文时）承担在每组搜索结果之间打印分隔符的责任。
+    /// 当设置为false时，调用者负责处理分隔符。
     ///
-    /// In practice, we want the printer to handle it in the single threaded
-    /// case but not in the multi-threaded case.
+    /// 在实际情况中，我们希望单线程情况下打印机处理，但多线程情况下不处理。
     fn printer_standard<W: WriteColor>(
         &self,
         paths: &[PathBuf],
@@ -753,11 +725,11 @@ impl ArgMatches {
         Ok(builder.build(wtr))
     }
 
-    /// Build a Summary printer that writes results to the given writer.
+    /// 构建一个将结果写入给定写入器的汇总输出打印机。
     ///
-    /// The given paths are used to configure aspects of the printer.
+    /// 给定的路径用于配置打印机的各个方面。
     ///
-    /// This panics if the output format is not `OutputKind::Summary`.
+    /// 如果输出格式不是`OutputKind::Summary`，则此处会panic。
     fn printer_summary<W: WriteColor>(
         &self,
         paths: &[PathBuf],
@@ -765,7 +737,7 @@ impl ArgMatches {
     ) -> Result<Summary<W>> {
         let mut builder = SummaryBuilder::new();
         builder
-            .kind(self.summary_kind().expect("summary format"))
+            .kind(self.summary_kind().expect("汇总格式"))
             .color_specs(self.color_specs()?)
             .stats(self.stats())
             .path(self.with_filename(paths))
@@ -777,7 +749,7 @@ impl ArgMatches {
         Ok(builder.build(wtr))
     }
 
-    /// Build a searcher from the command line parameters.
+    /// 从命令行参数构建搜索器。
     fn searcher(&self, paths: &[PathBuf]) -> Result<Searcher> {
         let (ctx_before, ctx_after) = self.contexts()?;
         let line_term = if self.is_present("crlf") {
@@ -802,7 +774,7 @@ impl ArgMatches {
             EncodingMode::Some(enc) => {
                 builder.encoding(Some(enc));
             }
-            EncodingMode::Auto => {} // default for the searcher
+            EncodingMode::Auto => {} // 搜索器的默认值
             EncodingMode::Disabled => {
                 builder.bom_sniffing(false);
             }
@@ -854,13 +826,11 @@ impl ArgMatches {
     }
 }
 
-/// Mid level routines for converting command line arguments into various types
-/// of data structures.
+/// 用于将命令行参数转换为各种类型数据结构的中层例程。
 ///
-/// Methods are sorted alphabetically.
+/// 方法按字母顺序排序。
 impl ArgMatches {
-    /// Returns the form of binary detection to perform on files that are
-    /// implicitly searched via recursive directory traversal.
+    /// 返回对通过递归目录遍历隐式搜索的文件执行的二进制检测形式。
     fn binary_detection_implicit(&self) -> BinaryDetection {
         let none = self.is_present("text") || self.is_present("null-data");
         let convert =
@@ -874,13 +844,10 @@ impl ArgMatches {
         }
     }
 
-    /// Returns the form of binary detection to perform on files that are
-    /// explicitly searched via the user invoking ripgrep on a particular
-    /// file or files or stdin.
+    /// 返回对通过用户在特定文件、文件或 stdin 上调用 ripgrep 时显式搜索的文件执行的二进制检测形式。
     ///
-    /// In general, this should never be BinaryDetection::quit, since that acts
-    /// as a filter (but quitting immediately once a NUL byte is seen), and we
-    /// should never filter out files that the user wants to explicitly search.
+    /// 一般来说，这不应该是 BinaryDetection::quit，因为那 acts
+    /// 作为过滤器（但在看到 NUL 字节后立即退出），我们不应该过滤掉用户想要显式搜索的文件。
     fn binary_detection_explicit(&self) -> BinaryDetection {
         let none = self.is_present("text") || self.is_present("null-data");
         if none {
@@ -890,32 +857,28 @@ impl ArgMatches {
         }
     }
 
-    /// Returns true if the command line configuration implies that a match
-    /// can never be shown.
+    /// 如果命令行配置意味着永远无法显示匹配，则返回 true。
     fn can_never_match(&self, patterns: &[String]) -> bool {
         patterns.is_empty() || self.max_count().ok() == Some(Some(0))
     }
 
-    /// Returns true if and only if case should be ignore.
+    /// 当且仅当应忽略大小写时，返回 true。
     ///
-    /// If --case-sensitive is present, then case is never ignored, even if
-    /// --ignore-case is present.
+    /// 如果存在 --case-sensitive，则永远不会忽略大小写，即使存在 --ignore-case。
     fn case_insensitive(&self) -> bool {
         self.is_present("ignore-case") && !self.is_present("case-sensitive")
     }
 
-    /// Returns true if and only if smart case has been enabled.
+    /// 当且仅当启用智能大小写时，返回 true。
     ///
-    /// If either --ignore-case of --case-sensitive are present, then smart
-    /// case is disabled.
+    /// 如果存在 --ignore-case 或 --case-sensitive，则禁用智能大小写。
     fn case_smart(&self) -> bool {
         self.is_present("smart-case")
             && !self.is_present("ignore-case")
             && !self.is_present("case-sensitive")
     }
 
-    /// Returns the user's color choice based on command line parameters and
-    /// environment.
+    /// 根据命令行参数和环境返回用户的颜色选择。
     fn color_choice(&self) -> ColorChoice {
         let preference = match self.value_of_lossy("color") {
             None => "auto".to_string(),
@@ -936,12 +899,11 @@ impl ArgMatches {
         }
     }
 
-    /// Returns the color specifications given by the user on the CLI.
+    /// 返回用户在 CLI 上指定的颜色规范。
     ///
-    /// If the was a problem parsing any of the provided specs, then an error
-    /// is returned.
+    /// 如果解析所提供规范时出现问题，则返回错误。
     fn color_specs(&self) -> Result<ColorSpecs> {
-        // Start with a default set of color specs.
+        // 使用默认的颜色规范集。
         let mut specs = default_color_specs();
         for spec_str in self.values_of_lossy_vec("colors") {
             specs.push(spec_str.parse()?);
@@ -949,7 +911,7 @@ impl ArgMatches {
         Ok(ColorSpecs::new(&specs))
     }
 
-    /// Returns true if and only if column numbers should be shown.
+    /// 当且仅当应显示列号时，返回 true。
     fn column(&self) -> bool {
         if self.is_present("no-column") {
             return false;
@@ -957,12 +919,11 @@ impl ArgMatches {
         self.is_present("column") || self.is_present("vimgrep")
     }
 
-    /// Returns the before and after contexts from the command line.
+    /// 返回命令行中的 before 和 after 上下文。
     ///
-    /// If a context setting was absent, then `0` is returned.
+    /// 如果上下文设置不存在，则返回 `0`。
     ///
-    /// If there was a problem parsing the values from the user as an integer,
-    /// then an error is returned.
+    /// 如果出现问题，无法将用户的值解析为整数，则返回错误。
     fn contexts(&self) -> Result<(usize, usize)> {
         let both = self.usize_of("context")?.unwrap_or(0);
         let after = self.usize_of("after-context")?.unwrap_or(both);
@@ -970,10 +931,10 @@ impl ArgMatches {
         Ok((before, after))
     }
 
-    /// Returns the unescaped context separator in UTF-8 bytes.
+    /// 返回未转义的上下文分隔符的 UTF-8 字节。
     ///
-    /// If one was not provided, the default `--` is returned.
-    /// If --no-context-separator is passed, None is returned.
+    /// 如果未提供分隔符，则返回默认值 `--`。
+    /// 如果传递了 --no-context-separator，则返回 None。
     fn context_separator(&self) -> Option<Vec<u8>> {
         let nosep = self.is_present("no-context-separator");
         let sep = self.value_of_os("context-separator");
@@ -984,40 +945,37 @@ impl ArgMatches {
         }
     }
 
-    /// Returns whether the -c/--count or the --count-matches flags were
-    /// passed from the command line.
+    /// 返回是否从命令行传递了 -c/--count 或 --count-matches 标志。
     ///
-    /// If --count-matches and --invert-match were passed in, behave
-    /// as if --count and --invert-match were passed in (i.e. rg will
-    /// count inverted matches as per existing behavior).
+    /// 如果传递了 --count-matches 和 --invert-match，则像传递了 --count 和 --invert-match 一样处理
+    /// （即，rg 将根据现有行为计算反向匹配的数量）。
     fn counts(&self) -> (bool, bool) {
         let count = self.is_present("count");
         let count_matches = self.is_present("count-matches");
         let invert_matches = self.is_present("invert-match");
         let only_matching = self.is_present("only-matching");
         if count_matches && invert_matches {
-            // Treat `-v --count-matches` as `-v -c`.
+            // 将 `-v --count-matches` 视为 `-v -c`。
             (true, false)
         } else if count && only_matching {
-            // Treat `-c --only-matching` as `--count-matches`.
+            // 将 `-c --only-matching` 视为 `--count-matches`。
             (false, true)
         } else {
             (count, count_matches)
         }
     }
 
-    /// Parse the dfa-size-limit argument option into a byte count.
+    /// 将 dfa-size-limit 参数选项解析为字节数。
     fn dfa_size_limit(&self) -> Result<Option<usize>> {
         let r = self.parse_human_readable_size("dfa-size-limit")?;
         u64_to_usize("dfa-size-limit", r)
     }
 
-    /// Returns the encoding mode to use.
+    /// 返回要使用的编码模式。
     ///
-    /// This only returns an encoding if one is explicitly specified. Otherwise
-    /// if set to automatic, the Searcher will do BOM sniffing for UTF-16
-    /// and transcode seamlessly. If disabled, no BOM sniffing nor transcoding
-    /// will occur.
+    /// 仅在明确指定编码时才返回编码。否则，如果设置为 automatic，
+    /// Searcher 将对 UTF-16 进行 BOM 嗅探和无缝转码。
+    /// 如果禁用，将不进行 BOM 嗅探和转码。
     fn encoding(&self) -> Result<EncodingMode> {
         if self.is_present("no-encoding") {
             return Ok(EncodingMode::Auto);
@@ -1036,10 +994,9 @@ impl ArgMatches {
 
         Ok(EncodingMode::Some(Encoding::new(&label)?))
     }
-
-    /// Return the file separator to use based on the CLI configuration.
+    /// 根据 CLI 配置返回要使用的文件分隔符。
     fn file_separator(&self) -> Result<Option<Vec<u8>>> {
-        // File separators are only used for the standard grep-line format.
+        // 文件分隔符仅用于标准的 grep-line 格式。
         if self.output_kind() != OutputKind::Standard {
             return Ok(None);
         }
@@ -1054,8 +1011,7 @@ impl ArgMatches {
         })
     }
 
-    /// Returns true if and only if matches should be grouped with file name
-    /// headings.
+    /// 当且仅当匹配应与文件名标题分组时，返回 true。
     fn heading(&self) -> bool {
         if self.is_present("no-heading") || self.is_present("vimgrep") {
             false
@@ -1066,18 +1022,17 @@ impl ArgMatches {
         }
     }
 
-    /// Returns true if and only if hidden files/directories should be
-    /// searched.
+    /// 当且仅当应搜索隐藏文件/目录时，返回 true。
     fn hidden(&self) -> bool {
         self.is_present("hidden") || self.unrestricted_count() >= 2
     }
 
-    /// Returns true if ignore files should be processed case insensitively.
+    /// 当且仅当应在处理 ignore 文件时忽略大小写时，返回 true。
     fn ignore_file_case_insensitive(&self) -> bool {
         self.is_present("ignore-file-case-insensitive")
     }
 
-    /// Return all of the ignore file paths given on the command line.
+    /// 返回命令行中给定的所有 ignore 文件路径。
     fn ignore_paths(&self) -> Vec<PathBuf> {
         let paths = match self.values_of_os("ignore-file") {
             None => return vec![],
@@ -1086,8 +1041,7 @@ impl ArgMatches {
         paths.map(|p| Path::new(p).to_path_buf()).collect()
     }
 
-    /// Returns true if and only if ripgrep is invoked in a way where it knows
-    /// it search exactly one thing.
+    /// 当且仅当 ripgrep 以确切搜索一个内容的方式调用时，返回 true。
     fn is_one_search(&self, paths: &[PathBuf]) -> bool {
         if paths.len() != 1 {
             return false;
@@ -1095,13 +1049,12 @@ impl ArgMatches {
         self.is_only_stdin(paths) || paths[0].is_file()
     }
 
-    /// Returns true if and only if we're only searching a single thing and
-    /// that thing is stdin.
+    /// 当且仅当我们仅搜索单个内容且该内容为 stdin 时，返回 true。
     fn is_only_stdin(&self, paths: &[PathBuf]) -> bool {
         paths == [Path::new("-")]
     }
 
-    /// Returns true if and only if we should show line numbers.
+    /// 当且仅当我们应该显示行号时，返回 true。
     fn line_number(&self, paths: &[PathBuf]) -> bool {
         if self.output_kind() == OutputKind::Summary {
             return false;
@@ -1113,10 +1066,8 @@ impl ArgMatches {
             return true;
         }
 
-        // A few things can imply counting line numbers. In particular, we
-        // generally want to show line numbers by default when printing to a
-        // tty for human consumption, except for one interesting case: when
-        // we're only searching stdin. This makes pipelines work as expected.
+        // 有几种情况可以暗示计数行号。特别是，通常在打印到终端以供人类使用时，默认情况下会显示行号，
+        // 除了一个有趣的情况：当仅搜索 stdin 时。这使得管道按预期工作。
         (cli::is_tty_stdout() && !self.is_only_stdin(paths))
             || self.is_present("line-number")
             || self.is_present("column")
@@ -1124,39 +1075,35 @@ impl ArgMatches {
             || self.is_present("vimgrep")
     }
 
-    /// The maximum number of columns allowed on each line.
+    /// 每行允许的最大列数。
     ///
-    /// If `0` is provided, then this returns `None`.
+    /// 如果提供了 `0`，则返回 `None`。
     fn max_columns(&self) -> Result<Option<u64>> {
         Ok(self.usize_of_nonzero("max-columns")?.map(|n| n as u64))
     }
 
-    /// Returns true if and only if a preview should be shown for lines that
-    /// exceed the maximum column limit.
+    /// 当且仅当超过最大列限制的行应显示预览时，返回 true。
     fn max_columns_preview(&self) -> bool {
         self.is_present("max-columns-preview")
     }
 
-    /// The maximum number of matches permitted.
+    /// 允许的最大匹配数。
     fn max_count(&self) -> Result<Option<u64>> {
         Ok(self.usize_of("max-count")?.map(|n| n as u64))
     }
 
-    /// Parses the max-filesize argument option into a byte count.
+    /// 将 max-filesize 参数选项解析为字节数。
     fn max_file_size(&self) -> Result<Option<u64>> {
         self.parse_human_readable_size("max-filesize")
     }
 
-    /// Returns whether we should attempt to use memory maps or not.
+    /// 返回是否应尝试使用内存映射。
     fn mmap_choice(&self, paths: &[PathBuf]) -> MmapChoice {
-        // SAFETY: Memory maps are difficult to impossible to encapsulate
-        // safely in a portable way that doesn't simultaneously negate some of
-        // the benfits of using memory maps. For ripgrep's use, we never mutate
-        // a memory map and generally never store the contents of memory map
-        // in a data structure that depends on immutability. Generally
-        // speaking, the worst thing that can happen is a SIGBUS (if the
-        // underlying file is truncated while reading it), which will cause
-        // ripgrep to abort. This reasoning should be treated as suspect.
+        // 安全性：以便以一种不会完全否定使用内存映射好处的可移植方式安全地封装内存映射
+        // 实际上是很难的。对于 ripgrep 的用途，我们永远不会修改内存映射，
+        // 并且通常不会将内存映射的内容存储在依赖于不可变性的数据结构中。
+        // 一般来说，最糟糕的情况就是会发生 SIGBUS（如果在读取时底层文件被截断），
+        // 这将导致 ripgrep 中止。这种推理应被视为可疑的。
         let maybe = unsafe { MmapChoice::auto() };
         let never = MmapChoice::never();
         if self.is_present("no-mmap") {
@@ -1164,58 +1111,54 @@ impl ArgMatches {
         } else if self.is_present("mmap") {
             maybe
         } else if paths.len() <= 10 && paths.iter().all(|p| p.is_file()) {
-            // If we're only searching a few paths and all of them are
-            // files, then memory maps are probably faster.
+            // 如果只搜索了少数路径，并且所有路径都是文件，则内存映射可能更快。
             maybe
         } else {
             never
         }
     }
 
-    /// Returns true if ignore files should be ignored.
+    /// 返回是否应忽略 ignore 文件。
     fn no_ignore(&self) -> bool {
         self.is_present("no-ignore") || self.unrestricted_count() >= 1
     }
 
-    /// Returns true if .ignore files should be ignored.
+    /// 返回是否应忽略 .ignore 文件。
     fn no_ignore_dot(&self) -> bool {
         self.is_present("no-ignore-dot") || self.no_ignore()
     }
 
-    /// Returns true if local exclude (ignore) files should be ignored.
+    /// 返回是否应忽略本地排除（ignore）文件。
     fn no_ignore_exclude(&self) -> bool {
         self.is_present("no-ignore-exclude") || self.no_ignore()
     }
 
-    /// Returns true if explicitly given ignore files should be ignored.
+    /// 返回是否应忽略显式给定的 ignore 文件。
     fn no_ignore_files(&self) -> bool {
-        // We don't look at no-ignore here because --no-ignore is explicitly
-        // documented to not override --ignore-file. We could change this, but
-        // it would be a fairly severe breaking change.
+        // 在这里不看 no-ignore，因为 --no-ignore 明确地不覆盖 --ignore-file。
         self.is_present("no-ignore-files")
     }
 
-    /// Returns true if global ignore files should be ignored.
+    /// 返回是否应忽略全局 ignore 文件。
     fn no_ignore_global(&self) -> bool {
         self.is_present("no-ignore-global") || self.no_ignore()
     }
 
-    /// Returns true if parent ignore files should be ignored.
+    /// 返回是否应忽略父级 ignore 文件。
     fn no_ignore_parent(&self) -> bool {
         self.is_present("no-ignore-parent") || self.no_ignore()
     }
 
-    /// Returns true if VCS ignore files should be ignored.
+    /// 返回是否应忽略 VCS ignore 文件。
     fn no_ignore_vcs(&self) -> bool {
         self.is_present("no-ignore-vcs") || self.no_ignore()
     }
 
-    /// Determine the type of output we should produce.
+    /// 确定我们应生成的输出类型。
     fn output_kind(&self) -> OutputKind {
         if self.is_present("quiet") {
-            // While we don't technically print results (or aggregate results)
-            // in quiet mode, we still support the --stats flag, and those
-            // stats are computed by the Summary printer for now.
+            // 虽然在安静模式下，我们从技术上不会打印结果（或聚合结果），
+            // 但我们仍然支持 --stats 标志，而这些统计数据目前是由 Summary 打印机计算的。
             return OutputKind::Summary;
         } else if self.is_present("json") {
             return OutputKind::JSON;
@@ -1233,7 +1176,7 @@ impl ArgMatches {
         }
     }
 
-    /// Builds the set of glob overrides from the command line flags.
+    /// 从命令行标志构建 glob 重写集。
     fn overrides(&self) -> Result<Override> {
         let globs = self.values_of_lossy_vec("glob");
         let iglobs = self.values_of_lossy_vec("iglob");
@@ -1242,31 +1185,29 @@ impl ArgMatches {
         }
 
         let mut builder = OverrideBuilder::new(current_dir()?);
-        // Make all globs case insensitive with --glob-case-insensitive.
+        // 通过 --glob-case-insensitive 让所有 glob 不区分大小写。
         if self.is_present("glob-case-insensitive") {
             builder.case_insensitive(true).unwrap();
         }
         for glob in globs {
             builder.add(&glob)?;
         }
-        // This only enables case insensitivity for subsequent globs.
+        // 这仅为随后的 glob 启用不区分大小写。
         builder.case_insensitive(true).unwrap();
         for glob in iglobs {
             builder.add(&glob)?;
         }
         Ok(builder.build()?)
     }
-
-    /// Return all file paths that ripgrep should search.
+    /// 返回 ripgrep 应搜索的所有文件路径。
     ///
-    /// If no paths were given, then this returns an empty list.
+    /// 如果没有给出路径，则返回一个空列表。
     fn paths(&self) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = match self.values_of_os("path") {
             None => vec![],
             Some(paths) => paths.map(|p| Path::new(p).to_path_buf()).collect(),
         };
-        // If --file, --files or --regexp is given, then the first path is
-        // always in `pattern`.
+        // 如果给出了 --file、--files 或 --regexp，则第一个路径始终在 `pattern` 中。
         if self.is_present("file")
             || self.is_present("files")
             || self.is_present("regexp")
@@ -1278,9 +1219,8 @@ impl ArgMatches {
         paths
     }
 
-    /// Return the default path that ripgrep should search. This should only
-    /// be used when ripgrep is not otherwise given at least one file path
-    /// as a positional argument.
+    /// 返回 ripgrep 应搜索的默认路径。仅在 ripgrep 未以其他方式至少作为一个文件路径
+    /// 给出为位置参数时才应使用此方法。
     fn path_default(&self) -> PathBuf {
         let file_is_stdin = self
             .values_of_os("file")
@@ -1297,10 +1237,9 @@ impl ArgMatches {
         }
     }
 
-    /// Returns the unescaped path separator as a single byte, if one exists.
+    /// 返回未转义的路径分隔符作为单个字节，如果存在的话。
     ///
-    /// If the provided path separator is more than a single byte, then an
-    /// error is returned.
+    /// 如果提供的路径分隔符超过一个字节，则返回错误。
     fn path_separator(&self) -> Result<Option<u8>> {
         let sep = match self.value_of_os("path-separator") {
             None => return Ok(None),
@@ -1310,10 +1249,8 @@ impl ArgMatches {
             Ok(None)
         } else if sep.len() > 1 {
             Err(From::from(format!(
-                "A path separator must be exactly one byte, but \
-                 the given separator is {} bytes: {}\n\
-                 In some shells on Windows '/' is automatically \
-                 expanded. Use '//' instead.",
+                "路径分隔符必须正好为一个字节，但给定的分隔符为 {} 字节：{}\n\
+                 在 Windows 的某些 shell 中，“/”会自动展开。请使用“//”代替。",
                 sep.len(),
                 cli::escape(&sep),
             )))
@@ -1322,10 +1259,9 @@ impl ArgMatches {
         }
     }
 
-    /// Returns the byte that should be used to terminate paths.
+    /// 返回应该用于终止路径的字节。
     ///
-    /// Typically, this is only set to `\x00` when the --null flag is provided,
-    /// and `None` otherwise.
+    /// 通常情况下，只有在提供了 --null 标志时，这才会设置为 `\x00`，否则为 `None`。
     fn path_terminator(&self) -> Option<u8> {
         if self.is_present("null") {
             Some(b'\x00')
@@ -1334,8 +1270,7 @@ impl ArgMatches {
         }
     }
 
-    /// Returns the unescaped field context separator. If one wasn't specified,
-    /// then '-' is used as the default.
+    /// 返回未转义的字段上下文分隔符。如果未指定分隔符，则使用 '-' 作为默认值。
     fn field_context_separator(&self) -> Vec<u8> {
         match self.value_of_os("field-context-separator") {
             None => b"-".to_vec(),
@@ -1343,8 +1278,7 @@ impl ArgMatches {
         }
     }
 
-    /// Returns the unescaped field match separator. If one wasn't specified,
-    /// then ':' is used as the default.
+    /// 返回未转义的字段匹配分隔符。如果未指定分隔符，则使用 ':' 作为默认值。
     fn field_match_separator(&self) -> Vec<u8> {
         match self.value_of_os("field-match-separator") {
             None => b":".to_vec(),
@@ -1352,10 +1286,9 @@ impl ArgMatches {
         }
     }
 
-    /// Get a sequence of all available patterns from the command line.
-    /// This includes reading the -e/--regexp and -f/--file flags.
+    /// 从命令行获取所有可用的模式序列。这包括读取 -e/--regexp 和 -f/--file 标志。
     ///
-    /// If any pattern is invalid UTF-8, then an error is returned.
+    /// 如果任何模式无效的 UTF-8，则返回错误。
     fn patterns(&self) -> Result<Vec<String>> {
         if self.is_present("files") || self.is_present("type-list") {
             return Ok(vec![]);
@@ -1395,36 +1328,31 @@ impl ArgMatches {
         Ok(pats)
     }
 
-    /// Converts an OsStr pattern to a String pattern. The pattern is escaped
-    /// if -F/--fixed-strings is set.
+    /// 将 OsStr 模式转换为 String 模式。如果设置了 -F/--fixed-strings，则模式将被转义。
     ///
-    /// If the pattern is not valid UTF-8, then an error is returned.
+    /// 如果模式无效的 UTF-8，则返回错误。
     fn pattern_from_os_str(&self, pat: &OsStr) -> Result<String> {
         let s = cli::pattern_from_os(pat)?;
         Ok(self.pattern_from_str(s))
     }
 
-    /// Converts a &str pattern to a String pattern. The pattern is escaped
-    /// if -F/--fixed-strings is set.
+    /// 将 &str 模式转换为 String 模式。如果设置了 -F/--fixed-strings，则模式将被转义。
     fn pattern_from_str(&self, pat: &str) -> String {
         self.pattern_from_string(pat.to_string())
     }
 
-    /// Applies additional processing on the given pattern if necessary
-    /// (such as escaping meta characters or turning it into a line regex).
+    /// 如果需要，对给定模式进行附加处理（例如转义元字符或将其转换为行正则表达式）。
     fn pattern_from_string(&self, pat: String) -> String {
         if pat.is_empty() {
-            // This would normally just be an empty string, which works on its
-            // own, but if the patterns are joined in a set of alternations,
-            // then you wind up with `foo|`, which is currently invalid in
-            // Rust's regex engine.
+            // 正常情况下这只是一个空字符串，可以单独使用，但是如果模式在交替集合中连接起来，
+            // 那么最终会得到 `foo|`，这在 Rust 的正则表达式引擎中当前是无效的。
             "(?:)".to_string()
         } else {
             pat
         }
     }
 
-    /// Returns the preprocessor command if one was specified.
+    /// 如果指定了预处理器命令，则返回该命令。
     fn preprocessor(&self) -> Option<PathBuf> {
         let path = match self.value_of_os("pre") {
             None => return None,
@@ -1436,9 +1364,8 @@ impl ArgMatches {
         Some(Path::new(path).to_path_buf())
     }
 
-    /// Builds the set of globs for filtering files to apply to the --pre
-    /// flag. If no --pre-globs are available, then this always returns an
-    /// empty set of globs.
+    /// 构建用于过滤文件的 glob 集，以应用于 --pre 标志。
+    /// 如果没有可用的 --pre-globs，则始终返回一个空的 glob 集。
     fn preprocessor_globs(&self) -> Result<Override> {
         let globs = self.values_of_lossy_vec("pre-glob");
         if globs.is_empty() {
@@ -1450,21 +1377,20 @@ impl ArgMatches {
         }
         Ok(builder.build()?)
     }
-
-    /// Parse the regex-size-limit argument option into a byte count.
+    /// 将 regex-size-limit 参数选项解析为字节计数。
     fn regex_size_limit(&self) -> Result<Option<usize>> {
         let r = self.parse_human_readable_size("regex-size-limit")?;
         u64_to_usize("regex-size-limit", r)
     }
 
-    /// Returns the replacement string as UTF-8 bytes if it exists.
+    /// 如果存在，以 UTF-8 字节形式返回替换字符串。
     fn replacement(&self) -> Option<Vec<u8>> {
         self.value_of_lossy("replace").map(|s| s.into_bytes())
     }
 
-    /// Returns the sorting criteria based on command line parameters.
+    /// 基于命令行参数返回排序条件。
     fn sort_by(&self) -> Result<SortBy> {
-        // For backcompat, continue supporting deprecated --sort-files flag.
+        // 为了向后兼容，继续支持不推荐使用的 --sort-files 标志。
         if self.is_present("sort-files") {
             return Ok(SortBy::asc(SortByKind::Path));
         }
@@ -1478,20 +1404,16 @@ impl ArgMatches {
         Ok(sortby)
     }
 
-    /// Returns true if and only if aggregate statistics for a search should
-    /// be tracked.
+    /// 返回 true 当且仅当应跟踪搜索的聚合统计信息。
     ///
-    /// Generally, this is only enabled when explicitly requested by in the
-    /// command line arguments via the --stats flag, but this can also be
-    /// enabled implicitly via the output format, e.g., for JSON Lines.
+    /// 通常情况下，仅当通过命令行参数显式请求，通过 --stats 标志启用，但这也可以通过输出格式隐式启用，例如 JSON Lines。
     fn stats(&self) -> bool {
         self.output_kind() == OutputKind::JSON || self.is_present("stats")
     }
 
-    /// When the output format is `Summary`, this returns the type of summary
-    /// output to show.
+    /// 当输出格式为 `Summary` 时，返回摘要输出类型。
     ///
-    /// This returns `None` if the output format is not `Summary`.
+    /// 如果输出格式不是 `Summary`，则返回 `None`。
     fn summary_kind(&self) -> Option<SummaryKind> {
         let (count, count_matches) = self.counts();
         if self.is_present("quiet") {
@@ -1509,7 +1431,7 @@ impl ArgMatches {
         }
     }
 
-    /// Return the number of threads that should be used for parallelism.
+    /// 返回用于并行性的线程数。
     fn threads(&self) -> Result<usize> {
         if self.sort_by()?.kind != SortByKind::None {
             return Ok(1);
@@ -1520,7 +1442,7 @@ impl ArgMatches {
         Ok(if threads == 0 { cmp::min(12, available) } else { threads })
     }
 
-    /// Builds a file type matcher from the command line flags.
+    /// 从命令行标志构建文件类型匹配器。
     fn types(&self) -> Result<Types> {
         let mut builder = TypesBuilder::new();
         builder.add_defaults();
@@ -1539,20 +1461,18 @@ impl ArgMatches {
         builder.build().map_err(From::from)
     }
 
-    /// Returns the number of times the `unrestricted` flag is provided.
+    /// 返回 `unrestricted` 标志提供的次数。
     fn unrestricted_count(&self) -> u64 {
         self.occurrences_of("unrestricted")
     }
 
-    /// Returns true if and only if Unicode mode should be enabled.
+    /// 返回 true 当且仅当应启用 Unicode 模式。
     fn unicode(&self) -> bool {
-        // Unicode mode is enabled by default, so only disable it when
-        // --no-unicode is given explicitly.
+        // Unicode 模式默认已启用，因此仅在显式提供 --no-unicode 时禁用它。
         !(self.is_present("no-unicode") || self.is_present("no-pcre2-unicode"))
     }
 
-    /// Returns true if and only if file names containing each match should
-    /// be emitted.
+    /// 返回 true 当且仅当应该发出包含每个匹配的文件名。
     fn with_filename(&self, paths: &[PathBuf]) -> bool {
         if self.is_present("no-filename") {
             false
@@ -1567,20 +1487,16 @@ impl ArgMatches {
         }
     }
 }
-
-/// Lower level generic helper methods for teasing values out of clap.
+/// 用于从 clap 中提取值的较低级通用辅助方法。
 impl ArgMatches {
-    /// Like values_of_lossy, but returns an empty vec if the flag is not
-    /// present.
+    /// 类似于 values_of_lossy，但如果标志不存在，则返回一个空的向量。
     fn values_of_lossy_vec(&self, name: &str) -> Vec<String> {
         self.values_of_lossy(name).unwrap_or_else(Vec::new)
     }
 
-    /// Safely reads an arg value with the given name, and if it's present,
-    /// tries to parse it as a usize value.
+    /// 安全地读取具有给定名称的参数值，如果存在，则尝试将其解析为 usize 值。
     ///
-    /// If the number is zero, then it is considered absent and `None` is
-    /// returned.
+    /// 如果数字为零，则视为不存在，返回 `None`。
     fn usize_of_nonzero(&self, name: &str) -> Result<Option<usize>> {
         let n = match self.usize_of(name)? {
             None => return Ok(None),
@@ -1589,8 +1505,7 @@ impl ArgMatches {
         Ok(if n == 0 { None } else { Some(n) })
     }
 
-    /// Safely reads an arg value with the given name, and if it's present,
-    /// tries to parse it as a usize value.
+    /// 安全地读取具有给定名称的参数值，如果存在，则尝试将其解析为 usize 值。
     fn usize_of(&self, name: &str) -> Result<Option<usize>> {
         match self.value_of_lossy(name) {
             None => Ok(None),
@@ -1598,10 +1513,9 @@ impl ArgMatches {
         }
     }
 
-    /// Parses an argument of the form `[0-9]+(KMG)?`.
+    /// 解析格式为 `[0-9]+(KMG)?` 的参数。
     ///
-    /// If the aforementioned format is not recognized, then this returns an
-    /// error.
+    /// 如果未识别上述格式，则返回错误。
     fn parse_human_readable_size(
         &self,
         arg_name: &str,
@@ -1614,10 +1528,8 @@ impl ArgMatches {
     }
 }
 
-/// The following methods mostly dispatch to the underlying clap methods
-/// directly. Methods that would otherwise get a single value will fetch all
-/// values and return the last one. (Clap returns the first one.) We only
-/// define the ones we need.
+/// 以下方法大多直接分派给底层 clap 方法。将只获取单个值的方法会获取所有值，并返回最后一个值。
+/// （Clap 返回第一个值。）我们只定义了需要的方法。
 impl ArgMatches {
     fn is_present(&self, name: &str) -> bool {
         self.0.is_present(name)
@@ -1644,9 +1556,8 @@ impl ArgMatches {
     }
 }
 
-/// Inspect an error resulting from building a Rust regex matcher, and if it's
-/// believed to correspond to a syntax error that another engine could handle,
-/// then add a message to suggest the use of the engine flag.
+/// 检查构建 Rust 正则匹配器时产生的错误，并且如果认为该错误对应于其他引擎可以处理的语法错误，
+/// 则添加一条消息以建议使用引擎标志。
 fn suggest(msg: String) -> String {
     if let Some(pcre_msg) = suggest_pcre2(&msg) {
         return pcre_msg;
@@ -1654,9 +1565,8 @@ fn suggest(msg: String) -> String {
     msg
 }
 
-/// Inspect an error resulting from building a Rust regex matcher, and if it's
-/// believed to correspond to a syntax error that PCRE2 could handle, then
-/// add a message to suggest the use of -P/--pcre2.
+/// 检查构建 Rust 正则匹配器时产生的错误，并且如果认为该错误对应于 PCRE2 可以处理的语法错误，
+/// 则添加一条消息以建议使用 -P/--pcre2。
 fn suggest_pcre2(msg: &str) -> Option<String> {
     #[cfg(feature = "pcre2")]
     fn suggest(msg: &str) -> Option<String> {
@@ -1666,8 +1576,7 @@ fn suggest_pcre2(msg: &str) -> Option<String> {
             Some(format!(
                 "{}
 
-Consider enabling PCRE2 with the --pcre2 flag, which can handle backreferences
-and look-around.",
+考虑使用 --pcre2 标志启用 PCRE2，它可以处理反向引用和环视。",
                 msg
             ))
         }
@@ -1686,8 +1595,8 @@ fn suggest_multiline(msg: String) -> String {
         format!(
             "{}
 
-Consider enabling multiline mode with the --multiline flag (or -U for short).
-When multiline mode is enabled, new line characters can be matched.",
+考虑使用 --multiline 标志（或 -U 简写）启用多行模式。
+启用多行模式后，可以匹配换行字符。",
             msg
         )
     } else {
@@ -1695,8 +1604,7 @@ When multiline mode is enabled, new line characters can be matched.",
     }
 }
 
-/// Convert the result of parsing a human readable file size to a `usize`,
-/// failing if the type does not fit.
+/// 将解析人类可读文件大小的结果转换为 `usize`，如果类型不适合，则失败。
 fn u64_to_usize(arg_name: &str, value: Option<u64>) -> Result<Option<usize>> {
     use std::usize;
 
@@ -1707,13 +1615,13 @@ fn u64_to_usize(arg_name: &str, value: Option<u64>) -> Result<Option<usize>> {
     if value <= usize::MAX as u64 {
         Ok(Some(value as usize))
     } else {
-        Err(From::from(format!("number too large for {}", arg_name)))
+        Err(From::from(format!("数值过大，超出了 {}", arg_name)))
     }
 }
 
-/// Sorts by an optional parameter.
+/// 根据可选参数进行排序。
 //
-/// If parameter is found to be `None`, both entries compare equal.
+/// 如果找不到参数，两个条目都视为相等。
 fn sort_by_option<T: Ord>(
     p1: &Option<T>,
     p2: &Option<T>,
@@ -1726,10 +1634,10 @@ fn sort_by_option<T: Ord>(
     }
 }
 
-/// 如果给定的参数成功解析，则返回一个 clap 的匹配对象。
+/// 如果解析成功，则返回 clap 的匹配对象。
 ///
-/// 否则，如果发生错误，除非错误对应于 `--help` 或 `--version` 请求，否则将返回错误。
-/// 在这种情况下，将打印相应的输出，并成功退出当前进程。
+/// 否则，如果发生错误，除非错误对应于 `--help` 或 `--version` 请求，
+/// 否则将返回错误。在这种情况下，将打印相应的输出，并成功退出当前进程。
 fn clap_matches<I, T>(args: I) -> Result<clap::ArgMatches<'static>>
 where
     I: IntoIterator<Item = T>,
@@ -1750,11 +1658,8 @@ where
     process::exit(0);
 }
 
-/// Attempts to discover the current working directory. This mostly just defers
-/// to the standard library, however, such things will fail if ripgrep is in
-/// a directory that no longer exists. We attempt some fallback mechanisms,
-/// such as querying the PWD environment variable, but otherwise return an
-/// error.
+/// 尝试发现当前工作目录。这主要是转到标准库，但是在 ripgrep 所在目录不存在的情况下，此类操作将失败。
+/// 我们尝试一些备用机制，例如查询 PWD 环境变量，但否则返回错误。
 fn current_dir() -> Result<PathBuf> {
     let err = match env::current_dir() {
         Err(err) => err,
@@ -1766,15 +1671,14 @@ fn current_dir() -> Result<PathBuf> {
         }
     }
     Err(format!(
-        "failed to get current working directory: {} \
-         --- did your CWD get deleted?",
+        "无法获取当前工作目录：{} \
+         --- 您的 CWD 是否已删除？",
         err,
     )
     .into())
 }
 
-/// Tries to assign a timestamp to every `Subject` in the vector to help with
-/// sorting Subjects by time.
+/// 尝试为向量中的每个 `Subject` 分配时间戳，以帮助按时间排序主题。
 fn load_timestamps<G>(
     subjects: impl Iterator<Item = Subject>,
     get_time: G,

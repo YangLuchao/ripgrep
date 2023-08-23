@@ -3,27 +3,23 @@ use std::io;
 
 use bstr::ByteSlice;
 
-/// The default buffer capacity that we use for the line buffer.
+/// 我们为行缓冲区使用的默认缓冲区容量。
 pub(crate) const DEFAULT_BUFFER_CAPACITY: usize = 64 * (1 << 10); // 64 KB
 
-/// The behavior of a searcher in the face of long lines and big contexts.
+/// 当面对长行和大上下文时，搜索器的行为。
 ///
-/// When searching data incrementally using a fixed size buffer, this controls
-/// the amount of *additional* memory to allocate beyond the size of the buffer
-/// to accommodate lines (which may include the lines in a context window, when
-/// enabled) that do not fit in the buffer.
+/// 在使用固定大小缓冲区逐步搜索数据时，这控制了除缓冲区大小外额外分配的内存量，
+/// 以容纳不适合缓冲区的行（在启用上下文窗口时可能包括上下文中的行）。
 ///
-/// The default is to eagerly allocate without a limit.
+/// 默认情况下，急切地分配内存而没有限制。
 #[derive(Clone, Copy, Debug)]
 pub enum BufferAllocation {
-    /// Attempt to expand the size of the buffer until either at least the next
-    /// line fits into memory or until all available memory is exhausted.
+    /// 尝试扩展缓冲区的大小，直到至少下一行适合内存，或者直到所有可用内存耗尽。
     ///
-    /// This is the default.
+    /// 这是默认值。
     Eager,
-    /// Limit the amount of additional memory allocated to the given size. If
-    /// a line is found that requires more memory than is allowed here, then
-    /// stop reading and return an error.
+    /// 将额外分配的内存量限制为给定的大小。如果找到需要比此处允许的更多内存的行，
+    /// 则停止读取并返回错误。
     Error(usize),
 }
 
@@ -33,34 +29,28 @@ impl Default for BufferAllocation {
     }
 }
 
-/// Create a new error to be used when a configured allocation limit has been
-/// reached.
+/// 创建一个新的错误，用于在达到配置的分配限制时使用。
 pub fn alloc_error(limit: usize) -> io::Error {
-    let msg = format!("configured allocation limit ({}) exceeded", limit);
+    let msg = format!("超过配置的分配限制（{}）", limit);
     io::Error::new(io::ErrorKind::Other, msg)
 }
 
-/// The behavior of binary detection in the line buffer.
+/// 二进制检测在行缓冲区中的行为。
 ///
-/// Binary detection is the process of _heuristically_ identifying whether a
-/// given chunk of data is binary or not, and then taking an action based on
-/// the result of that heuristic. The motivation behind detecting binary data
-/// is that binary data often indicates data that is undesirable to search
-/// using textual patterns. Of course, there are many cases in which this isn't
-/// true, which is why binary detection is disabled by default.
+/// 二进制检测是一种根据启发式方法识别给定数据块是否为二进制的过程，
+/// 然后根据该启发式方法的结果采取行动。检测二进制数据的动机是二进制数据通常表示不希望使用文本模式进行搜索的数据。
+/// 当然，也有许多情况不是这样，这就是为什么默认情况下禁用二进制检测的原因。
 #[derive(Clone, Copy, Debug)]
 pub enum BinaryDetection {
-    /// No binary detection is performed. Data reported by the line buffer may
-    /// contain arbitrary bytes.
+    /// 不执行二进制检测。行缓冲区报告的数据可能包含任意字节。
     None,
-    /// The given byte is searched in all contents read by the line buffer. If
-    /// it occurs, then the data is considered binary and the line buffer acts
-    /// as if it reached EOF. The line buffer guarantees that this byte will
-    /// never be observable by callers.
+    /// 在所有被行缓冲区读取的内容中搜索给定的字节。
+    /// 如果出现该字节，则将数据视为二进制数据，并使行缓冲区像到达 EOF 一样操作。
+    /// 行缓冲区保证该字节永远不会被调用者观察到。
     Quit(u8),
-    /// The given byte is searched in all contents read by the line buffer. If
-    /// it occurs, then it is replaced by the line terminator. The line buffer
-    /// guarantees that this byte will never be observable by callers.
+    /// 在所有被行缓冲区读取的内容中搜索给定的字节。
+    /// 如果出现该字节，则将其替换为行终止符。
+    /// 行缓冲区保证该字节永远不会被调用者观察到。
     Convert(u8),
 }
 
@@ -71,8 +61,7 @@ impl Default for BinaryDetection {
 }
 
 impl BinaryDetection {
-    /// Returns true if and only if the detection heuristic demands that
-    /// the line buffer stop read data once binary data is observed.
+    /// 当且仅当检测启发式要求行缓冲区一旦观察到二进制数据就停止读取数据时，返回 true。
     fn is_quit(&self) -> bool {
         match *self {
             BinaryDetection::Quit(_) => true,
@@ -81,17 +70,16 @@ impl BinaryDetection {
     }
 }
 
-/// The configuration of a buffer. This contains options that are fixed once
-/// a buffer has been constructed.
+/// 缓冲区的配置。这包含一旦构造出缓冲区后就固定的选项。
 #[derive(Clone, Copy, Debug)]
 struct Config {
-    /// The number of bytes to attempt to read at a time.
+    /// 一次尝试读取的字节数。
     capacity: usize,
-    /// The line terminator.
+    /// 行终止符。
     lineterm: u8,
-    /// The behavior for handling long lines.
+    /// 处理长行的行为。
     buffer_alloc: BufferAllocation,
-    /// When set, the presence of the given byte indicates binary content.
+    /// 当设置时，给定字节的存在表示二进制内容。
     binary: BinaryDetection,
 }
 
@@ -106,19 +94,19 @@ impl Default for Config {
     }
 }
 
-/// A builder for constructing line buffers.
+/// 用于构建行缓冲区的构建器。
 #[derive(Clone, Debug, Default)]
 pub struct LineBufferBuilder {
     config: Config,
 }
 
 impl LineBufferBuilder {
-    /// Create a new builder for a buffer.
+    /// 创建一个新的缓冲区构建器。
     pub fn new() -> LineBufferBuilder {
         LineBufferBuilder { config: Config::default() }
     }
 
-    /// Create a new line buffer from this builder's configuration.
+    /// 根据此构建器的配置创建一个新的行缓冲区。
     pub fn build(&self) -> LineBuffer {
         LineBuffer {
             config: self.config,
@@ -131,49 +119,38 @@ impl LineBufferBuilder {
         }
     }
 
-    /// Set the default capacity to use for a buffer.
+    /// 将用于缓冲区的默认容量设置为给定值。
     ///
-    /// In general, the capacity of a buffer corresponds to the amount of data
-    /// to hold in memory, and the size of the reads to make to the underlying
-    /// reader.
+    /// 一般来说，缓冲区的容量对应于要在内存中保存的数据量，
+    /// 以及对底层读取器要执行的读取大小。
     ///
-    /// This is set to a reasonable default and probably shouldn't be changed
-    /// unless there's a specific reason to do so.
+    /// 默认情况下，这设置为一个合理的默认值，除非有特定原因要更改它。
     pub fn capacity(&mut self, capacity: usize) -> &mut LineBufferBuilder {
         self.config.capacity = capacity;
         self
     }
 
-    /// Set the line terminator for the buffer.
+    /// 设置缓冲区的行终止符。
     ///
-    /// Every buffer has a line terminator, and this line terminator is used
-    /// to determine how to roll the buffer forward. For example, when a read
-    /// to the buffer's underlying reader occurs, the end of the data that is
-    /// read is likely to correspond to an incomplete line. As a line buffer,
-    /// callers should not access this data since it is incomplete. The line
-    /// terminator is how the line buffer determines the part of the read that
-    /// is incomplete.
+    /// 每个缓冲区都有一个行终止符，该行终止符用于确定如何滚动缓冲区。
+    /// 例如，当读取到缓冲区的底层读取器时，读取的数据结尾很可能对应于不完整的行。
+    /// 作为行缓冲区，调用者不应访问此数据，因为它是不完整的。
+    /// 行终止符是行缓冲区确定不完整读取部分的方式。
     ///
-    /// By default, this is set to `b'\n'`.
+    /// 默认情况下，此设置为 `b'\n'`。
     pub fn line_terminator(&mut self, lineterm: u8) -> &mut LineBufferBuilder {
         self.config.lineterm = lineterm;
         self
     }
 
-    /// Set the maximum amount of additional memory to allocate for long lines.
+    /// 设置为适应长行的最大附加内存分配量。
     ///
-    /// In order to enable line oriented search, a fundamental requirement is
-    /// that, at a minimum, each line must be able to fit into memory. This
-    /// setting controls how big that line is allowed to be. By default, this
-    /// is set to `BufferAllocation::Eager`, which means a line buffer will
-    /// attempt to allocate as much memory as possible to fit a line, and will
-    /// only be limited by available memory.
+    /// 为了启用面向行的搜索，基本要求是，至少每行都必须能够适合内存中。
+    /// 此设置控制允许行的大小。默认情况下，设置为 `BufferAllocation::Eager`，
+    /// 这意味着行缓冲区将尝试分配尽可能多的内存来适应一行，只受可用内存的限制。
     ///
-    /// Note that this setting only applies to the amount of *additional*
-    /// memory to allocate, beyond the capacity of the buffer. That means that
-    /// a value of `0` is sensible, and in particular, will guarantee that a
-    /// line buffer will never allocate additional memory beyond its initial
-    /// capacity.
+    /// 请注意，此设置仅适用于*额外*分配的内存量，超出缓冲区容量。
+    /// 这意味着值为 `0` 是明智的，特别是将确保行缓冲区永远不会在初始容量之外分配额外的内存。
     pub fn buffer_alloc(
         &mut self,
         behavior: BufferAllocation,
@@ -182,12 +159,9 @@ impl LineBufferBuilder {
         self
     }
 
-    /// Whether to enable binary detection or not. Depending on the setting,
-    /// this can either cause the line buffer to report EOF early or it can
-    /// cause the line buffer to clean the data.
+    /// 是否启用二进制检测。根据设置，这可能会导致行缓冲区提早报告 EOF，或者可能会使行缓冲区清理数据。
     ///
-    /// By default, this is disabled. In general, binary detection should be
-    /// viewed as an imperfect heuristic.
+    /// 默认情况下，此处禁用二进制检测。通常情况下，应将二进制检测视为不完美的启发式方法。
     pub fn binary_detection(
         &mut self,
         detection: BinaryDetection,
@@ -196,9 +170,7 @@ impl LineBufferBuilder {
         self
     }
 }
-
-/// A line buffer reader efficiently reads a line oriented buffer from an
-/// arbitrary reader.
+/// 一个行缓冲读取器从任意读取器高效地读取面向行的缓冲区。
 #[derive(Debug)]
 pub struct LineBufferReader<'b, R> {
     rdr: R,
@@ -206,11 +178,9 @@ pub struct LineBufferReader<'b, R> {
 }
 
 impl<'b, R: io::Read> LineBufferReader<'b, R> {
-    /// Create a new buffered reader that reads from `rdr` and uses the given
-    /// `line_buffer` as an intermediate buffer.
+    /// 创建一个新的缓冲读取器，从`rdr`读取数据，并使用给定的`line_buffer`作为中间缓冲区。
     ///
-    /// This does not change the binary detection behavior of the given line
-    /// buffer.
+    /// 这不会改变给定行缓冲区的二进制检测行为。
     pub fn new(
         rdr: R,
         line_buffer: &'b mut LineBuffer,
@@ -219,114 +189,88 @@ impl<'b, R: io::Read> LineBufferReader<'b, R> {
         LineBufferReader { rdr, line_buffer }
     }
 
-    /// The absolute byte offset which corresponds to the starting offsets
-    /// of the data returned by `buffer` relative to the beginning of the
-    /// underlying reader's contents. As such, this offset does not generally
-    /// correspond to an offset in memory. It is typically used for reporting
-    /// purposes. It can also be used for counting the number of bytes that
-    /// have been searched.
+    /// 与`buffer`返回的数据相对应的绝对字节偏移量，相对于底层读取器内容的开头偏移量。
+    /// 因此，此偏移量通常不对应于内存中的偏移量。它通常用于报告目的，也可用于计算已搜索的字节数。
     pub fn absolute_byte_offset(&self) -> u64 {
         self.line_buffer.absolute_byte_offset()
     }
 
-    /// If binary data was detected, then this returns the absolute byte offset
-    /// at which binary data was initially found.
+    /// 如果检测到二进制数据，则返回最初检测到二进制数据的绝对字节偏移量。
     pub fn binary_byte_offset(&self) -> Option<u64> {
         self.line_buffer.binary_byte_offset()
     }
 
-    /// Fill the contents of this buffer by discarding the part of the buffer
-    /// that has been consumed. The free space created by discarding the
-    /// consumed part of the buffer is then filled with new data from the
-    /// reader.
+    /// 通过丢弃已消耗的缓冲区部分来填充此缓冲区的内容。
+    /// 由丢弃已消耗的缓冲区部分创建的空闲空间然后由来自读取器的新数据填充。
     ///
-    /// If EOF is reached, then `false` is returned. Otherwise, `true` is
-    /// returned. (Note that if this line buffer's binary detection is set to
-    /// `Quit`, then the presence of binary data will cause this buffer to
-    /// behave as if it had seen EOF at the first occurrence of binary data.)
+    /// 如果达到EOF，则返回`false`。否则，返回`true`。
+    /// （请注意，如果此行缓冲区的二进制检测设置为`Quit`，则存在二进制数据将导致此缓冲区的行为像在第一次出现二进制数据时看到EOF一样。）
     ///
-    /// This forwards any errors returned by the underlying reader, and will
-    /// also return an error if the buffer must be expanded past its allocation
-    /// limit, as governed by the buffer allocation strategy.
+    /// 这会转发底层读取器返回的任何错误，并且如果必须扩展缓冲区以超过其分配限制，则还会返回错误，如缓冲区分配策略所定义。
     pub fn fill(&mut self) -> Result<bool, io::Error> {
         self.line_buffer.fill(&mut self.rdr)
     }
 
-    /// Return the contents of this buffer.
+    /// 返回此缓冲区的内容。
     pub fn buffer(&self) -> &[u8] {
         self.line_buffer.buffer()
     }
 
-    /// Return the buffer as a BStr, used for convenient equality checking
-    /// in tests only.
+    /// 将缓冲区作为BStr返回，仅用于测试中的方便性相等性检查。
     #[cfg(test)]
     fn bstr(&self) -> &::bstr::BStr {
         self.buffer().as_bstr()
     }
 
-    /// Consume the number of bytes provided. This must be less than or equal
-    /// to the number of bytes returned by `buffer`.
+    /// 消耗提供的字节数。这必须小于或等于由`buffer`返回的字节数。
     pub fn consume(&mut self, amt: usize) {
         self.line_buffer.consume(amt);
     }
 
-    /// Consumes the remainder of the buffer. Subsequent calls to `buffer` are
-    /// guaranteed to return an empty slice until the buffer is refilled.
+    /// 消耗缓冲区的其余部分。在重新填充缓冲区之前，后续对`buffer`的调用保证返回一个空切片。
     ///
-    /// This is a convenience function for `consume(buffer.len())`.
+    /// 这是`consume(buffer.len())`的方便函数。
     #[cfg(test)]
     fn consume_all(&mut self) {
         self.line_buffer.consume_all();
     }
 }
 
-/// A line buffer manages a (typically fixed) buffer for holding lines.
+/// 一个行缓冲区管理（通常固定的）缓冲区以保存行。
 ///
-/// Callers should create line buffers sparingly and reuse them when possible.
-/// Line buffers cannot be used directly, but instead must be used via the
-/// LineBufferReader.
+/// 调用者应该节省地创建行缓冲区，并在可能的情况下重复使用它们。
+/// 不能直接使用行缓冲区，而必须通过LineBufferReader使用。
 #[derive(Clone, Debug)]
 pub struct LineBuffer {
-    /// The configuration of this buffer.
+    /// 此缓冲区的配置。
     config: Config,
-    /// The primary buffer with which to hold data.
+    /// 用于保存数据的主要缓冲区。
     buf: Vec<u8>,
-    /// The current position of this buffer. This is always a valid sliceable
-    /// index into `buf`, and its maximum value is the length of `buf`.
+    /// 此缓冲区的当前位置。这始终是`buf`中的有效切片索引，其最大值为`buf`的长度。
     pos: usize,
-    /// The end position of searchable content in this buffer. This is either
-    /// set to just after the final line terminator in the buffer, or to just
-    /// after the end of the last byte emitted by the reader when the reader
-    /// has been exhausted.
+    /// 此缓冲区中可搜索内容的结束位置。
+    /// 这要么设置为位于缓冲区中的最后一行终止符之后，要么设置为当读取器耗尽时最后一个字节之后。
     last_lineterm: usize,
-    /// The end position of the buffer. This is always greater than or equal to
-    /// last_lineterm. The bytes between last_lineterm and end, if any, always
-    /// correspond to a partial line.
+    /// 缓冲区的结束位置。始终大于或等于`last_lineterm`。
+    /// 在`last_lineterm`和`end`之间（如果有的话）的字节始终对应于部分行。
     end: usize,
-    /// The absolute byte offset corresponding to `pos`. This is most typically
-    /// not a valid index into addressable memory, but rather, an offset that
-    /// is relative to all data that passes through a line buffer (since
-    /// construction or since the last time `clear` was called).
-    ///
-    /// When the line buffer reaches EOF, this is set to the position just
-    /// after the last byte read from the underlying reader. That is, it
-    /// becomes the total count of bytes that have been read.
+    /// 相对于所有通过行缓冲区的数据（自构造或自上次调用`clear`以来）的绝对字节偏移量。
+    /// 当行缓冲区到达EOF时，这设置为刚刚在底层读取器中读取的最后一个字节之后的位置。
+    /// 即，它成为已读取的总字节数。
     absolute_byte_offset: u64,
-    /// If binary data was found, this records the absolute byte offset at
-    /// which it was first detected.
+    /// 如果检测到二进制数据，则记录最初检测到二进制数据的绝对字节偏移量。
     binary_byte_offset: Option<u64>,
 }
 
 impl LineBuffer {
-    /// Set the binary detection method used on this line buffer.
+    /// 在此行缓冲区上设置二进制检测方法。
     ///
-    /// This permits dynamically changing the binary detection strategy on
-    /// an existing line buffer without needing to create a new one.
+    /// 这允许在不需要创建新的行缓冲区的情况下动态更改现有行缓冲区上的二进制检测策略。
     pub fn set_binary_detection(&mut self, binary: BinaryDetection) {
         self.config.binary = binary;
     }
 
-    /// Reset this buffer, such that it can be used with a new reader.
+    /// 重置此缓冲区，以便可以与新的读取器一起使用。
     fn clear(&mut self) {
         self.pos = 0;
         self.last_lineterm = 0;
@@ -335,73 +279,56 @@ impl LineBuffer {
         self.binary_byte_offset = None;
     }
 
-    /// The absolute byte offset which corresponds to the starting offsets
-    /// of the data returned by `buffer` relative to the beginning of the
-    /// reader's contents. As such, this offset does not generally correspond
-    /// to an offset in memory. It is typically used for reporting purposes,
-    /// particularly in error messages.
+    /// 与`buffer`返回的数据相对应的绝对字节偏移量，相对于读取器内容的开头偏移量。
+    /// 因此，此偏移量通常不对应于内存中的偏移量。通常用于报告目的，特别是在错误消息中使用。
     ///
-    /// This is reset to `0` when `clear` is called.
+    /// 在调用`clear`时，这将重置为`0`。
     fn absolute_byte_offset(&self) -> u64 {
         self.absolute_byte_offset
     }
 
-    /// If binary data was detected, then this returns the absolute byte offset
-    /// at which binary data was initially found.
+    /// 如果检测到二进制数据，则返回最初检测到二进制数据的绝对字节偏移量。
     fn binary_byte_offset(&self) -> Option<u64> {
         self.binary_byte_offset
     }
 
-    /// Return the contents of this buffer.
+    /// 返回此缓冲区的内容。
     fn buffer(&self) -> &[u8] {
         &self.buf[self.pos..self.last_lineterm]
     }
 
-    /// Return the contents of the free space beyond the end of the buffer as
-    /// a mutable slice.
+    /// 将缓冲区的空闲空间内容作为可变切片返回。
     fn free_buffer(&mut self) -> &mut [u8] {
         &mut self.buf[self.end..]
     }
 
-    /// Consume the number of bytes provided. This must be less than or equal
-    /// to the number of bytes returned by `buffer`.
+    /// 消耗提供的字节数。这必须小于或等于由`buffer`返回的字节数。
     fn consume(&mut self, amt: usize) {
         assert!(amt <= self.buffer().len());
         self.pos += amt;
         self.absolute_byte_offset += amt as u64;
     }
 
-    /// Consumes the remainder of the buffer. Subsequent calls to `buffer` are
-    /// guaranteed to return an empty slice until the buffer is refilled.
+    /// 消耗缓冲区的其余部分。在重新填充缓冲区之前，后续对`buffer`的调用保证返回一个空切片。
     ///
-    /// This is a convenience function for `consume(buffer.len())`.
+    /// 这是`consume(buffer.len())`的方便函数。
     #[cfg(test)]
     fn consume_all(&mut self) {
         let amt = self.buffer().len();
         self.consume(amt);
     }
 
-    /// Fill the contents of this buffer by discarding the part of the buffer
-    /// that has been consumed. The free space created by discarding the
-    /// consumed part of the buffer is then filled with new data from the given
-    /// reader.
+    /// 通过丢弃已消耗的缓冲区部分来填充此缓冲区的内容。
+    /// 然后，通过从给定的读取器中填充新数据来创建已消耗部分的空闲空间。
     ///
-    /// Callers should provide the same reader to this line buffer in
-    /// subsequent calls to fill. A different reader can only be used
-    /// immediately following a call to `clear`.
+    /// 在后续的fill调用中，调用者应该为此行缓冲区提供相同的读取器。只有在调用`clear`后，才能使用不同的读取器。
     ///
-    /// If EOF is reached, then `false` is returned. Otherwise, `true` is
-    /// returned. (Note that if this line buffer's binary detection is set to
-    /// `Quit`, then the presence of binary data will cause this buffer to
-    /// behave as if it had seen EOF.)
+    /// 如果达到EOF，则返回`false`。否则，返回`true`。
+    /// （请注意，如果此行缓冲区的二进制检测设置为`Quit`，则存在二进制数据将导致此缓冲区的行为像已看到EOF一样。）
     ///
-    /// This forwards any errors returned by `rdr`, and will also return an
-    /// error if the buffer must be expanded past its allocation limit, as
-    /// governed by the buffer allocation strategy.
+    /// 此函数会转发由`rdr`返回的任何错误，并且如果必须扩展缓冲区以超过其分配限制，则还会返回错误，正如由缓冲区分配策略所规定。
     fn fill<R: io::Read>(&mut self, mut rdr: R) -> Result<bool, io::Error> {
-        // If the binary detection heuristic tells us to quit once binary data
-        // has been observed, then we no longer read new data and reach EOF
-        // once the current buffer has been consumed.
+        // 如果二进制检测启发告诉我们一旦观察到二进制数据就退出，则不再读取新数据，一旦当前缓冲区已被消耗，就会达到EOF。
         if self.config.binary.is_quit() && self.binary_byte_offset.is_some() {
             return Ok(!self.buffer().is_empty());
         }
@@ -412,32 +339,27 @@ impl LineBuffer {
             self.ensure_capacity()?;
             let readlen = rdr.read(self.free_buffer().as_bytes_mut())?;
             if readlen == 0 {
-                // We're only done reading for good once the caller has
-                // consumed everything.
+                // 只有在调用者消耗了所有内容后，我们才完成了永久性的读取。
                 self.last_lineterm = self.end;
                 return Ok(!self.buffer().is_empty());
             }
 
-            // Get a mutable view into the bytes we've just read. These are
-            // the bytes that we do binary detection on, and also the bytes we
-            // search to find the last line terminator. We need a mutable slice
-            // in the case of binary conversion.
+            // 获取对刚刚读取的字节的可变视图。这些是我们在其中进行二进制检测的字节，也是我们搜索以查找最后一个行终止符的字节。
+            // 在进行二进制转换的情况下，我们需要一个可变的切片。
             let oldend = self.end;
             self.end += readlen;
             let newbytes = &mut self.buf[oldend..self.end];
 
-            // Binary detection.
+            // 二进制检测。
             match self.config.binary {
-                BinaryDetection::None => {} // nothing to do
+                BinaryDetection::None => {} // 无需执行任何操作
                 BinaryDetection::Quit(byte) => {
                     if let Some(i) = newbytes.find_byte(byte) {
                         self.end = oldend + i;
                         self.last_lineterm = self.end;
                         self.binary_byte_offset =
                             Some(self.absolute_byte_offset + self.end as u64);
-                        // If the first byte in our buffer is a binary byte,
-                        // then our buffer is empty and we should report as
-                        // such to the caller.
+                        // 如果我们缓冲区中的第一个字节是二进制字节，则我们的缓冲区为空，应向调用者报告。
                         return Ok(self.pos < self.end);
                     }
                 }
@@ -445,7 +367,7 @@ impl LineBuffer {
                     if let Some(i) =
                         replace_bytes(newbytes, byte, self.config.lineterm)
                     {
-                        // Record only the first binary offset.
+                        // 仅记录第一个二进制偏移量。
                         if self.binary_byte_offset.is_none() {
                             self.binary_byte_offset = Some(
                                 self.absolute_byte_offset
@@ -456,22 +378,20 @@ impl LineBuffer {
                 }
             }
 
-            // Update our `last_lineterm` positions if we read one.
+            // 如果读取到行终止符，则更新我们的`last_lineterm`位置。
             if let Some(i) = newbytes.rfind_byte(self.config.lineterm) {
                 self.last_lineterm = oldend + i + 1;
                 return Ok(true);
             }
-            // At this point, if we couldn't find a line terminator, then we
-            // don't have a complete line. Therefore, we try to read more!
+            // 到此为止，如果找不到行终止符，则我们没有完整的行。因此，我们尝试读取更多！
         }
     }
 
-    /// Roll the unconsumed parts of the buffer to the front.
+    /// 通过丢弃已消耗的缓冲区部分来将缓冲区的未消耗部分滚动到前面。
     ///
-    /// This operation is idempotent.
+    /// 此操作是幂等的。
     ///
-    /// After rolling, `last_lineterm` and `end` point to the same location,
-    /// and `pos` is always set to `0`.
+    /// 滚动后，`last_lineterm`和`end`指向相同的位置，而`pos`始终设置为`0`。
     fn roll(&mut self) {
         if self.pos == self.end {
             self.pos = 0;
@@ -487,16 +407,13 @@ impl LineBuffer {
         self.end = roll_len;
     }
 
-    /// Ensures that the internal buffer has a non-zero amount of free space
-    /// in which to read more data. If there is no free space, then more is
-    /// allocated. If the allocation must exceed the configured limit, then
-    /// this returns an error.
+    /// 确保内部缓冲区具有非零数量的可用空间以读取更多数据。
+    /// 如果没有可用空间，则进行更多的分配。如果分配必须超过配置的限制，则返回错误。
     fn ensure_capacity(&mut self) -> Result<(), io::Error> {
         if !self.free_buffer().is_empty() {
             return Ok(());
         }
-        // `len` is used for computing the next allocation size. The capacity
-        // is permitted to start at `0`, so we make sure it's at least `1`.
+        // `len`用于计算下一个分配大小。容量允许从`0`开始，因此我们确保它至少为`1`。
         let len = cmp::max(1, self.buf.len());
         let additional = match self.config.buffer_alloc {
             BufferAllocation::Eager => len * 2,

@@ -3,34 +3,31 @@ use std::str;
 
 use bstr::{ByteSlice, ByteVec};
 
-/// A single state in the state machine used by `unescape`.
+/// `unescape` 函数使用的状态机中的单个状态。
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum State {
-    /// The state after seeing a `\`.
+    /// 在看到 `\` 后的状态。
     Escape,
-    /// The state after seeing a `\x`.
+    /// 在看到 `\x` 后的状态。
     HexFirst,
-    /// The state after seeing a `\x[0-9A-Fa-f]`.
+    /// 在看到 `\x[0-9A-Fa-f]` 后的状态。
     HexSecond(char),
-    /// Default state.
+    /// 默认状态。
     Literal,
 }
 
-/// Escapes arbitrary bytes into a human readable string.
+/// 将任意字节转义为可读的字符串。
 ///
-/// This converts `\t`, `\r` and `\n` into their escaped forms. It also
-/// converts the non-printable subset of ASCII in addition to invalid UTF-8
-/// bytes to hexadecimal escape sequences. Everything else is left as is.
+/// 这将把 `\t`、`\r` 和 `\n` 转换为其转义形式。它还将转换非可打印的 ASCII 字符的子集以及无效的 UTF-8 字节为十六进制转义序列。
+/// 其他一切保持不变。
 ///
-/// The dual of this routine is [`unescape`](fn.unescape.html).
+/// 这个函数的对应函数是 [`unescape`](fn.unescape.html)。
 ///
-/// # Example
+/// # 示例
 ///
-/// This example shows how to convert a byte string that contains a `\n` and
-/// invalid UTF-8 bytes into a `String`.
+/// 以下示例演示了如何将包含 `\n` 和无效 UTF-8 字节的字节字符串转换为 `String`。
 ///
-/// Pay special attention to the use of raw strings. That is, `r"\n"` is
-/// equivalent to `"\\n"`.
+/// 特别注意使用了原始字符串。即，`r"\n"` 等同于 `"\\n"`。
 ///
 /// ```
 /// use grep_cli::escape;
@@ -51,37 +48,32 @@ pub fn escape(bytes: &[u8]) -> String {
     escaped
 }
 
-/// Escapes an OS string into a human readable string.
+/// 将 OS 字符串转义为可读的字符串。
 ///
-/// This is like [`escape`](fn.escape.html), but accepts an OS string.
+/// 这类似于 [`escape`](fn.escape.html)，但接受一个 OS 字符串。
 pub fn escape_os(string: &OsStr) -> String {
     escape(Vec::from_os_str_lossy(string).as_bytes())
 }
 
-/// Unescapes a string.
+/// 反转义字符串。
 ///
-/// It supports a limited set of escape sequences:
+/// 它支持有限的转义序列：
 ///
-/// * `\t`, `\r` and `\n` are mapped to their corresponding ASCII bytes.
-/// * `\xZZ` hexadecimal escapes are mapped to their byte.
+/// * `\t`、`\r` 和 `\n` 映射到相应的 ASCII 字节。
+/// * `\xZZ` 十六进制转义映射到它们的字节。
 ///
-/// Everything else is left as is, including non-hexadecimal escapes like
-/// `\xGG`.
+/// 其他一切保持不变，包括非十六进制转义，如 `\xGG`。
 ///
-/// This is useful when it is desirable for a command line argument to be
-/// capable of specifying arbitrary bytes or otherwise make it easier to
-/// specify non-printable characters.
+/// 这在需要一个命令行参数能够指定任意字节，或者以其他方式更容易指定不可打印字符时非常有用。
 ///
-/// The dual of this routine is [`escape`](fn.escape.html).
+/// 这个函数的对应函数是 [`escape`](fn.escape.html)。
 ///
-/// # Example
+/// # 示例
 ///
-/// This example shows how to convert an escaped string (which is valid UTF-8)
-/// into a corresponding sequence of bytes. Each escape sequence is mapped to
-/// its bytes, which may include invalid UTF-8.
+/// 以下示例演示了如何将一个已转义的字符串（它是有效的 UTF-8）转换为相应的字节序列。
+/// 每个转义序列映射为它的字节，这可能包括无效的 UTF-8。
 ///
-/// Pay special attention to the use of raw strings. That is, `r"\n"` is
-/// equivalent to `"\\n"`.
+/// 特别注意使用了原始字符串。即，`r"\n"` 等同于 `"\\n"`。
 ///
 /// ```
 /// use grep_cli::unescape;
@@ -161,17 +153,17 @@ pub fn unescape(s: &str) -> Vec<u8> {
     bytes
 }
 
-/// Unescapes an OS string.
+/// 将 OS 字符串反转义为字节。
 ///
-/// This is like [`unescape`](fn.unescape.html), but accepts an OS string.
+/// 这类似于 [`unescape`](fn.unescape.html)，但接受一个 OS 字符串。
 ///
-/// Note that this first lossily decodes the given OS string as UTF-8. That
-/// is, an escaped string (the thing given) should be valid UTF-8.
+/// 请注意，首先将给定的 OS 字符串以 UTF-8 格式进行了丢失解码。
+/// 也就是说，一个已转义的字符串（给定的内容）应该是有效的 UTF-8。
 pub fn unescape_os(string: &OsStr) -> Vec<u8> {
     unescape(&string.to_string_lossy())
 }
 
-/// Adds the given codepoint to the given string, escaping it if necessary.
+/// 将给定的码点添加到给定的字符串中，必要时进行转义。
 fn escape_char(cp: char, into: &mut String) {
     if cp.is_ascii() {
         escape_byte(cp as u8, into);
@@ -180,7 +172,7 @@ fn escape_char(cp: char, into: &mut String) {
     }
 }
 
-/// Adds the given byte to the given string, escaping it if necessary.
+/// 将给定的字节添加到给定的字符串中，必要时进行转义。
 fn escape_byte(byte: u8, into: &mut String) {
     match byte {
         0x21..=0x5B | 0x5D..=0x7D => into.push(byte as char),

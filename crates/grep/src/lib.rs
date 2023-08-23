@@ -1,15 +1,11 @@
 /*!
-ripgrep, as a library.
+ripgrep，作为一个库。
 
-This library is intended to provide a high level facade to the crates that
-make up ripgrep's core searching routines. However, there is no high level
-documentation available yet guiding users on how to fit all of the pieces
-together.
+这个库旨在为组成ripgrep核心搜索例程的crate提供一个高级外观。然而，目前还没有高级文档指导用户如何将所有组件组合在一起。
 
-Every public API item in the constituent crates is documented, but examples
-are sparse.
+组成crate中的每个公共API项都有文档，但示例很少。
 
-A cookbook and a guide are planned.
+计划有一本教程和指南。
 */
 
 pub extern crate grep_cli as cli;

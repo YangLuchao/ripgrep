@@ -1,159 +1,79 @@
 /*!
-This crate provides common routines used in command line applications, with a
-focus on routines useful for search oriented applications. As a utility
-library, there is no central type or function. However, a key focus of this
-crate is to improve failure modes and provide user friendly error messages
-when things go wrong.
+该 crate 提供了在命令行应用程序中使用的常见例程，重点关注于对于搜索导向的应用程序有用的例程。作为一个实用工具库，没有中心类型或函数。然而，这个 crate 的关键重点是改进失败模式，并在出现问题时提供用户友好的错误消息。
 
-To the best extent possible, everything in this crate works on Windows, macOS
-and Linux.
+在最大程度上，这个 crate 中的所有内容都适用于 Windows、macOS 和 Linux。
 
+# 标准 I/O
 
-# Standard I/O
-
-The
-[`is_readable_stdin`](fn.is_readable_stdin.html),
-[`is_tty_stderr`](fn.is_tty_stderr.html),
-[`is_tty_stdin`](fn.is_tty_stdin.html)
-and
+[`is_readable_stdin`](fn.is_readable_stdin.html)、
+[`is_tty_stderr`](fn.is_tty_stderr.html)、
+[`is_tty_stdin`](fn.is_tty_stdin.html) 和
 [`is_tty_stdout`](fn.is_tty_stdout.html)
-routines query aspects of standard I/O. `is_readable_stdin` determines whether
-stdin can be usefully read from, while the `tty` methods determine whether a
-tty is attached to stdin/stdout/stderr.
+这些例程查询了标准 I/O 的各个方面。`is_readable_stdin` 确定是否可以有效地从 stdin 读取数据，而 `tty` 方法确定 stdin/stdout/stderr 是否连接到 tty。
 
-`is_readable_stdin` is useful when writing an application that changes behavior
-based on whether the application was invoked with data on stdin. For example,
-`rg foo` might recursively search the current working directory for
-occurrences of `foo`, but `rg foo < file` might only search the contents of
-`file`.
+当编写一个根据应用程序是如何通过 stdin 读取数据来改变行为的应用程序时，`is_readable_stdin` 非常有用。例如，`rg foo` 可能会递归搜索当前工作目录中是否有 `foo` 的出现，但 `rg foo < file` 只搜索 `file` 的内容。
 
-The `tty` methods are useful for similar reasons. Namely, commands like `ls`
-will change their output depending on whether they are printing to a terminal
-or not. For example, `ls` shows a file on each line when stdout is redirected
-to a file or a pipe, but condenses the output to show possibly many files on
-each line when stdout is connected to a tty.
+`tty` 方法出于类似的原因也是有用的。也就是说，像 `ls` 这样的命令会根据它们是否打印到终端来改变输出。例如，当将 stdout 重定向到文件或管道时，`ls` 每行显示一个文件，但当 stdout 连接到 tty 时，它会将输出压缩以显示可能有很多文件的一行。
 
+# 着色和缓冲
 
-# Coloring and buffering
-
-The
-[`stdout`](fn.stdout.html),
-[`stdout_buffered_block`](fn.stdout_buffered_block.html)
-and
+[`stdout`](fn.stdout.html)、
+[`stdout_buffered_block`](fn.stdout_buffered_block.html) 和
 [`stdout_buffered_line`](fn.stdout_buffered_line.html)
-routines are alternative constructors for
-[`StandardStream`](struct.StandardStream.html).
-A `StandardStream` implements `termcolor::WriteColor`, which provides a way
-to emit colors to terminals. Its key use is the encapsulation of buffering
-style. Namely, `stdout` will return a line buffered `StandardStream` if and
-only if stdout is connected to a tty, and will otherwise return a block
-buffered `StandardStream`. Line buffering is important for use with a tty
-because it typically decreases the latency at which the end user sees output.
-Block buffering is used otherwise because it is faster, and redirecting stdout
-to a file typically doesn't benefit from the decreased latency that line
-buffering provides.
+这些例程是 [`StandardStream`](struct.StandardStream.html) 的替代构造函数。`StandardStream` 实现了 `termcolor::WriteColor`，它提供了一种向终端发出颜色的方法。它的关键用途是封装缓冲样式。即，如果 stdout 连接到 tty，则 `stdout` 将返回一个行缓冲的 `StandardStream`，否则将返回一个块缓冲的 `StandardStream`。行缓冲对于在 tty 上使用很重要，因为它通常会减少终端用户看到输出的延迟。块缓冲在其他情况下使用，因为它更快，将 stdout 重定向到文件通常不会从行缓冲提供的减少的延迟中受益。
 
-The `stdout_buffered_block` and `stdout_buffered_line` can be used to
-explicitly set the buffering strategy regardless of whether stdout is connected
-to a tty or not.
+`stdout_buffered_block` 和 `stdout_buffered_line` 可以用于显式设置缓冲策略，无论 stdout 是否连接到 tty。
 
+# 转义
 
-# Escaping
-
-The
-[`escape`](fn.escape.html),
-[`escape_os`](fn.escape_os.html),
-[`unescape`](fn.unescape.html)
-and
+[`escape`](fn.escape.html)、
+[`escape_os`](fn.escape_os.html)、
+[`unescape`](fn.unescape.html) 和
 [`unescape_os`](fn.unescape_os.html)
-routines provide a user friendly way of dealing with UTF-8 encoded strings that
-can express arbitrary bytes. For example, you might want to accept a string
-containing arbitrary bytes as a command line argument, but most interactive
-shells make such strings difficult to type. Instead, we can ask users to use
-escape sequences.
+这些例程提供了一种处理可以表示任意字节的 UTF-8 编码字符串的用户友好方法。例如，您可能希望将包含任意字节的字符串作为命令行参数进行接受，但大多数交互式 shell 使得输入这样的字符串变得困难。相反，我们可以要求用户使用转义序列。
 
-For example, `a\xFFz` is itself a valid UTF-8 string corresponding to the
-following bytes:
+例如，`a\xFFz` 本身是一个有效的 UTF-8 字符串，对应以下字节：
 
 ```ignore
 [b'a', b'\\', b'x', b'F', b'F', b'z']
 ```
 
-However, we can
-interpret `\xFF` as an escape sequence with the `unescape`/`unescape_os`
-routines, which will yield
+但是，我们可以使用 `unescape`/`unescape_os` 例程将 `\xFF` 解释为一个转义序列，这将产生
 
 ```ignore
 [b'a', b'\xFF', b'z']
 ```
 
-instead. For example:
+例如：
 
-```
+```rust
 use grep_cli::unescape;
 
-// Note the use of a raw string!
+// 注意使用原始字符串！
 assert_eq!(vec![b'a', b'\xFF', b'z'], unescape(r"a\xFFz"));
 ```
 
-The `escape`/`escape_os` routines provide the reverse transformation, which
-makes it easy to show user friendly error messages involving arbitrary bytes.
+`escape`/`escape_os` 例程提供了相反的转换，这使得显示涉及任意字节的用户友好的错误消息变得容易。
 
+# 构建模式
 
-# Building patterns
+通常，正则表达式模式必须是有效的 UTF-8。然而，命令行参数不能保证是有效的 UTF-8。
 
-Typically, regular expression patterns must be valid UTF-8. However, command
-line arguments aren't guaranteed to be valid UTF-8. Unfortunately, the
-standard library's UTF-8 conversion functions from `OsStr`s do not provide
-good error messages. However, the
-[`pattern_from_bytes`](fn.pattern_from_bytes.html)
-and
-[`pattern_from_os`](fn.pattern_from_os.html)
-do, including reporting exactly where the first invalid UTF-8 byte is seen.
+不幸的是，标准库的从 `OsStr` 转换为 UTF-8 的函数没有提供良好的错误消息。然而，[`pattern_from_bytes`](fn.pattern_from_bytes.html) 和 [`pattern_from_os`](fn.pattern_from_os.html) 可以，包括报告第一个无效的 UTF-8 字节出现的确切位置。
 
-Additionally, it can be useful to read patterns from a file while reporting
-good error messages that include line numbers. The
-[`patterns_from_path`](fn.patterns_from_path.html),
-[`patterns_from_reader`](fn.patterns_from_reader.html)
-and
-[`patterns_from_stdin`](fn.patterns_from_stdin.html)
-routines do just that. If any pattern is found that is invalid UTF-8, then the
-error includes the file path (if available) along with the line number and the
-byte offset at which the first invalid UTF-8 byte was observed.
+此外，从文件中读取模式并报告包括行号的良好错误消息也是有用的。[`patterns_from_path`](fn.patterns_from_path.html)、[`patterns_from_reader`](fn.patterns_from_reader.html) 和 [`patterns_from_stdin`](fn.patterns_from_stdin.html) 这些例程正是这样做的。如果找到任何无效的 UTF-8 模式，那么错误将包括文件路径（如果有的话），以及第一个无效的 UTF-8 字节被观察到的行号和字节偏移量。
 
+# 读取进程输出
 
-# Read process output
+有时，命令行应用程序需要执行其他进程并以流式方式读取其 stdout。[`CommandReader`](struct.CommandReader.html) 提供了这种功能，其显式目标是改进故障模式。特别是，如果进程退出并带有错误代码，则 stderr 会被读取并转换为普通的 Rust 错误以显示给最终用户。这使得底层的故障模式变得明确，并为最终用户提供了更多的信息来调试问题。
 
-Sometimes a command line application needs to execute other processes and read
-its stdout in a streaming fashion. The
-[`CommandReader`](struct.CommandReader.html)
-provides this functionality with an explicit goal of improving failure modes.
-In particular, if the process exits with an error code, then stderr is read
-and converted into a normal Rust error to show to end users. This makes the
-underlying failure modes explicit and gives more information to end users for
-debugging the problem.
+作为一个特例，[`DecompressionReader`](struct.DecompressionReader.html) 提供了一种方法，通过将文件扩展名与相应的解压缩程序（如 `gzip` 和 `xz`）进行匹配，来解压缩任意文件。这对于以一种不绑定特定压缩库的方式执行简单的解压缩是有用的。不过，这会带来一些开销，因此如果需要解压缩大量小文件，这可能不是一个适合使用的方便方法。
 
-As a special case,
-[`DecompressionReader`](struct.DecompressionReader.html)
-provides a way to decompress arbitrary files by matching their file extensions
-up with corresponding decompression programs (such as `gzip` and `xz`). This
-is useful as a means of performing simplistic decompression in a portable
-manner without binding to specific compression libraries. This does come with
-some overhead though, so if you need to decompress lots of small files, this
-may not be an appropriate convenience to use.
+每个阅读器都有一个相应的构建器，用于进行额外的配置，例如是否异步地读取 stderr 以避免死锁（默认情况下启用）。
 
-Each reader has a corresponding builder for additional configuration, such as
-whether to read stderr asynchronously in order to avoid deadlock (which is
-enabled by default).
+# 其他解析
 
-
-# Miscellaneous parsing
-
-The
-[`parse_human_readable_size`](fn.parse_human_readable_size.html)
-routine parses strings like `2M` and converts them to the corresponding number
-of bytes (`2 * 1<<20` in this case). If an invalid size is found, then a good
-error message is crafted that typically tells the user how to fix the problem.
+[`parse_human_readable_size`](fn.parse_human_readable_size.html) 例程解析诸如 `2M` 的字符串，并将其转换为相应的字节数（在这种情况下为 `2 * 1<<20`）。如果发现无效的大小，则会创建一个很好的错误消息，通常会告诉用户如何解决问题。
 */
 
 #![deny(missing_docs)]
@@ -182,13 +102,9 @@ pub use crate::wtr::{
     stdout, stdout_buffered_block, stdout_buffered_line, StandardStream,
 };
 
-/// Returns true if and only if stdin is believed to be readable.
+/// 返回 true 当且仅当 stdin 可被读取。
 ///
-/// When stdin is readable, command line programs may choose to behave
-/// differently than when stdin is not readable. For example, `command foo`
-/// might search the current directory for occurrences of `foo` where as
-/// `command foo < some-file` or `cat some-file | command foo` might instead
-/// only search stdin for occurrences of `foo`.
+/// 当 stdin 可读时，命令行程序可以选择在 stdin 无法读取数据时改变行为。例如，`command foo` 可能会递归搜索当前工作目录中是否有 `foo` 的出现，但 `command foo < some-file` 或 `cat some-file | command foo` 可能只会搜索 stdin 中是否有 `foo` 的出现。
 pub fn is_readable_stdin() -> bool {
     #[cfg(unix)]
     fn imp() -> bool {
@@ -214,26 +130,19 @@ pub fn is_readable_stdin() -> bool {
     !is_tty_stdin() && imp()
 }
 
-/// Returns true if and only if stdin is believed to be connected to a tty
-/// or a console.
+/// 返回 true 当且仅当 stdin 被认为连接到 tty 或控制台。
 pub fn is_tty_stdin() -> bool {
     std::io::stdin().is_terminal()
 }
 
-/// Returns true if and only if stdout is believed to be connected to a tty
-/// or a console.
+/// 返回 true 当且仅当 stdout 被认为连接到 tty 或控制台。
 ///
-/// This is useful for when you want your command line program to produce
-/// different output depending on whether it's printing directly to a user's
-/// terminal or whether it's being redirected somewhere else. For example,
-/// implementations of `ls` will often show one item per line when stdout is
-/// redirected, but will condensed output when printing to a tty.
+/// 这对于当您希望您的命令行程序根据它是直接打印到用户终端还是被重定向到其他地方时产生不同的输出时非常有用。例如，`ls` 的实现通常会在 stdout 被重定向时每行显示一个项，但在连接到 tty 时会压缩输出以显示可能有很多文件的一行。
 pub fn is_tty_stdout() -> bool {
     std::io::stdout().is_terminal()
 }
 
-/// Returns true if and only if stderr is believed to be connected to a tty
-/// or a console.
+/// 返回 true 当且仅当 stderr 被认为连接到 tty 或控制台。
 pub fn is_tty_stderr() -> bool {
     std::io::stderr().is_terminal()
 }

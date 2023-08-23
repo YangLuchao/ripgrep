@@ -7,25 +7,23 @@ use std::process::Command;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
 use crate::process::{CommandError, CommandReader, CommandReaderBuilder};
-
-/// A builder for a matcher that determines which files get decompressed.
+/// 用于构建决定哪些文件将被解压缩的匹配器的构建器。
 #[derive(Clone, Debug)]
 pub struct DecompressionMatcherBuilder {
-    /// The commands for each matching glob.
+    /// 每个匹配的 glob 对应的命令。
     commands: Vec<DecompressionCommand>,
-    /// Whether to include the default matching rules.
+    /// 是否包含默认的匹配规则。
     defaults: bool,
 }
 
-/// A representation of a single command for decompressing data
-/// out-of-process.
+/// 表示一个用于在进程外部解压缩数据的单个命令的表示。
 #[derive(Clone, Debug)]
 struct DecompressionCommand {
-    /// The glob that matches this command.
+    /// 匹配此命令的 glob。
     glob: String,
-    /// The command or binary name.
+    /// 命令或二进制名称。
     bin: PathBuf,
-    /// The arguments to invoke with the command.
+    /// 与命令一起调用的参数。
     args: Vec<OsString>,
 }
 
@@ -36,15 +34,14 @@ impl Default for DecompressionMatcherBuilder {
 }
 
 impl DecompressionMatcherBuilder {
-    /// Create a new builder for configuring a decompression matcher.
+    /// 创建一个新的构建器，用于配置解压缩匹配器。
     pub fn new() -> DecompressionMatcherBuilder {
         DecompressionMatcherBuilder { commands: vec![], defaults: true }
     }
 
-    /// Build a matcher for determining how to decompress files.
+    /// 构建用于确定如何解压缩文件的匹配器。
     ///
-    /// If there was a problem compiling the matcher, then an error is
-    /// returned.
+    /// 如果编译匹配器时出现问题，则返回错误。
     pub fn build(&self) -> Result<DecompressionMatcher, CommandError> {
         let defaults = if !self.defaults {
             vec![]
@@ -66,31 +63,23 @@ impl DecompressionMatcherBuilder {
         Ok(DecompressionMatcher { globs, commands })
     }
 
-    /// When enabled, the default matching rules will be compiled into this
-    /// matcher before any other associations. When disabled, only the
-    /// rules explicitly given to this builder will be used.
+    /// 启用时，将默认匹配规则编译到此匹配器中，然后再添加任何其他关联。禁用时，只使用显式提供给此构建器的规则。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用此选项。
     pub fn defaults(&mut self, yes: bool) -> &mut DecompressionMatcherBuilder {
         self.defaults = yes;
         self
     }
 
-    /// Associates a glob with a command to decompress files matching the glob.
+    /// 将 glob 与解压缩匹配的命令关联起来。
     ///
-    /// If multiple globs match the same file, then the most recently added
-    /// glob takes precedence.
+    /// 如果多个 glob 匹配同一个文件，则最近添加的 glob 优先。
     ///
-    /// The syntax for the glob is documented in the
-    /// [`globset` crate](https://docs.rs/globset/#syntax).
+    /// glob 的语法在 [`globset` crate](https://docs.rs/globset/#syntax) 中有文档记录。
     ///
-    /// The `program` given is resolved with respect to `PATH` and turned
-    /// into an absolute path internally before being executed by the current
-    /// platform. Notably, on Windows, this avoids a security problem where
-    /// passing a relative path to `CreateProcess` will automatically search
-    /// the current directory for a matching program. If the program could
-    /// not be resolved, then it is silently ignored and the association is
-    /// dropped. For this reason, callers should prefer `try_associate`.
+    /// 给定的 `program` 将根据 `PATH` 解析，并在内部被转换为绝对路径，然后由当前平台执行。
+    /// 特别是在 Windows 上，这避免了将相对路径传递给 `CreateProcess`，后者将自动在当前目录中搜索匹配的程序的安全问题。
+    /// 如果无法解析该程序，则会被静默忽略，并且关联会被删除。因此，调用者应优先使用 `try_associate`。
     pub fn associate<P, I, A>(
         &mut self,
         glob: &str,
@@ -106,20 +95,15 @@ impl DecompressionMatcherBuilder {
         self
     }
 
-    /// Associates a glob with a command to decompress files matching the glob.
+    /// 将 glob 与解压缩匹配的命令关联起来。
     ///
-    /// If multiple globs match the same file, then the most recently added
-    /// glob takes precedence.
+    /// 如果多个 glob 匹配同一个文件，则最近添加的 glob 优先。
     ///
-    /// The syntax for the glob is documented in the
-    /// [`globset` crate](https://docs.rs/globset/#syntax).
+    /// glob 的语法在 [`globset` crate](https://docs.rs/globset/#syntax) 中有文档记录。
     ///
-    /// The `program` given is resolved with respect to `PATH` and turned
-    /// into an absolute path internally before being executed by the current
-    /// platform. Notably, on Windows, this avoids a security problem where
-    /// passing a relative path to `CreateProcess` will automatically search
-    /// the current directory for a matching program. If the program could not
-    /// be resolved, then an error is returned.
+    /// 给定的 `program` 将根据 `PATH` 解析，并在内部被转换为绝对路径，然后由当前平台执行。
+    /// 特别是在 Windows 上，这避免了将相对路径传递给 `CreateProcess`，后者将自动在当前目录中搜索匹配的程序的安全问题。
+    /// 如果无法解析该程序，则会返回错误。
     pub fn try_associate<P, I, A>(
         &mut self,
         glob: &str,
@@ -140,14 +124,13 @@ impl DecompressionMatcherBuilder {
     }
 }
 
-/// A matcher for determining how to decompress files.
+/// 用于确定如何解压缩文件的匹配器。
 #[derive(Clone, Debug)]
 pub struct DecompressionMatcher {
-    /// The set of globs to match. Each glob has a corresponding entry in
-    /// `commands`. When a glob matches, the corresponding command should be
-    /// used to perform out-of-process decompression.
+    /// 要匹配的 glob 集合。每个 glob 在 `commands` 中都有对应的条目。
+    /// 当 glob 匹配时，应使用相应的命令执行进程外部解压缩。
     globs: GlobSet,
-    /// The commands for each matching glob.
+    /// 每个匹配的 glob 对应的命令。
     commands: Vec<DecompressionCommand>,
 }
 
@@ -158,22 +141,18 @@ impl Default for DecompressionMatcher {
 }
 
 impl DecompressionMatcher {
-    /// Create a new matcher with default rules.
+    /// 创建一个具有默认规则的新匹配器。
     ///
-    /// To add more matching rules, build a matcher with
-    /// [`DecompressionMatcherBuilder`](struct.DecompressionMatcherBuilder.html).
+    /// 要添加更多匹配规则，请使用 [`DecompressionMatcherBuilder`](struct.DecompressionMatcherBuilder.html) 构建匹配器。
     pub fn new() -> DecompressionMatcher {
         DecompressionMatcherBuilder::new()
             .build()
-            .expect("built-in matching rules should always compile")
+            .expect("内置匹配规则应始终能够编译")
     }
 
-    /// Return a pre-built command based on the given file path that can
-    /// decompress its contents. If no such decompressor is known, then this
-    /// returns `None`.
+    /// 基于给定文件路径创建一个预构建的命令，可以解压缩其内容。如果不知道这样的解压程序，则返回 `None`。
     ///
-    /// If there are multiple possible commands matching the given path, then
-    /// the command added last takes precedence.
+    /// 如果有多个可能的命令与给定路径匹配，则最后添加的命令优先。
     pub fn command<P: AsRef<Path>>(&self, path: P) -> Option<Command> {
         for i in self.globs.matches(path).into_iter().rev() {
             let decomp_cmd = &self.commands[i];
@@ -184,14 +163,13 @@ impl DecompressionMatcher {
         None
     }
 
-    /// Returns true if and only if the given file path has at least one
-    /// matching command to perform decompression on.
+    /// 当且仅当给定文件路径至少有一个匹配的命令可以执行解压缩时，返回 true。
     pub fn has_command<P: AsRef<Path>>(&self, path: P) -> bool {
         self.globs.is_match(path)
     }
 }
 
-/// Configures and builds a streaming reader for decompressing data.
+/// 配置和构建用于解压缩数据的流式阅读器。
 #[derive(Clone, Debug, Default)]
 pub struct DecompressionReaderBuilder {
     matcher: DecompressionMatcher,
@@ -199,23 +177,17 @@ pub struct DecompressionReaderBuilder {
 }
 
 impl DecompressionReaderBuilder {
-    /// Create a new builder with the default configuration.
+    /// 使用默认配置创建一个新的构建器。
     pub fn new() -> DecompressionReaderBuilder {
         DecompressionReaderBuilder::default()
     }
 
-    /// Build a new streaming reader for decompressing data.
+    /// 构建用于解压缩数据的新流式阅读器。
     ///
-    /// If decompression is done out-of-process and if there was a problem
-    /// spawning the process, then its error is logged at the debug level and a
-    /// passthru reader is returned that does no decompression. This behavior
-    /// typically occurs when the given file path matches a decompression
-    /// command, but is executing in an environment where the decompression
-    /// command is not available.
+    /// 如果解压缩是在进程外部完成的，且在生成进程时遇到问题，则会在调试级别记录错误，并返回一个不执行解压缩的 passthru 阅读器。
+    /// 这通常发生在给定的文件路径与解压缩命令匹配，但在解压缩命令不可用的环境中执行。
     ///
-    /// If the given file path could not be matched with a decompression
-    /// strategy, then a passthru reader is returned that does no
-    /// decompression.
+    /// 如果给定的文件路径无法与解压缩策略匹配，则返回一个不执行解压缩的 passthru 阅读器。
     pub fn build<P: AsRef<Path>>(
         &self,
         path: P,
@@ -231,8 +203,8 @@ impl DecompressionReaderBuilder {
             Ok(cmd_reader) => Ok(DecompressionReader { rdr: Ok(cmd_reader) }),
             Err(err) => {
                 log::debug!(
-                    "{}: error spawning command '{:?}': {} \
-                     (falling back to uncompressed reader)",
+                    "{}: 生成命令 '{:?}' 时出错：{} \
+                     （回退到未压缩的阅读器）",
                     path.display(),
                     cmd,
                     err,
@@ -242,11 +214,9 @@ impl DecompressionReaderBuilder {
         }
     }
 
-    /// Set the matcher to use to look up the decompression command for each
-    /// file path.
+    /// 设置要用于查找每个文件路径的解压缩命令的匹配器。
     ///
-    /// A set of sensible rules is enabled by default. Setting this will
-    /// completely replace the current rules.
+    /// 默认情况下启用了一组明智的规则。设置此选项将完全替换当前规则。
     pub fn matcher(
         &mut self,
         matcher: DecompressionMatcher,
@@ -255,23 +225,17 @@ impl DecompressionReaderBuilder {
         self
     }
 
-    /// Get the underlying matcher currently used by this builder.
+    /// 获取当前构建器当前使用的基础匹配器。
     pub fn get_matcher(&self) -> &DecompressionMatcher {
         &self.matcher
     }
 
-    /// When enabled, the reader will asynchronously read the contents of the
-    /// command's stderr output. When disabled, stderr is only read after the
-    /// stdout stream has been exhausted (or if the process quits with an error
-    /// code).
+    /// 当启用时，阅读器将异步读取命令的 stderr 输出。当禁用时，在 stdout 流耗尽后才读取 stderr，或者进程以错误代码退出。
     ///
-    /// Note that when enabled, this may require launching an additional
-    /// thread in order to read stderr. This is done so that the process being
-    /// executed is never blocked from writing to stdout or stderr. If this is
-    /// disabled, then it is possible for the process to fill up the stderr
-    /// buffer and deadlock.
+    /// 请注意，启用此功能可能需要启动一个额外的线程来读取 stderr。这样做是为了确保正在执行的进程不会被阻塞，无法写入 stdout 或 stderr。
+    /// 如果禁用此功能，则进程可能会填充 stderr 缓冲区并死锁。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用此选项。
     pub fn async_stderr(
         &mut self,
         yes: bool,
@@ -280,44 +244,29 @@ impl DecompressionReaderBuilder {
         self
     }
 }
-
-/// A streaming reader for decompressing the contents of a file.
+/// 用于解压缩文件内容的流式阅读器。
 ///
-/// The purpose of this reader is to provide a seamless way to decompress the
-/// contents of file using existing tools in the current environment. This is
-/// meant to be an alternative to using decompression libraries in favor of the
-/// simplicity and portability of using external commands such as `gzip` and
-/// `xz`. This does impose the overhead of spawning a process, so other means
-/// for performing decompression should be sought if this overhead isn't
-/// acceptable.
+/// 此阅读器的目的是通过使用当前环境中的现有工具，提供一种无缝的方式来解压缩文件的内容。
+/// 这是使用外部命令（如 `gzip` 和 `xz`）而不是使用解压缩库的简单性和可移植性的替代方法。
+/// 这会带来生成进程的开销，因此如果无法接受此开销，则应寻找其他执行解压缩的方式。
 ///
-/// A decompression reader comes with a default set of matching rules that are
-/// meant to associate file paths with the corresponding command to use to
-/// decompress them. For example, a glob like `*.gz` matches gzip compressed
-/// files with the command `gzip -d -c`. If a file path does not match any
-/// existing rules, or if it matches a rule whose command does not exist in the
-/// current environment, then the decompression reader passes through the
-/// contents of the underlying file without doing any decompression.
+/// 解压缩阅读器配备了一组默认的匹配规则，用于将文件路径与用于解压缩文件的相应命令关联起来。
+/// 例如，像 `*.gz` 这样的通配符将与使用命令 `gzip -d -c` 解压缩的 gzip 压缩文件匹配。
+/// 如果文件路径与任何现有规则不匹配，或者与规则匹配的命令在当前环境中不存在，则解压缩阅读器将通过底层文件内容而不执行任何解压缩。
 ///
-/// The default matching rules are probably good enough for most cases, and if
-/// they require revision, pull requests are welcome. In cases where they must
-/// be changed or extended, they can be customized through the use of
-/// [`DecompressionMatcherBuilder`](struct.DecompressionMatcherBuilder.html)
-/// and
-/// [`DecompressionReaderBuilder`](struct.DecompressionReaderBuilder.html).
+/// 默认的匹配规则可能对大多数情况都足够好，如果需要修改，欢迎提交请求。
+/// 在必须更改或扩展它们的情况下，可以通过使用 [`DecompressionMatcherBuilder`](struct.DecompressionMatcherBuilder.html)
+/// 和 [`DecompressionReaderBuilder`](struct.DecompressionReaderBuilder.html) 进行自定义。
 ///
-/// By default, this reader will asynchronously read the processes' stderr.
-/// This prevents subtle deadlocking bugs for noisy processes that write a lot
-/// to stderr. Currently, the entire contents of stderr is read on to the heap.
+/// 默认情况下，此阅读器将异步读取进程的 stderr 输出。
+/// 这可以防止对 stderr 写入大量内容的嘈杂进程的微妙死锁错误。当前，stderr 的整个内容都会被读入堆中。
 ///
-/// # Example
+/// # 示例
 ///
-/// This example shows how to read the decompressed contents of a file without
-/// needing to explicitly choose the decompression command to run.
+/// 以下示例演示了如何读取文件的解压缩内容，而无需显式选择要运行的解压缩命令。
 ///
-/// Note that if you need to decompress multiple files, it is better to use
-/// `DecompressionReaderBuilder`, which will amortize the cost of compiling the
-/// matcher.
+/// 注意，如果您需要解压缩多个文件，则最好使用 `DecompressionReaderBuilder`，
+/// 它将摊销匹配器的构建成本。
 ///
 /// ```no_run
 /// use std::io::Read;
@@ -336,54 +285,38 @@ pub struct DecompressionReader {
 }
 
 impl DecompressionReader {
-    /// Build a new streaming reader for decompressing data.
+    /// 构建一个新的用于解压缩数据的流式阅读器。
     ///
-    /// If decompression is done out-of-process and if there was a problem
-    /// spawning the process, then its error is returned.
+    /// 如果解压缩是在进程外部完成的，且在生成进程时遇到问题，则会返回错误。
     ///
-    /// If the given file path could not be matched with a decompression
-    /// strategy, then a passthru reader is returned that does no
-    /// decompression.
+    /// 如果给定的文件路径无法与解压缩策略匹配，则将返回不执行解压缩的 passthru 阅读器。
     ///
-    /// This uses the default matching rules for determining how to decompress
-    /// the given file. To change those matching rules, use
-    /// [`DecompressionReaderBuilder`](struct.DecompressionReaderBuilder.html)
-    /// and
-    /// [`DecompressionMatcherBuilder`](struct.DecompressionMatcherBuilder.html).
+    /// 这将使用默认的匹配规则来确定如何解压缩给定的文件。
+    /// 要更改这些匹配规则，请使用 [`DecompressionReaderBuilder`](struct.DecompressionReaderBuilder.html)
+    /// 和 [`DecompressionMatcherBuilder`](struct.DecompressionMatcherBuilder.html)。
     ///
-    /// When creating readers for many paths. it is better to use the builder
-    /// since it will amortize the cost of constructing the matcher.
+    /// 在为多个路径创建阅读器时，最好使用构建器，因为它将摊销匹配器的构建成本。
     pub fn new<P: AsRef<Path>>(
         path: P,
     ) -> Result<DecompressionReader, CommandError> {
         DecompressionReaderBuilder::new().build(path)
     }
 
-    /// Creates a new "passthru" decompression reader that reads from the file
-    /// corresponding to the given path without doing decompression and without
-    /// executing another process.
+    /// 创建一个新的“passthru”解压缩阅读器，从与给定路径对应的文件中读取，而不进行解压缩并且不执行其他进程。
     fn new_passthru(path: &Path) -> Result<DecompressionReader, CommandError> {
         let file = File::open(path)?;
         Ok(DecompressionReader { rdr: Err(file) })
     }
 
-    /// Closes this reader, freeing any resources used by its underlying child
-    /// process, if one was used. If the child process exits with a nonzero
-    /// exit code, the returned Err value will include its stderr.
+    /// 关闭此阅读器，释放其底层子进程使用的任何资源。
+    /// 如果使用了子进程，且子进程以非零退出代码退出，则返回的 Err 值将包括其 stderr。
     ///
-    /// `close` is idempotent, meaning it can be safely called multiple times.
-    /// The first call closes the CommandReader and any subsequent calls do
-    /// nothing.
+    /// `close` 是幂等的，意味着可以安全地多次调用。第一次调用将关闭 CommandReader，后续调用将不起作用。
     ///
-    /// This method should be called after partially reading a file to prevent
-    /// resource leakage. However there is no need to call `close` explicitly
-    /// if your code always calls `read` to EOF, as `read` takes care of
-    /// calling `close` in this case.
+    /// 应在部分读取文件后调用此方法，以防止资源泄漏。但是，如果代码始终调用 `read` 到 EOF，则不需要显式调用 `close`。
     ///
-    /// `close` is also called in `drop` as a last line of defense against
-    /// resource leakage. Any error from the child process is then printed as a
-    /// warning to stderr. This can be avoided by explicitly calling `close`
-    /// before the CommandReader is dropped.
+    /// `close` 也会在 `drop` 中调用，作为防止资源泄漏的最后一道防线。然后，来自子进程的任何错误将作为警告打印到 stderr。
+    /// 可以通过在 CommandReader 被丢弃之前显式调用 `close` 来避免这种情况。
     pub fn close(&mut self) -> io::Result<()> {
         match self.rdr {
             Ok(ref mut rdr) => rdr.close(),
@@ -401,24 +334,19 @@ impl io::Read for DecompressionReader {
     }
 }
 
-/// Resolves a path to a program to a path by searching for the program in
-/// `PATH`.
+/// 通过在 `PATH` 中查找程序的路径来解析程序的路径。
 ///
-/// If the program could not be resolved, then an error is returned.
+/// 如果无法解析程序，则返回错误。
 ///
-/// The purpose of doing this instead of passing the path to the program
-/// directly to Command::new is that Command::new will hand relative paths
-/// to CreateProcess on Windows, which will implicitly search the current
-/// working directory for the executable. This could be undesirable for
-/// security reasons. e.g., running ripgrep with the -z/--search-zip flag on an
-/// untrusted directory tree could result in arbitrary programs executing on
-/// Windows.
+/// 这样做的目的是，与直接将程序路径传递给 Command::new 不同，
+/// Command::new 将相对路径传递给 Windows 上的 CreateProcess，后者将隐式搜索当前工作目录中的可执行文件。
+/// 鉴于安全原因，这可能是不希望的行为。例如，在不受信任的目录树上使用 -z/--search-zip 标志运行 ripgrep
+/// 可能会导致在 Windows 上执行任意程序。
 ///
-/// Note that this could still return a relative path if PATH contains a
-/// relative path. We permit this since it is assumed that the user has set
-/// this explicitly, and thus, desires this behavior.
+/// 请注意，如果 PATH 包含相对路径，这仍然可能返回相对路径。我们允许这样做，因为假定用户已经显式设置了这一点，
+/// 因此期望此行为。
 ///
-/// On non-Windows, this is a no-op.
+/// 在非 Windows 系统上，这是一个空操作。
 pub fn resolve_binary<P: AsRef<Path>>(
     prog: P,
 ) -> Result<PathBuf, CommandError> {
@@ -428,25 +356,19 @@ pub fn resolve_binary<P: AsRef<Path>>(
     try_resolve_binary(prog)
 }
 
-/// Resolves a path to a program to a path by searching for the program in
-/// `PATH`.
+/// 通过在 `PATH` 中查找程序的路径来解析程序的路径。
 ///
-/// If the program could not be resolved, then an error is returned.
+/// 如果无法解析程序，则返回错误。
 ///
-/// The purpose of doing this instead of passing the path to the program
-/// directly to Command::new is that Command::new will hand relative paths
-/// to CreateProcess on Windows, which will implicitly search the current
-/// working directory for the executable. This could be undesirable for
-/// security reasons. e.g., running ripgrep with the -z/--search-zip flag on an
-/// untrusted directory tree could result in arbitrary programs executing on
-/// Windows.
+/// 这样做的目的是，与直接将程序路径传递给 Command::new 不同，
+/// Command::new 将相对路径传递给 Windows 上的 CreateProcess，后者将隐式搜索当前工作目录中的可执行文件。
+/// 鉴于安全原因，这可能是不希望的行为。例如，在不受信任的目录树上使用 -z/--search-zip 标志运行 ripgrep
+/// 可能会导致在 Windows 上执行任意程序。
 ///
-/// Note that this could still return a relative path if PATH contains a
-/// relative path. We permit this since it is assumed that the user has set
-/// this explicitly, and thus, desires this behavior.
+/// 请注意，如果 PATH 包含相对路径，这仍然可能返回相对路径。我们允许这样做，因为假定用户已经显式设置了这一点，
+/// 因此期望此行为。
 ///
-/// If `check_exists` is false or the path is already an absolute path this
-/// will return immediately.
+/// 如果 `check_exists` 为 false，或者路径已经是绝对路径，则会立即返回。
 fn try_resolve_binary<P: AsRef<Path>>(
     prog: P,
 ) -> Result<PathBuf, CommandError> {
@@ -467,7 +389,7 @@ fn try_resolve_binary<P: AsRef<Path>>(
     let syspaths = match env::var_os("PATH") {
         Some(syspaths) => syspaths,
         None => {
-            let msg = "system PATH environment variable not found";
+            let msg = "无法找到系统 PATH 环境变量";
             return Err(CommandError::io(io::Error::new(
                 io::ErrorKind::Other,
                 msg,
@@ -491,10 +413,11 @@ fn try_resolve_binary<P: AsRef<Path>>(
             }
         }
     }
-    let msg = format!("{}: could not find executable in PATH", prog.display());
+    let msg = format!("{}: 无法在 PATH 中找到可执行文件", prog.display());
     return Err(CommandError::io(io::Error::new(io::ErrorKind::Other, msg)));
 }
 
+/// 默认的解压缩命令。
 fn default_decompression_commands() -> Vec<DecompressionCommand> {
     const ARGS_GZIP: &[&str] = &["gzip", "-d", "-c"];
     const ARGS_BZIP: &[&str] = &["bzip2", "-d", "-c"];

@@ -26,10 +26,7 @@ pub fn args() -> Vec<OsString> {
     let (args, errs) = match parse(&config_path) {
         Ok((args, errs)) => (args, errs),
         Err(err) => {
-            message!(
-                "无法读取 RIPGREP_CONFIG_PATH 中指定的文件：{}",
-                err
-            );
+            message!("无法读取 RIPGREP_CONFIG_PATH 中指定的文件：{}", err);
             return vec![];
         }
     };
@@ -38,11 +35,7 @@ pub fn args() -> Vec<OsString> {
             message!("{}:{}", config_path.display(), err);
         }
     }
-    log::debug!(
-        "{}: 从配置文件加载的参数: {:?}",
-        config_path.display(),
-        args
-    );
+    log::debug!("{}: 从配置文件加载的参数: {:?}", config_path.display(), args);
     args
 }
 
@@ -103,7 +96,7 @@ mod tests {
     fn basic() {
         let (args, errs) = parse_reader(
             &b"\
-# 测试
+# test
 --context=0
    --smart-case
 -u

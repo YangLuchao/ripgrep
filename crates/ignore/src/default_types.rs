@@ -1,13 +1,10 @@
-/// This list represents the default file types that ripgrep ships with. In
-/// general, any file format is fair game, although it should generally be
-/// limited to reasonably popular open formats. For other cases, you can add
-/// types to each invocation of ripgrep with the '--type-add' flag.
+/// 以下列表表示 ripgrep 预装的默认文件类型。一般来说，任何文件格式都是可以的，尽管通常应该限制在相对流行的开放格式内。
+/// 对于其他情况，您可以使用 `--type-add` 标志将类型添加到 ripgrep 的每次调用中。
 ///
-/// If you would like to add or improve this list, please file a PR:
+/// 如果您想要添加或改进此列表，请提交一个 PR：
 /// <https://github.com/BurntSushi/ripgrep>.
 ///
-/// Please try to keep this list sorted lexicographically and wrapped to 79
-/// columns (inclusive).
+/// 请尽量保持这个列表按词典顺序排序，并将其包装为 79 列（包括在内）。
 #[rustfmt::skip]
 pub const DEFAULT_TYPES: &[(&[&str], &[&str])] = &[
     (&["ada"], &["*.adb", "*.ads"]),

@@ -1,17 +1,16 @@
 /*!
-A collection of routines for performing operations on lines.
+用于执行对行进行操作的一系列例程。
 */
 
 use bstr::ByteSlice;
 use bytecount;
 use grep_matcher::{LineTerminator, Match};
 
-/// An iterator over lines in a particular slice of bytes.
+/// 一个在特定字节切片中迭代行的迭代器。
 ///
-/// Line terminators are considered part of the line they terminate. All lines
-/// yielded by the iterator are guaranteed to be non-empty.
+/// 行终止符被视为终止它们的行的一部分。迭代器产生的所有行都保证是非空的。
 ///
-/// `'b` refers to the lifetime of the underlying bytes.
+/// `'b` 表示底层字节的生命周期。
 #[derive(Debug)]
 pub struct LineIter<'b> {
     bytes: &'b [u8],
@@ -19,8 +18,7 @@ pub struct LineIter<'b> {
 }
 
 impl<'b> LineIter<'b> {
-    /// Create a new line iterator that yields lines in the given bytes that
-    /// are terminated by `line_term`.
+    /// 创建一个新的行迭代器，该迭代器在给定的字节中产生由 `line_term` 终止的行。
     pub fn new(line_term: u8, bytes: &'b [u8]) -> LineIter<'b> {
         LineIter {
             bytes: bytes,
@@ -37,15 +35,12 @@ impl<'b> Iterator for LineIter<'b> {
     }
 }
 
-/// An explicit iterator over lines in a particular slice of bytes.
+/// 一个显式的迭代器，在特定字节切片中迭代行。
 ///
-/// This iterator avoids borrowing the bytes themselves, and instead requires
-/// callers to explicitly provide the bytes when moving through the iterator.
-/// While not idiomatic, this provides a simple way of iterating over lines
-/// that doesn't require borrowing the slice itself, which can be convenient.
+/// 这个迭代器避免了直接借用字节本身，而是要求在通过迭代器移动时显式地提供字节。
+/// 虽然不太符合惯例，但这提供了一种在迭代行时不需要借用切片本身的简单方法，这可能很方便。
 ///
-/// Line terminators are considered part of the line they terminate. All lines
-/// yielded by the iterator are guaranteed to be non-empty.
+/// 行终止符被视为终止它们的行的一部分。迭代器产生的所有行都保证是非空的。
 #[derive(Debug)]
 pub struct LineStep {
     line_term: u8,
@@ -54,29 +49,25 @@ pub struct LineStep {
 }
 
 impl LineStep {
-    /// Create a new line iterator over the given range of bytes using the
-    /// given line terminator.
+    /// 使用给定的行终止符在给定字节范围内创建一个新的行迭代器。
     ///
-    /// Callers should provide the actual bytes for each call to `next`. The
-    /// same slice must be provided to each call.
+    /// 调用者应该为每次调用 `next` 提供实际的字节。每次调用都必须提供相同的切片。
     ///
-    /// This panics if `start` is not less than or equal to `end`.
+    /// 如果 `start` 不小于或等于 `end`，则会发生 panic。
     pub fn new(line_term: u8, start: usize, end: usize) -> LineStep {
         LineStep { line_term, pos: start, end: end }
     }
 
-    /// Return the start and end position of the next line in the given bytes.
+    /// 返回给定字节中下一行的起始和结束位置。
     ///
-    /// The caller must past exactly the same slice of bytes for each call to
-    /// `next`.
+    /// 调用者必须为每次调用 `next` 提供确切的字节切片。
     ///
-    /// The range returned includes the line terminator. Ranges are always
-    /// non-empty.
+    /// 返回的范围包括行终止符。范围始终是非空的。
     pub fn next(&mut self, bytes: &[u8]) -> Option<(usize, usize)> {
         self.next_impl(bytes)
     }
 
-    /// Like next, but returns a `Match` instead of a tuple.
+    /// 类似于 next，但返回一个 `Match` 而不是元组。
     #[inline(always)]
     pub(crate) fn next_match(&mut self, bytes: &[u8]) -> Option<Match> {
         self.next_impl(bytes).map(|(s, e)| Match::new(s, e))
@@ -108,13 +99,12 @@ impl LineStep {
     }
 }
 
-/// Count the number of occurrences of `line_term` in `bytes`.
+/// 计算 `bytes` 中 `line_term` 出现的次数。
 pub fn count(bytes: &[u8], line_term: u8) -> u64 {
     bytecount::count(bytes, line_term) as u64
 }
 
-/// Given a line that possibly ends with a terminator, return that line without
-/// the terminator.
+/// 给定可能以终止符结束的行，返回不包含终止符的行。
 #[inline(always)]
 pub fn without_terminator(bytes: &[u8], line_term: LineTerminator) -> &[u8] {
     let line_term = line_term.as_bytes();
@@ -125,10 +115,9 @@ pub fn without_terminator(bytes: &[u8], line_term: LineTerminator) -> &[u8] {
     bytes
 }
 
-/// Return the start and end offsets of the lines containing the given range
-/// of bytes.
+/// 返回包含给定字节范围的行的起始和结束偏移量。
 ///
-/// Line terminators are considered part of the line they terminate.
+/// 行终止符被视为终止它们的行的一部分。
 #[inline(always)]
 pub fn locate(bytes: &[u8], line_term: u8, range: Match) -> Match {
     let line_start =
@@ -144,27 +133,23 @@ pub fn locate(bytes: &[u8], line_term: u8, range: Match) -> Match {
     Match::new(line_start, line_end)
 }
 
-/// Returns the minimal starting offset of the line that occurs `count` lines
-/// before the last line in `bytes`.
+/// 返回在 `bytes` 的最后一行之前 `count` 行之前可能出现的行的最小起始偏移量。
 ///
-/// Lines are terminated by `line_term`. If `count` is zero, then this returns
-/// the starting offset of the last line in `bytes`.
+/// 行由 `line_term` 终止。如果 `count` 为零，则返回 `bytes` 中最后一行的起始偏移量。
 ///
-/// If `bytes` ends with a line terminator, then the terminator itself is
-/// considered part of the last line.
+/// 如果 `bytes` 以行终止符结束，则终止符本身被视为最后一行的一部分。
 pub fn preceding(bytes: &[u8], line_term: u8, count: usize) -> usize {
     preceding_by_pos(bytes, bytes.len(), line_term, count)
 }
 
-/// Returns the minimal starting offset of the line that occurs `count` lines
-/// before the line containing `pos`. Lines are terminated by `line_term`.
-/// If `count` is zero, then this returns the starting offset of the line
-/// containing `pos`.
+/// 返回在包含 `pos` 的行之前 `count` 行之前可能出现的行的最小起始偏移量。
+/// 行由 `line_term` 终止。如果 `
+
+/// 如果 `count` 为零，则返回包含 `pos` 的行的起始偏移量。
 ///
-/// If `pos` points just past a line terminator, then it is considered part of
-/// the line that it terminates. For example, given `bytes = b"abc\nxyz\n"`
-/// and `pos = 7`, `preceding(bytes, pos, b'\n', 0)` returns `4` (as does `pos
-/// = 8`) and `preceding(bytes, pos, `b'\n', 1)` returns `0`.
+/// 如果 `pos` 恰好指向行终止符之后，那么它被视为终止它的行的一部分。例如，给定 `bytes =
+/// b"abc\nxyz\n"` 和 `pos = 7`，`preceding(bytes, pos, b'\n', 0)` 返回 `4`
+///（与 `pos = 8` 一样），而 `preceding(bytes, pos, b'\n', 1)` 返回 `0`。
 fn preceding_by_pos(
     bytes: &[u8],
     mut pos: usize,
@@ -193,7 +178,6 @@ fn preceding_by_pos(
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

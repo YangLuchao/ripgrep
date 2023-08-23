@@ -20,80 +20,48 @@ pub use self::mmap::MmapChoice;
 mod core;
 mod glue;
 mod mmap;
-
-/// We use this type alias since we want the ergonomics of a matcher's `Match`
-/// type, but in practice, we use it for arbitrary ranges, so give it a more
-/// accurate name. This is only used in the searcher's internals.
+/// 由于我们希望在实践中用于任意范围，但是想要匹配器的 `Match` 类型的舒适性，所以我们使用此类型别名，因此为其提供一个更准确的名称。仅在搜索器的内部使用。
 type Range = Match;
 
-/// The behavior of binary detection while searching.
+/// 搜索期间的二进制检测行为。
 ///
-/// Binary detection is the process of _heuristically_ identifying whether a
-/// given chunk of data is binary or not, and then taking an action based on
-/// the result of that heuristic. The motivation behind detecting binary data
-/// is that binary data often indicates data that is undesirable to search
-/// using textual patterns. Of course, there are many cases in which this isn't
-/// true, which is why binary detection is disabled by default.
+/// 二进制检测是一种根据启发式方法识别给定数据块是否为二进制数据的过程，然后根据该启发式方法的结果采取行动。进行二进制数据检测的动机是，二进制数据通常表示不希望使用文本模式进行搜索的数据。当然，也有许多情况不成立，这就是为什么默认情况下禁用二进制检测的原因。
 ///
-/// Unfortunately, binary detection works differently depending on the type of
-/// search being executed:
+/// 不幸的是，二进制检测的工作方式取决于执行的搜索类型：
 ///
-/// 1. When performing a search using a fixed size buffer, binary detection is
-///    applied to the buffer's contents as it is filled. Binary detection must
-///    be applied to the buffer directly because binary files may not contain
-///    line terminators, which could result in exorbitant memory usage.
-/// 2. When performing a search using memory maps or by reading data off the
-///    heap, then binary detection is only guaranteed to be applied to the
-///    parts corresponding to a match. When `Quit` is enabled, then the first
-///    few KB of the data are searched for binary data.
+/// 1. 使用固定大小缓冲区执行搜索时，二进制检测应用于填充缓冲区时的内容。必须直接对缓冲区应用二进制检测，因为二进制文件可能不包含行终止符，这可能导致内存使用量过大。
+/// 2. 使用内存映射或从堆上读取数据执行搜索时，二进制检测仅保证应用于与匹配相对应的部分。当启用 `Quit` 时，会在数据的前几 KB 中搜索二进制数据。
 #[derive(Clone, Debug, Default)]
 pub struct BinaryDetection(line_buffer::BinaryDetection);
 
 impl BinaryDetection {
-    /// No binary detection is performed. Data reported by the searcher may
-    /// contain arbitrary bytes.
+    /// 不执行二进制检测。搜索器报告的数据可能包含任意字节。
     ///
-    /// This is the default.
+    /// 这是默认值。
     pub fn none() -> BinaryDetection {
         BinaryDetection(line_buffer::BinaryDetection::None)
     }
 
-    /// Binary detection is performed by looking for the given byte.
+    /// 通过查找给定字节执行二进制检测。
     ///
-    /// When searching is performed using a fixed size buffer, then the
-    /// contents of that buffer are always searched for the presence of this
-    /// byte. If it is found, then the underlying data is considered binary
-    /// and the search stops as if it reached EOF.
+    /// 当使用固定大小缓冲区执行搜索时，始终搜索该缓冲区的内容以查找该字节的存在。如果找到它，则将视为底层数据为二进制数据，并且搜索将停止，就像到达了文件末尾一样。
     ///
-    /// When searching is performed with the entire contents mapped into
-    /// memory, then binary detection is more conservative. Namely, only a
-    /// fixed sized region at the beginning of the contents are detected for
-    /// binary data. As a compromise, any subsequent matching (or context)
-    /// lines are also searched for binary data. If binary data is detected at
-    /// any point, then the search stops as if it reached EOF.
+    /// 当使用内存完全映射到内存中的内容进行搜索时，二进制检测更为保守。即只会检测内容开头的固定大小区域是否包含二进制数据。为了取得折衷，任何后续匹配（或上下文）行也会被搜索二进制数据。如果在任何时候检测到二进制数据，则搜索将停止，就像到达了文件末尾一样。
     pub fn quit(binary_byte: u8) -> BinaryDetection {
         BinaryDetection(line_buffer::BinaryDetection::Quit(binary_byte))
     }
 
-    /// Binary detection is performed by looking for the given byte, and
-    /// replacing it with the line terminator configured on the searcher.
-    /// (If the searcher is configured to use `CRLF` as the line terminator,
-    /// then this byte is replaced by just `LF`.)
+    /// 通过查找给定字节执行二进制检测，并将其替换为搜索器配置的行终止符。
+    /// （如果搜索器配置为使用 `CRLF` 作为行终止符，则此字节将被替换为 `LF`。）
     ///
-    /// When searching is performed using a fixed size buffer, then the
-    /// contents of that buffer are always searched for the presence of this
-    /// byte and replaced with the line terminator. In effect, the caller is
-    /// guaranteed to never observe this byte while searching.
+    /// 当使用固定大小缓冲区执行搜索时，始终搜索该缓冲区的内容以查找该字节的存在，并将其替换为行终止符。实际上，保证在搜索过程中观察不到此字节。
     ///
-    /// When searching is performed with the entire contents mapped into
-    /// memory, then this setting has no effect and is ignored.
+    /// 当使用内存完全映射到内存中的内容进行搜索时，此设置不起作用并被忽略。
     pub fn convert(binary_byte: u8) -> BinaryDetection {
         BinaryDetection(line_buffer::BinaryDetection::Convert(binary_byte))
     }
 
-    /// If this binary detection uses the "quit" strategy, then this returns
-    /// the byte that will cause a search to quit. In any other case, this
-    /// returns `None`.
+    /// 如果此二进制检测使用“退出”策略，则返回将导致搜索退出的字节。在其他情况下，返回 `None`。
     pub fn quit_byte(&self) -> Option<u8> {
         match self.0 {
             line_buffer::BinaryDetection::Quit(b) => Some(b),
@@ -101,9 +69,7 @@ impl BinaryDetection {
         }
     }
 
-    /// If this binary detection uses the "convert" strategy, then this returns
-    /// the byte that will be replaced by the line terminator. In any other
-    /// case, this returns `None`.
+    /// 如果此二进制检测使用“转换”策略，则返回将被替换为行终止符的字节。在其他情况下，返回 `None`。
     pub fn convert_byte(&self) -> Option<u8> {
         match self.0 {
             line_buffer::BinaryDetection::Convert(b) => Some(b),
@@ -111,25 +77,20 @@ impl BinaryDetection {
         }
     }
 }
-
-/// An encoding to use when searching.
+/// 用于搜索时的编码。
 ///
-/// An encoding can be used to configure a
-/// [`SearcherBuilder`](struct.SearchBuilder.html)
-/// to transcode source data from an encoding to UTF-8 before searching.
+/// 可以使用编码配置 [`SearcherBuilder`](struct.SearchBuilder.html)，
+/// 将源数据从编码转码为 UTF-8 后再进行搜索。
 ///
-/// An `Encoding` will always be cheap to clone.
+/// `Encoding` 的克隆始终是廉价的。
 #[derive(Clone, Debug)]
 pub struct Encoding(&'static encoding_rs::Encoding);
 
 impl Encoding {
-    /// Create a new encoding for the specified label.
+    /// 为指定的标签创建一个新的编码。
     ///
-    /// The encoding label provided is mapped to an encoding via the set of
-    /// available choices specified in the
-    /// [Encoding Standard](https://encoding.spec.whatwg.org/#concept-encoding-get).
-    /// If the given label does not correspond to a valid encoding, then this
-    /// returns an error.
+    /// 提供的编码标签通过编码标准中指定的可用选择集映射到编码。
+    /// 如果给定的标签不对应有效的编码，则会返回错误。
     pub fn new(label: &str) -> Result<Encoding, ConfigError> {
         let label = label.as_bytes();
         match encoding_rs::Encoding::for_label_no_replacement(label) {
@@ -141,40 +102,36 @@ impl Encoding {
     }
 }
 
-/// The internal configuration of a searcher. This is shared among several
-/// search related types, but is only ever written to by the SearcherBuilder.
+/// 搜索器的内部配置。这在多个与搜索相关的类型之间共享，但仅由 SearcherBuilder 写入。
 #[derive(Clone, Debug)]
 pub struct Config {
-    /// The line terminator to use.
+    /// 要使用的行终止符。
     line_term: LineTerminator,
-    /// Whether to invert matching.
+    /// 是否反转匹配。
     invert_match: bool,
-    /// The number of lines after a match to include.
+    /// 匹配后要包括的行数。
     after_context: usize,
-    /// The number of lines before a match to include.
+    /// 匹配前要包括的行数。
     before_context: usize,
-    /// Whether to enable unbounded context or not.
+    /// 是否启用无限制的上下文。
     passthru: bool,
-    /// Whether to count line numbers.
+    /// 是否计数行号。
     line_number: bool,
-    /// The maximum amount of heap memory to use.
+    /// 要使用的最大堆内存量。
     ///
-    /// When not given, no explicit limit is enforced. When set to `0`, then
-    /// only the memory map search strategy is available.
+    /// 当未提供时，不会强制执行显式限制。当设置为 `0` 时，只有内存映射搜索策略可用。
     heap_limit: Option<usize>,
-    /// The memory map strategy.
+    /// 内存映射策略。
     mmap: MmapChoice,
-    /// The binary data detection strategy.
+    /// 二进制数据检测策略。
     binary: BinaryDetection,
-    /// Whether to enable matching across multiple lines.
+    /// 是否允许跨多行进行匹配。
     multi_line: bool,
-    /// An encoding that, when present, causes the searcher to transcode all
-    /// input from the encoding to UTF-8.
+    /// 当存在时，会导致搜索器将所有输入从编码转码为 UTF-8 的编码。
     encoding: Option<Encoding>,
-    /// Whether to do automatic transcoding based on a BOM or not.
+    /// 是否根据 BOM 自动进行转码。
     bom_sniffing: bool,
-    /// Whether to stop searching when a non-matching line is found after a
-    /// matching line.
+    /// 是否在找到匹配行后停止搜索非匹配行。
     stop_on_nonmatch: bool,
 }
 
@@ -199,15 +156,14 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Return the maximal amount of lines needed to fulfill this
-    /// configuration's context.
+    /// 返回满足此配置的上下文所需的最大行数。
     ///
-    /// If this returns `0`, then no context is ever needed.
+    /// 如果返回 `0`，则永远不需要上下文。
     fn max_context(&self) -> usize {
         cmp::max(self.before_context, self.after_context)
     }
 
-    /// Build a line buffer from this configuration.
+    /// 根据此配置构建一个行缓冲区。
     fn line_buffer(&self) -> LineBuffer {
         let mut builder = LineBufferBuilder::new();
         builder
@@ -228,41 +184,35 @@ impl Config {
     }
 }
 
-/// An error that can occur when building a searcher.
+/// 构建搜索器时可能发生的错误。
 ///
-/// This error occurs when a non-sensical configuration is present when trying
-/// to construct a `Searcher` from a `SearcherBuilder`.
+/// 在从 `SearcherBuilder` 构造 `Searcher` 时出现此错误，当出现无意义的配置时。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ConfigError {
-    /// Indicates that the heap limit configuration prevents all possible
-    /// search strategies from being used. For example, if the heap limit is
-    /// set to 0 and memory map searching is disabled or unavailable.
+    /// 表示堆限制配置阻止使用所有可能的搜索策略。例如，如果堆限制设置为 0 并且内存映射搜索被禁用或不可用。
     SearchUnavailable,
-    /// Occurs when a matcher reports a line terminator that is different than
-    /// the one configured in the searcher.
+    /// 在匹配器报告的行终止符与搜索器中配置的行终止符不同时出现。
     MismatchedLineTerminators {
-        /// The matcher's line terminator.
+        /// 匹配器的行终止符。
         matcher: LineTerminator,
-        /// The searcher's line terminator.
+        /// 搜索器的行终止符。
         searcher: LineTerminator,
     },
-    /// Occurs when no encoding could be found for a particular label.
+    /// 在找不到特定标签的编码时出现。
     UnknownEncoding {
-        /// The provided encoding label that could not be found.
+        /// 无法找到的提供的编码标签。
         label: Vec<u8>,
     },
-    /// Hints that destructuring should not be exhaustive.
+    /// 提示不应全面解构。
     ///
-    /// This enum may grow additional variants, so this makes sure clients
-    /// don't count on exhaustive matching. (Otherwise, adding a new variant
-    /// could break existing code.)
+    /// 此枚举可能会增加其他变体，因此这确保客户端不依赖于全面匹配。
     #[doc(hidden)]
     __Nonexhaustive,
 }
 
 impl ::std::error::Error for ConfigError {
     fn description(&self) -> &str {
-        "grep-searcher configuration error"
+        "grep-searcher 配置错误"
     }
 }
 
@@ -270,34 +220,30 @@ impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             ConfigError::SearchUnavailable => {
-                write!(f, "grep config error: no available searchers")
+                write!(f, "grep 配置错误：无可用的搜索器")
             }
             ConfigError::MismatchedLineTerminators { matcher, searcher } => {
                 write!(
                     f,
-                    "grep config error: mismatched line terminators, \
-                     matcher has {:?} but searcher has {:?}",
+                    "grep 配置错误：不匹配的行终止符，匹配器为 {:?}，搜索器为 {:?}",
                     matcher, searcher
                 )
             }
             ConfigError::UnknownEncoding { ref label } => write!(
                 f,
-                "grep config error: unknown encoding: {}",
+                "grep 配置错误：未知的编码：{}",
                 String::from_utf8_lossy(label),
             ),
-            _ => panic!("BUG: unexpected variant found"),
+            _ => panic!("BUG：找到了意外的变体"),
         }
     }
 }
 
-/// A builder for configuring a searcher.
+/// 用于配置搜索器的构建器。
 ///
-/// A search builder permits specifying the configuration of a searcher,
-/// including options like whether to invert the search or to enable multi
-/// line search.
+/// 搜索构建器允许指定搜索器的配置，包括是否反转搜索或启用多行搜索等选项。
 ///
-/// Once a searcher has been built, it is beneficial to reuse that searcher
-/// for multiple searches, if possible.
+/// 构建了搜索器后，如果可能，最好重用该搜索器进行多次搜索。
 #[derive(Clone, Debug)]
 pub struct SearcherBuilder {
     config: Config,
@@ -310,12 +256,12 @@ impl Default for SearcherBuilder {
 }
 
 impl SearcherBuilder {
-    /// Create a new searcher builder with a default configuration.
+    /// 使用默认配置创建新的搜索器构建器。
     pub fn new() -> SearcherBuilder {
         SearcherBuilder { config: Config::default() }
     }
 
-    /// Build a searcher with the given matcher.
+    /// 使用给定的匹配器构建搜索器。
     pub fn build(&self) -> Searcher {
         let mut config = self.config.clone();
         if config.passthru {
@@ -340,13 +286,12 @@ impl SearcherBuilder {
         }
     }
 
-    /// Set the line terminator that is used by the searcher.
+    /// 设置搜索器使用的行终止符。
     ///
-    /// When using a searcher, if the matcher provided has a line terminator
-    /// set, then it must be the same as this one. If they aren't, building
-    /// a searcher will return an error.
+    /// 在使用搜索器时，如果提供的匹配器设置了行终止符，
+    /// 则它必须与此行终止符相同。如果它们不相同，构建搜索器将返回错误。
     ///
-    /// By default, this is set to `b'\n'`.
+    /// 默认情况下，设置为 `b'\n'`。
     pub fn line_terminator(
         &mut self,
         line_term: LineTerminator,
@@ -355,51 +300,44 @@ impl SearcherBuilder {
         self
     }
 
-    /// Whether to invert matching, whereby lines that don't match are reported
-    /// instead of reporting lines that do match.
+    /// 是否反转匹配，即报告不匹配的行而不是报告匹配的行。
     ///
-    /// By default, this is disabled.
+    /// 默认情况下，此选项被禁用。
     pub fn invert_match(&mut self, yes: bool) -> &mut SearcherBuilder {
         self.config.invert_match = yes;
         self
     }
 
-    /// Whether to count and include line numbers with matching lines.
+    /// 是否计数并包括匹配行的行号。
     ///
-    /// This is enabled by default. There is a small performance penalty
-    /// associated with computing line numbers, so this can be disabled when
-    /// this isn't desirable.
+    /// 默认情况下，此选项已启用。计算行号会带来一些性能损失，
+    /// 因此在不需要计算行号时可以禁用此选项。
     pub fn line_number(&mut self, yes: bool) -> &mut SearcherBuilder {
         self.config.line_number = yes;
         self
     }
 
-    /// Whether to enable multi line search or not.
+    /// 是否启用多行搜索。
     ///
-    /// When multi line search is enabled, matches *may* match across multiple
-    /// lines. Conversely, when multi line search is disabled, it is impossible
-    /// for any match to span more than one line.
+    /// 当启用多行搜索时，匹配可能跨多行。相反，当禁用多行搜索时，
+    /// 任何匹配都不能跨越多于一行。
     ///
-    /// **Warning:** multi line search requires having the entire contents to
-    /// search mapped in memory at once. When searching files, memory maps
-    /// will be used if possible and if they are enabled, which avoids using
-    /// your program's heap. However, if memory maps cannot be used (e.g.,
-    /// for searching streams like `stdin` or if transcoding is necessary),
-    /// then the entire contents of the stream are read on to the heap before
-    /// starting the search.
+    /// **警告：** 多行搜索需要将整个要搜索的内容映射到内存中。
+    /// 在搜索文件时，如果可能且启用了内存映射，将使用内存映射，
+    /// 以避免使用程序的堆。但是，如果无法使用内存映射（例如搜索流，如 `stdin`，
+    /// 或者需要进行转码），则会在开始搜索之前将流的整个内容读取到堆上。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项已禁用。
     pub fn multi_line(&mut self, yes: bool) -> &mut SearcherBuilder {
         self.config.multi_line = yes;
         self
     }
 
-    /// Whether to include a fixed number of lines after every match.
+    /// 是否在每个匹配后包括固定数量的行上下文。
     ///
-    /// When this is set to a non-zero number, then the searcher will report
-    /// `line_count` contextual lines after every match.
+    /// 当将此设置为非零数字时，搜索器将在每个匹配后报告 `line_count` 个上下文行。
     ///
-    /// This is set to `0` by default.
+    /// 默认情况下，此设置为 `0`。
     pub fn after_context(
         &mut self,
         line_count: usize,
@@ -408,12 +346,11 @@ impl SearcherBuilder {
         self
     }
 
-    /// Whether to include a fixed number of lines before every match.
+    /// 是否在每个匹配前包括固定数量的行上下文。
     ///
-    /// When this is set to a non-zero number, then the searcher will report
-    /// `line_count` contextual lines before every match.
+    /// 当将此设置为非零数字时，搜索器将在每个匹配前报告 `line_count` 个上下文行。
     ///
-    /// This is set to `0` by default.
+    /// 默认情况下，此设置为 `0`。
     pub fn before_context(
         &mut self,
         line_count: usize,
@@ -422,42 +359,34 @@ impl SearcherBuilder {
         self
     }
 
-    /// Whether to enable the "passthru" feature or not.
+    /// 是否启用 "passthru" 特性。
     ///
-    /// When passthru is enabled, it effectively treats all non-matching lines
-    /// as contextual lines. In other words, enabling this is akin to
-    /// requesting an unbounded number of before and after contextual lines.
+    /// 启用 passthru 后，它实际上将所有不匹配的行视为上下文行。
+    /// 换句话说，启用此选项类似于请求无限数量的前后上下文行。
     ///
-    /// When passthru mode is enabled, any `before_context` or `after_context`
-    /// settings are ignored by setting them to `0`.
+    /// 当启用 passthru 模式时，任何 `before_context` 或 `after_context` 设置
+    /// 都将被设置为 `0`，从而被忽略。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项已禁用。
     pub fn passthru(&mut self, yes: bool) -> &mut SearcherBuilder {
         self.config.passthru = yes;
         self
     }
 
-    /// Set an approximate limit on the amount of heap space used by a
-    /// searcher.
+    /// 设置搜索器使用的堆空间的近似限制量。
     ///
-    /// The heap limit is enforced in two scenarios:
+    /// 堆限制在两种情况下执行：
     ///
-    /// * When searching using a fixed size buffer, the heap limit controls
-    ///   how big this buffer is allowed to be. Assuming contexts are disabled,
-    ///   the minimum size of this buffer is the length (in bytes) of the
-    ///   largest single line in the contents being searched. If any line
-    ///   exceeds the heap limit, then an error will be returned.
-    /// * When performing a multi line search, a fixed size buffer cannot be
-    ///   used. Thus, the only choices are to read the entire contents on to
-    ///   the heap, or use memory maps. In the former case, the heap limit set
-    ///   here is enforced.
+    /// * 使用固定大小缓冲区进行搜索时，堆限制控制允许的缓冲区大小。
+    ///   假设上下文已禁用，此缓冲区的最小大小是正在搜索的内容中最长一行的长度（以字节为单位）。
+    ///   如果任何行超过堆限制，将返回错误。
+    /// * 执行多行搜索时，不能使用固定大小缓冲区。因此，唯一的选择是将整个内容读取到堆上，或使用内存映射。
+    ///   在前一种情况下，此处设置的堆限制将受到执行。
     ///
-    /// If a heap limit is set to `0`, then no heap space is used. If there are
-    /// no alternative strategies available for searching without heap space
-    /// (e.g., memory maps are disabled), then the searcher wil return an error
-    /// immediately.
+    /// 如果将堆限制设置为 `0`，则不使用堆空间。如果没有其他可用的策略来在没有堆空间的情况下进行搜索
+    /// （例如，禁用了内存映射），则搜索器将立即返回错误。
     ///
-    /// By default, no limit is set.
+    /// 默认情况下，未设置限制。
     pub fn heap_limit(
         &mut self,
         bytes: Option<usize>,
@@ -466,36 +395,25 @@ impl SearcherBuilder {
         self
     }
 
-    /// Set the strategy to employ use of memory maps.
+    /// 设置内存映射使用的策略。
     ///
-    /// Currently, there are only two strategies that can be employed:
+    /// 目前，只能使用两种策略：
     ///
-    /// * **Automatic** - A searcher will use heuristics, including but not
-    ///   limited to file size and platform, to determine whether to use memory
-    ///   maps or not.
-    /// * **Never** - Memory maps will never be used. If multi line search is
-    ///   enabled, then the entire contents will be read on to the heap before
-    ///   searching begins.
+    /// * **自动** - 搜索器将使用启发式方法（包括但不限于文件大小和平台）来确定是否使用内存映射。
+    /// * **永不** - 永不使用内存映射。如果启用了多行搜索，则将在搜索开始之前将整个内容读取到堆上。
     ///
-    /// The default behavior is **never**. Generally speaking, and perhaps
-    /// against conventional wisdom, memory maps don't necessarily enable
-    /// faster searching. For example, depending on the platform, using memory
-    /// maps while searching a large directory can actually be quite a bit
-    /// slower than using normal read calls because of the overhead of managing
-    /// the memory maps.
+    /// 默认行为是 **永不**。一般来说，也许与常规智慧相反，内存映射不一定能够实现更快的搜索。
+    /// 例如，根据平台的不同，在搜索大目录时，使用内存映射可能比使用普通的读取调用要慢得多，
+    /// 这是由于管理内存映射的开销。
     ///
-    /// Memory maps can be faster in some cases however. On some platforms,
-    /// when searching a very large file that *is already in memory*, it can
-    /// be slightly faster to search it as a memory map instead of using
-    /// normal read calls.
+    /// 然而，在某些情况下，内存映射可能更快。在某些平台上，当搜索一个非常大的文件时，
+    /// *已经在内存中* 的文件作为内存映射搜索，可能比使用普通的读取调用稍微快一些。
     ///
-    /// Finally, memory maps have a somewhat complicated safety story in Rust.
-    /// If you aren't sure whether enabling memory maps is worth it, then just
-    /// don't bother with it.
+    /// 最后，内存映射在 Rust 中具有相当复杂的安全性问题。
+    /// 如果不确定是否值得启用内存映射，那就不要费心思考它。
     ///
-    /// **WARNING**: If your process is searching a file backed memory map
-    /// at the same time that file is truncated, then it's possible for the
-    /// process to terminate with a bus error.
+    /// **警告**：如果您的进程在搜索与内存映射支持的文件时，
+    /// 同时截断了该文件，那么进程可能会因总线错误而终止。
     pub fn memory_map(
         &mut self,
         strategy: MmapChoice,
@@ -504,14 +422,12 @@ impl SearcherBuilder {
         self
     }
 
-    /// Set the binary detection strategy.
+    /// 设置二进制数据检测策略。
     ///
-    /// The binary detection strategy determines not only how the searcher
-    /// detects binary data, but how it responds to the presence of binary
-    /// data. See the [`BinaryDetection`](struct.BinaryDetection.html) type
-    /// for more information.
+    /// 二进制数据检测策略不仅决定搜索器如何检测二进制数据，还决定它在存在二进制数据时如何响应。
+    /// 有关更多信息，请参阅 [`BinaryDetection`](struct.BinaryDetection.html) 类型。
     ///
-    /// By default, binary detection is disabled.
+    /// 默认情况下，二进制数据检测被禁用。
     pub fn binary_detection(
         &mut self,
         detection: BinaryDetection,
@@ -520,21 +436,15 @@ impl SearcherBuilder {
         self
     }
 
-    /// Set the encoding used to read the source data before searching.
+    /// 设置用于在搜索之前读取源数据的编码。
     ///
-    /// When an encoding is provided, then the source data is _unconditionally_
-    /// transcoded using the encoding, unless a BOM is present. If a BOM is
-    /// present, then the encoding indicated by the BOM is used instead. If the
-    /// transcoding process encounters an error, then bytes are replaced with
-    /// the Unicode replacement codepoint.
+    /// 当提供编码时，源数据将在搜索之前 _无条件_ 地使用该编码进行转码，
+    /// 除非存在 BOM。如果存在 BOM，则使用 BOM 指示的编码。如果转码过程遇到错误，
+    /// 则将字节替换为 Unicode 替换代码点。
     ///
-    /// When no encoding is specified (the default), then BOM sniffing is
-    /// used (if it's enabled, which it is, by default) to determine whether
-    /// the source data is UTF-8 or UTF-16, and transcoding will be performed
-    /// automatically. If no BOM could be found, then the source data is
-    /// searched _as if_ it were UTF-8. However, so long as the source data is
-    /// at least ASCII compatible, then it is possible for a search to produce
-    /// useful results.
+    /// 当未指定编码时（默认情况），则将使用 BOM 嗅探（如果默认情况下启用了它）来确定
+    /// 源数据是否为 UTF-8 或 UTF-16，并将自动执行转码。如果找不到 BOM，则将源数据搜索为 UTF-8。
+    /// 但是，只要源数据至少兼容 ASCII，就有可能进行有效的搜索。
     pub fn encoding(
         &mut self,
         encoding: Option<Encoding>,
@@ -543,28 +453,22 @@ impl SearcherBuilder {
         self
     }
 
-    /// Enable automatic transcoding based on BOM sniffing.
+    /// 启用基于 BOM 嗅探的自动转码。
     ///
-    /// When this is enabled and an explicit encoding is not set, then this
-    /// searcher will try to detect the encoding of the bytes being searched
-    /// by sniffing its byte-order mark (BOM). In particular, when this is
-    /// enabled, UTF-16 encoded files will be searched seamlessly.
+    /// 当启用此选项且未设置显式编码时，此搜索器将尝试通过嗅探其字节顺序标记（BOM）来检测
+    /// 要搜索的字节的编码。特别地，当启用此选项时，UTF-16 编码的文件将被无缝地搜索。
     ///
-    /// When this is disabled and if an explicit encoding is not set, then
-    /// the bytes from the source stream will be passed through unchanged,
-    /// including its BOM, if one is present.
+    /// 当禁用此选项且未设置显式编码时，源流的字节将保持不变，包括其 BOM（如果存在）。
     ///
-    /// This is enabled by default.
+    /// 默认情况下，此选项已启用。
     pub fn bom_sniffing(&mut self, yes: bool) -> &mut SearcherBuilder {
         self.config.bom_sniffing = yes;
         self
     }
 
-    /// Stop searching a file when a non-matching line is found after a
-    /// matching line.
+    /// 在匹配行后找到一个不匹配的行时，停止搜索文件。
     ///
-    /// This is useful for searching sorted files where it is expected that all
-    /// the matches will be on adjacent lines.
+    /// 对于在预期所有匹配都在相邻行上的排序文件中进行搜索时，这很有用。
     pub fn stop_on_nonmatch(
         &mut self,
         stop_on_nonmatch: bool,
@@ -574,61 +478,47 @@ impl SearcherBuilder {
     }
 }
 
-/// A searcher executes searches over a haystack and writes results to a caller
-/// provided sink.
+/// 一个搜索器执行针对一个指定 haystack 的搜索，并将结果写入调用方提供的 sink 中。
 ///
-/// Matches are detected via implementations of the `Matcher` trait, which must
-/// be provided by the caller when executing a search.
+/// 匹配是通过实现 `Matcher` trait 来检测的，这必须由调用者在执行搜索时提供。
 ///
-/// When possible, a searcher should be reused.
+/// 在可能的情况下，应重复使用搜索器。
 #[derive(Clone, Debug)]
 pub struct Searcher {
-    /// The configuration for this searcher.
-    ///
-    /// We make most of these settings available to users of `Searcher` via
-    /// public API methods, which can be queried in implementations of `Sink`
-    /// if necessary.
+    // 此搜索器的配置。
+    //
+    // 我们通过公共的 API 方法将大多数这些设置提供给 `Searcher` 的用户，
+    // 这些设置在必要时可以在 `Sink` 的实现中查询。
     config: Config,
-    /// A builder for constructing a streaming reader that transcodes source
-    /// data according to either an explicitly specified encoding or via an
-    /// automatically detected encoding via BOM sniffing.
-    ///
-    /// When no transcoding is needed, then the transcoder built will pass
-    /// through the underlying bytes with no additional overhead.
+    // 用于构建流式阅读器的构建器，根据显式指定的编码或通过 BOM 嗅探自动检测编码。
+    //
+    // 当不需要转码时，构建的转码器将不会增加底层字节的额外开销。
     decode_builder: DecodeReaderBytesBuilder,
-    /// A buffer that is used for transcoding scratch space.
+    // 用于转码临时空间的缓冲区。
     decode_buffer: RefCell<Vec<u8>>,
-    /// A line buffer for use in line oriented searching.
-    ///
-    /// We wrap it in a RefCell to permit lending out borrows of `Searcher`
-    /// to sinks. We still require a mutable borrow to execute a search, so
-    /// we statically prevent callers from causing RefCell to panic at runtime
-    /// due to a borrowing violation.
+    // 用于行定向搜索的行缓冲区。
+    //
+    // 我们将其包装在 RefCell 中，以允许将 `Searcher` 的借用借给 sink。
+    // 尽管我们仍然需要可变借用来执行搜索，但我们在静态上阻止调用者引起 RefCell 在运行时由于借用违规而引发 panic。
     line_buffer: RefCell<LineBuffer>,
-    /// A buffer in which to store the contents of a reader when performing a
-    /// multi line search. In particular, multi line searches cannot be
-    /// performed incrementally, and need the entire haystack in memory at
-    /// once.
+    // 用于在执行多行搜索时存储读取器的内容的缓冲区。
+    // 特别地，无法以增量方式执行多行搜索，需要一次性将整个 haystack 存储在内存中。
     multi_line_buffer: RefCell<Vec<u8>>,
 }
 
 impl Searcher {
-    /// Create a new searcher with a default configuration.
+    /// 使用默认配置创建新的搜索器。
     ///
-    /// To configure the searcher (e.g., invert matching, enable memory maps,
-    /// enable contexts, etc.), use the
-    /// [`SearcherBuilder`](struct.SearcherBuilder.html).
+    /// 要配置搜索器（例如，反转匹配，启用内存映射，启用上下文等），请使用
+    /// [`SearcherBuilder`](struct.SearcherBuilder.html)。
     pub fn new() -> Searcher {
         SearcherBuilder::new().build()
     }
 
-    /// Execute a search over the file with the given path and write the
-    /// results to the given sink.
+    /// 在具有给定路径的文件上执行搜索，并将结果写入给定的 sink。
     ///
-    /// If memory maps are enabled and the searcher heuristically believes
-    /// memory maps will help the search run faster, then this will use
-    /// memory maps. For this reason, callers should prefer using this method
-    /// or `search_file` over the more generic `search_reader` when possible.
+    /// 如果启用了内存映射，并且搜索器在启发性地认为内存映射将有助于更快地运行搜索，
+    /// 则将使用内存映射。因此，调用者应优先使用此方法或 `search_file`，而不是在可能的情况下使用更通用的 `search_reader`。
     pub fn search_path<P, M, S>(
         &mut self,
         matcher: M,
@@ -645,12 +535,10 @@ impl Searcher {
         self.search_file_maybe_path(matcher, Some(path), &file, write_to)
     }
 
-    /// Execute a search over a file and write the results to the given sink.
+    /// 在文件上执行搜索，并将结果写入给定的 sink。
     ///
-    /// If memory maps are enabled and the searcher heuristically believes
-    /// memory maps will help the search run faster, then this will use
-    /// memory maps. For this reason, callers should prefer using this method
-    /// or `search_path` over the more generic `search_reader` when possible.
+    /// 如果启用了内存映射，并且搜索器在启发性地认为内存映射将有助于更快地运行搜索，
+    /// 则将使用内存映射。因此，调用者应优先使用此方法或 `search_path`，而不是在可能的情况下使用更通用的 `search_reader`。
     pub fn search_file<M, S>(
         &mut self,
         matcher: M,
@@ -664,6 +552,10 @@ impl Searcher {
         self.search_file_maybe_path(matcher, None, file, write_to)
     }
 
+    // 在文件上执行搜索，并将结果写入给定的 sink。
+    //
+    // 如果启用了内存映射，并且搜索器在启发性地认为内存映射将有助于更快地运行搜索，
+    // 则将使用内存映射。因此，调用者应优先使用此方法或 `search_path`，而不是在可能的情况下使用更通用的 `search_reader`。
     fn search_file_maybe_path<M, S>(
         &mut self,
         matcher: M,
@@ -676,19 +568,15 @@ impl Searcher {
         S: Sink,
     {
         if let Some(mmap) = self.config.mmap.open(file, path) {
-            log::trace!("{:?}: searching via memory map", path);
+            log::trace!("{:?}: 通过内存映射进行搜索", path);
             return self.search_slice(matcher, &mmap, write_to);
         }
-        // Fast path for multi-line searches of files when memory maps are
-        // not enabled. This pre-allocates a buffer roughly the size of the
-        // file, which isn't possible when searching an arbitrary io::Read.
+        // 多行搜索的文件的快速路径，当不启用内存映射时。
+        // 这将预先分配一个大致与文件大小相当的缓冲区，这在搜索任意 io::Read 时是不可能的。
         if self.multi_line_with_matcher(&matcher) {
-            log::trace!(
-                "{:?}: reading entire file on to heap for mulitline",
-                path
-            );
+            log::trace!("{:?}: 将整个文件读取到堆上以用于多行搜索", path);
             self.fill_multi_line_buffer_from_file::<S>(file)?;
-            log::trace!("{:?}: searching via multiline strategy", path);
+            log::trace!("{:?}: 通过多行策略进行搜索", path);
             MultiLine::new(
                 self,
                 matcher,
@@ -697,22 +585,17 @@ impl Searcher {
             )
             .run()
         } else {
-            log::trace!("{:?}: searching using generic reader", path);
+            log::trace!("{:?}: 使用通用读取器进行搜索", path);
             self.search_reader(matcher, file, write_to)
         }
     }
 
-    /// Execute a search over any implementation of `io::Read` and write the
-    /// results to the given sink.
+    /// 在任何实现了 `io::Read` 的内容上执行搜索，并将结果写入给定的 sink。
     ///
-    /// When possible, this implementation will search the reader incrementally
-    /// without reading it into memory. In some cases---for example, if multi
-    /// line search is enabled---an incremental search isn't possible and the
-    /// given reader is consumed completely and placed on the heap before
-    /// searching begins. For this reason, when multi line search is enabled,
-    /// one should try to use higher level APIs (e.g., searching by file or
-    /// file path) so that memory maps can be used if they are available and
-    /// enabled.
+    /// 在可能的情况下，此实现将以增量方式搜索读取器，而不是将其读入内存。
+    /// 在某些情况下，例如，如果启用了多行搜索，则无法进行增量搜索，并且需要在搜索开始之前完全读取给定的读取器并放入堆上。
+    /// 因此，当启用多行搜索时，应尽量使用更高级的 API（例如，通过文件或文件路径进行搜索），
+    /// 以便在可用并启用时可以使用内存映射。
     pub fn search_reader<M, R, S>(
         &mut self,
         matcher: M,
@@ -733,11 +616,9 @@ impl Searcher {
             .map_err(S::Error::error_io)?;
 
         if self.multi_line_with_matcher(&matcher) {
-            log::trace!(
-                "generic reader: reading everything to heap for multiline"
-            );
+            log::trace!("通用读取器：将一切内容读取到堆上，用于多行搜索");
             self.fill_multi_line_buffer_from_reader::<_, S>(decoder)?;
-            log::trace!("generic reader: searching via multiline strategy");
+            log::trace!("通用读取器：通过多行策略进行搜索");
             MultiLine::new(
                 self,
                 matcher,
@@ -748,13 +629,12 @@ impl Searcher {
         } else {
             let mut line_buffer = self.line_buffer.borrow_mut();
             let rdr = LineBufferReader::new(decoder, &mut *line_buffer);
-            log::trace!("generic reader: searching via roll buffer strategy");
+            log::trace!("通用读取器：通过滚动缓冲区策略进行搜索");
             ReadByLine::new(self, matcher, rdr, write_to).run()
         }
     }
 
-    /// Execute a search over the given slice and write the results to the
-    /// given sink.
+    /// 在给定的切片上执行搜索，并将结果写入给定的 sink。
     pub fn search_slice<M, S>(
         &mut self,
         matcher: M,
@@ -767,30 +647,27 @@ impl Searcher {
     {
         self.check_config(&matcher).map_err(S::Error::error_config)?;
 
-        // We can search the slice directly, unless we need to do transcoding.
+        // 我们可以直接搜索切片，除非需要进行转码。
         if self.slice_needs_transcoding(slice) {
-            log::trace!(
-                "slice reader: needs transcoding, using generic reader"
-            );
+            log::trace!("切片读取器：需要转码，使用通用读取器");
             return self.search_reader(matcher, slice, write_to);
         }
         if self.multi_line_with_matcher(&matcher) {
-            log::trace!("slice reader: searching via multiline strategy");
+            log::trace!("切片读取器：通过多行策略进行搜索");
             MultiLine::new(self, matcher, slice, write_to).run()
         } else {
-            log::trace!("slice reader: searching via slice-by-line strategy");
+            log::trace!("切片读取器：通过逐行切片策略进行搜索");
             SliceByLine::new(self, matcher, slice, write_to).run()
         }
     }
 
-    /// Set the binary detection method used on this searcher.
+    /// 设置此搜索器上使用的二进制检测方法。
     pub fn set_binary_detection(&mut self, detection: BinaryDetection) {
         self.config.binary = detection.clone();
         self.line_buffer.borrow_mut().set_binary_detection(detection.0);
     }
 
-    /// Check that the searcher's configuration and the matcher are consistent
-    /// with each other.
+    // 检查搜索器的配置和匹配器是否与彼此一致。
     fn check_config<M: Matcher>(&self, matcher: M) -> Result<(), ConfigError> {
         if self.config.heap_limit == Some(0) && !self.config.mmap.is_enabled()
         {
@@ -809,66 +686,58 @@ impl Searcher {
         Ok(())
     }
 
-    /// Returns true if and only if the given slice needs to be transcoded.
+    // 返回 true 当且仅当给定的切片需要进行转码。
     fn slice_needs_transcoding(&self, slice: &[u8]) -> bool {
         self.config.encoding.is_some()
             || (self.config.bom_sniffing && slice_has_bom(slice))
     }
 }
 
-/// The following methods permit querying the configuration of a searcher.
-/// These can be useful in generic implementations of
-/// [`Sink`](trait.Sink.html),
-/// where the output may be tailored based on how the searcher is configured.
+// 下面的方法允许查询搜索器的配置。
+// 这些对于 `Sink` 的通用实现可能很有用，
+// 在这些实现中，输出可以基于搜索器的配置进行调整。
 impl Searcher {
-    /// Returns the line terminator used by this searcher.
+    /// 返回此搜索器使用的行终止符。
     #[inline]
     pub fn line_terminator(&self) -> LineTerminator {
         self.config.line_term
     }
 
-    /// Returns the type of binary detection configured on this searcher.
+    /// 返回配置在此搜索器上的二进制检测类型。
     #[inline]
     pub fn binary_detection(&self) -> &BinaryDetection {
         &self.config.binary
     }
 
-    /// Returns true if and only if this searcher is configured to invert its
-    /// search results. That is, matching lines are lines that do **not** match
-    /// the searcher's matcher.
+    /// 返回 true 当且仅当此搜索器配置为反转其搜索结果。
+    /// 也就是说，匹配的行是不匹配搜索器的匹配器的行。
     #[inline]
     pub fn invert_match(&self) -> bool {
         self.config.invert_match
     }
 
-    /// Returns true if and only if this searcher is configured to count line
-    /// numbers.
+    /// 返回 true 当且仅当此搜索器配置为计算行号。
     #[inline]
     pub fn line_number(&self) -> bool {
         self.config.line_number
     }
 
-    /// Returns true if and only if this searcher is configured to perform
-    /// multi line search.
+    /// 返回 true 当且仅当此搜索器配置为执行多行搜索。
     #[inline]
     pub fn multi_line(&self) -> bool {
         self.config.multi_line
     }
 
-    /// Returns true if and only if this searcher is configured to stop when in
-    /// finds a non-matching line after a matching one.
+    /// 返回 true 当且仅当此搜索器配置为在找到不匹配行后停止。
     #[inline]
     pub fn stop_on_nonmatch(&self) -> bool {
         self.config.stop_on_nonmatch
     }
 
-    /// Returns true if and only if this searcher will choose a multi-line
-    /// strategy given the provided matcher.
+    /// 返回 true 当且仅当此搜索器将根据提供的匹配器选择多行策略。
     ///
-    /// This may diverge from the result of `multi_line` in cases where the
-    /// searcher has been configured to execute a search that can report
-    /// matches over multiple lines, but where the matcher guarantees that it
-    /// will never produce a match over multiple lines.
+    /// 这可能与 `multi_line` 的结果不同，当搜索器被配置为执行可以在多行上报告匹配的搜索时，
+    /// 但匹配器保证永远不会在多行上产生匹配时，可能会有所不同。
     pub fn multi_line_with_matcher<M: Matcher>(&self, matcher: M) -> bool {
         if !self.multi_line() {
             return false;
@@ -879,10 +748,8 @@ impl Searcher {
             }
         }
         if let Some(non_matching) = matcher.non_matching_bytes() {
-            // If the line terminator is CRLF, we don't actually need to care
-            // whether the regex can match `\r` or not. Namely, a `\r` is
-            // neither necessary nor sufficient to terminate a line. A `\n` is
-            // always required.
+            // 如果行终止符是 CRLF，则实际上无需关心正则表达式是否可以匹配 `\r`。
+            // 也就是说，`\r` 既不是必要的也不足以终止一行。始终需要 `\n`。
             if non_matching.contains(self.line_terminator().as_byte()) {
                 return false;
             }
@@ -890,29 +757,26 @@ impl Searcher {
         true
     }
 
-    /// Returns the number of "after" context lines to report. When context
-    /// reporting is not enabled, this returns `0`.
+    /// 返回要报告的 "after" 上下文行数。当未启用上下文报告时，返回 `0`。
     #[inline]
     pub fn after_context(&self) -> usize {
         self.config.after_context
     }
 
-    /// Returns the number of "before" context lines to report. When context
-    /// reporting is not enabled, this returns `0`.
+    /// 返回要报告的 "before" 上下文行数。当未启用上下文报告时，返回 `0`。
     #[inline]
     pub fn before_context(&self) -> usize {
         self.config.before_context
     }
 
-    /// Returns true if and only if the searcher has "passthru" mode enabled.
+    /// 返回 true 当且仅当搜索器启用了 "passthru" 模式。
     #[inline]
     pub fn passthru(&self) -> bool {
         self.config.passthru
     }
 
-    /// Fill the buffer for use with multi-line searching from the given file.
-    /// This reads from the file until EOF or until an error occurs. If the
-    /// contents exceed the configured heap limit, then an error is returned.
+    // 从给定的文件填充用于多行搜索的缓冲区。
+    // 这会从文件中读取直到 EOF 或发生错误。如果内容超过配置的堆限制，则返回错误。
     fn fill_multi_line_buffer_from_file<S: Sink>(
         &self,
         file: &File,
@@ -925,13 +789,11 @@ impl Searcher {
             .build_with_buffer(file, &mut *decode_buffer)
             .map_err(S::Error::error_io)?;
 
-        // If we don't have a heap limit, then we can defer to std's
-        // read_to_end implementation. fill_multi_line_buffer_from_reader will
-        // do this too, but since we have a File, we can be a bit smarter about
-        // pre-allocating here.
+        // 如果没有堆限制，那么我们可以推迟使用 std 的 read_to_end 实现。
+        // fill_multi_line_buffer_from_reader 也会这样做，但由于我们有一个 File，
+        // 所以我们可以在这里做一些更聪明的预分配。
         //
-        // If we're transcoding, then our pre-allocation might not be exact,
-        // but is probably still better than nothing.
+        // 如果我们正在进行转码，则我们的预分配可能不是精确的，但可能仍然比什么都不做要好。
         if self.config.heap_limit.is_none() {
             let mut buf = self.multi_line_buffer.borrow_mut();
             buf.clear();
@@ -944,10 +806,8 @@ impl Searcher {
         self.fill_multi_line_buffer_from_reader::<_, S>(read_from)
     }
 
-    /// Fill the buffer for use with multi-line searching from the given
-    /// reader. This reads from the reader until EOF or until an error occurs.
-    /// If the contents exceed the configured heap limit, then an error is
-    /// returned.
+    // 从给定的读取器中填充用于多行搜索的缓冲区。
+    // 这会从读取器中读取直到 EOF 或发生错误。如果内容超过配置的堆限制，则返回错误。
     fn fill_multi_line_buffer_from_reader<R: io::Read, S: Sink>(
         &self,
         mut read_from: R,
@@ -957,8 +817,7 @@ impl Searcher {
         let mut buf = self.multi_line_buffer.borrow_mut();
         buf.clear();
 
-        // If we don't have a heap limit, then we can defer to std's
-        // read_to_end implementation...
+        // 如果没有堆限制，那么我们可以推迟使用 std 的 read_to_end 实现...
         let heap_limit = match self.config.heap_limit {
             Some(heap_limit) => heap_limit,
             None => {
@@ -972,9 +831,8 @@ impl Searcher {
             return Err(S::Error::error_io(alloc_error(heap_limit)));
         }
 
-        // ... otherwise we need to roll our own. This is likely quite a bit
-        // slower than what is optimal, but we avoid worry about memory safety
-        // until there's a compelling reason to speed this up.
+        // ... 否则我们需要自己实现。这可能会比最优解慢得多，
+        // 但在没有足够理由加快速度之前，我们不用担心内存安全。
         buf.resize(cmp::min(DEFAULT_BUFFER_CAPACITY, heap_limit), 0);
         let mut pos = 0;
         loop {
@@ -1003,17 +861,15 @@ impl Searcher {
         }
     }
 }
-
-/// Returns true if and only if the given slice begins with a UTF-8 or UTF-16
-/// BOM.
-///
-/// This is used by the searcher to determine if a transcoder is necessary.
-/// Otherwise, it is advantageous to search the slice directly.
+// 返回值为 true 当且仅当给定的切片以 UTF-8 或 UTF-16 BOM 开头。
+// 这在搜索器中用于确定是否需要转码。
+// 否则，直接搜索切片会更有优势。
 fn slice_has_bom(slice: &[u8]) -> bool {
     let enc = match encoding_rs::Encoding::for_bom(slice) {
         None => return false,
         Some((enc, _)) => enc,
     };
+    // UTF-16LE、UTF-16BE 和 UTF-8 是可能的 BOM 编码
     [encoding_rs::UTF_16LE, encoding_rs::UTF_16BE, encoding_rs::UTF_8]
         .contains(&enc)
 }
@@ -1025,37 +881,52 @@ mod tests {
 
     #[test]
     fn config_error_heap_limit() {
+        // 创建一个 RegexMatcher 用于测试
         let matcher = RegexMatcher::new("");
+        // 创建一个 KitchenSink 用于测试
         let sink = KitchenSink::new();
+        // 创建一个 heap_limit 为 0 的 Searcher
         let mut searcher = SearcherBuilder::new().heap_limit(Some(0)).build();
+        // 在空切片上进行搜索，预期会产生堆错误
         let res = searcher.search_slice(matcher, &[], sink);
         assert!(res.is_err());
     }
 
     #[test]
     fn config_error_line_terminator() {
+        // 创建一个空的 RegexMatcher
         let mut matcher = RegexMatcher::new("");
+        // 设置不匹配的行终止符
         matcher.set_line_term(Some(LineTerminator::byte(b'z')));
 
+        // 创建一个 KitchenSink 用于测试
         let sink = KitchenSink::new();
+        // 创建一个新的 Searcher
         let mut searcher = Searcher::new();
+        // 在空切片上进行搜索，预期会产生配置错误
         let res = searcher.search_slice(matcher, &[], sink);
         assert!(res.is_err());
     }
 
     #[test]
     fn uft8_bom_sniffing() {
-        // See: https://github.com/BurntSushi/ripgrep/issues/1638
-        // ripgrep must sniff utf-8 BOM, just like it does with utf-16
+        // 参考：https://github.com/BurntSushi/ripgrep/issues/1638
+        // ripgrep 必须像对待 utf-16 一样嗅探 utf-8 BOM
+        // 创建一个匹配 "foo" 的 RegexMatcher
         let matcher = RegexMatcher::new("foo");
+        // 创建一个带 utf-8 BOM 的字节数组
         let haystack: &[u8] = &[0xef, 0xbb, 0xbf, 0x66, 0x6f, 0x6f];
 
+        // 创建一个 KitchenSink 用于测试
         let mut sink = KitchenSink::new();
+        // 创建一个 Searcher
         let mut searcher = SearcherBuilder::new().build();
 
+        // 在 haystack 中搜索 "foo"，并将结果写入 sink
         let res = searcher.search_slice(matcher, haystack, &mut sink);
         assert!(res.is_ok());
 
+        // 将 sink 的字节转换为字符串并进行比较
         let sink_output = String::from_utf8(sink.as_bytes().to_vec()).unwrap();
         assert_eq!(sink_output, "1:0:foo\nbyte count:3\n");
     }

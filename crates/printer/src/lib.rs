@@ -1,30 +1,21 @@
 /*!
-This crate provides featureful and fast printers that interoperate with the
-[`grep-searcher`](https://docs.rs/grep-searcher)
-crate.
+这个 crate 提供了与 [`grep-searcher`](https://docs.rs/grep-searcher) crate 互操作的功能丰富且高效的打印机。
 
-# Brief overview
+# 简要概述
 
-The [`Standard`](struct.Standard.html) printer shows results in a human
-readable format, and is modeled after the formats used by standard grep-like
-tools. Features include, but are not limited to, cross platform terminal
-coloring, search & replace, multi-line result handling and reporting summary
-statistics.
+[`Standard`](struct.Standard.html) 打印机以人类可读的格式显示结果，模仿了标准 grep 类似工具使用的格式。
+其特性包括但不限于，跨平台终端着色、搜索与替换、多行结果处理以及报告摘要统计信息。
 
-The [`JSON`](struct.JSON.html) printer shows results in a machine readable
-format. To facilitate a stream of search results, the format uses
-[JSON Lines](https://jsonlines.org/)
-by emitting a series of messages as search results are found.
+[`JSON`](struct.JSON.html) 打印机以机器可读的格式显示结果。为了方便搜索结果的流式处理，该格式使用
+[JSON Lines](https://jsonlines.org/)，
+通过在发现搜索结果时发出一系列消息来呈现搜索结果。
 
-The [`Summary`](struct.Summary.html) printer shows *aggregate* results for a
-single search in a human readable format, and is modeled after similar formats
-found in standard grep-like tools. This printer is useful for showing the total
-number of matches and/or printing file paths that either contain or don't
-contain matches.
+[`Summary`](struct.Summary.html) 打印机以人类可读的格式显示单个搜索的*聚合*结果，模仿了标准 grep 类似工具中发现的类似格式。
+这个打印机对于显示匹配总数和/或打印包含或不包含匹配项的文件路径非常有用。
 
-# Example
+# 示例
 
-This example shows how to create a "standard" printer and execute a search.
+这个示例展示了如何创建一个“标准”打印机并执行搜索。
 
 ```
 use std::error::Error;
@@ -48,9 +39,8 @@ fn example() -> Result<(), Box<Error>> {
     let mut printer = Standard::new_no_color(vec![]);
     Searcher::new().search_slice(&matcher, SHERLOCK, printer.sink(&matcher))?;
 
-    // into_inner gives us back the underlying writer we provided to
-    // new_no_color, which is wrapped in a termcolor::NoColor. Thus, a second
-    // into_inner gives us back the actual buffer.
+    // into_inner 给出了我们提供给 new_no_color 的底层写入器，它被包装在 termcolor::NoColor 中。
+    // 因此，第二次的 into_inner 给出了实际的缓冲区。
     let output = String::from_utf8(printer.into_inner().into_inner())?;
     let expected = "\
 1:For the Doctor Watsons of this world, as opposed to the Sherlock
@@ -74,15 +64,12 @@ pub use crate::stats::Stats;
 pub use crate::summary::{Summary, SummaryBuilder, SummaryKind, SummarySink};
 pub use crate::util::PrinterPath;
 
-// The maximum number of bytes to execute a search to account for look-ahead.
+// 用于执行搜索的最大字节数，以考虑前瞻。
 //
-// This is an unfortunate kludge since PCRE2 doesn't provide a way to search
-// a substring of some input while accounting for look-ahead. In theory, we
-// could refactor the various 'grep' interfaces to account for it, but it would
-// be a large change. So for now, we just let PCRE2 go looking a bit for a
-// match without searching the entire rest of the contents.
+// 这是一个不幸的权宜之计，因为 PCRE2 不提供一种在考虑前瞻的情况下搜索输入的子字符串的方法。
+// 理论上，我们可以重构各种'grep'接口来考虑它，但这将是一个大的变化。因此，目前我们只允许PCRE2稍微查找一下匹配项，而不搜索整个剩余内容。
 //
-// Note that this kludge is only active in multi-line mode.
+// 请注意，此权宜之计仅在多行模式下生效。
 const MAX_LOOK_AHEAD: usize = 128;
 
 #[macro_use]

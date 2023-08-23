@@ -20,25 +20,14 @@ mod path_printer;
 mod search;
 mod subject;
 
-// Since Rust no longer uses jemalloc by default, ripgrep will, by default,
-// use the system allocator. On Linux, this would normally be glibc's
-// allocator, which is pretty good. In particular, ripgrep does not have a
-// particularly allocation heavy workload, so there really isn't much
-// difference (for ripgrep's purposes) between glibc's allocator and jemalloc.
-//
-// However, when ripgrep is built with musl, this means ripgrep will use musl's
-// allocator, which appears to be substantially worse. (musl's goal is not to
-// have the fastest version of everything. Its goal is to be small and amenable
-// to static compilation.) Even though ripgrep isn't particularly allocation
-// heavy, musl's allocator appears to slow down ripgrep quite a bit. Therefore,
-// when building with musl, we use jemalloc.
-//
-// We don't unconditionally use jemalloc because it can be nice to use the
-// system's default allocator by default. Moreover, jemalloc seems to increase
-// compilation times by a bit.
-//
-// Moreover, we only do this on 64-bit systems since jemalloc doesn't support
-// i686.
+// 由于 Rust 不再默认使用 jemalloc，ripgrep 将默认使用系统分配器。
+// 在 Linux 上，通常会是 glibc 的分配器，它相当不错。特别是，ripgrep 的工作负载并不是特别重的分配工作，所以对于 ripgrep 来说，glibc 的分配器和 jemalloc 之间的差异实际上不是很大。
+
+// 然而，当使用 musl 构建 ripgrep 时，这意味着 ripgrep 将使用 musl 的分配器，而 musl 的分配器似乎要差很多。（musl 的目标不是拥有最快的所有版本。它的目标是小而易于静态编译。）尽管 ripgrep 并不特别需要大量的分配，但 musl 的分配器似乎会严重减慢 ripgrep 的速度。因此，在使用 musl 构建时，我们使用 jemalloc。
+
+// 我们不会无条件地使用 jemalloc，因为默认情况下使用系统的默认分配器可能更好。此外，jemalloc 似乎会增加编译时间。
+
+// 此外，我们仅在 64 位系统上执行此操作，因为 jemalloc 不支持 i686。
 #[cfg(all(target_env = "musl", target_pointer_width = "64"))]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -91,7 +80,9 @@ fn search(args: &Args) -> Result<bool> {
 
         for subject in subjects {
             searched = true;
-            let search_result = match searcher.search(&subject) {
+            let search_result: search::SearchResult = match searcher
+                .search(&subject)
+            {
                 Ok(search_result) => search_result,
                 // 破裂的管道意味着优雅终止。
                 Err(err) if err.kind() == io::ErrorKind::BrokenPipe => break,
@@ -141,13 +132,10 @@ fn search(args: &Args) -> Result<bool> {
         iter(args, subjects, started_at)
     }
 }
-
-/// The top-level entry point for multi-threaded search. The parallelism is
-/// itself achieved by the recursive directory traversal. All we need to do is
-/// feed it a worker for performing a search on each file.
+/// 多线程搜索的顶级入口点。并行性是通过递归目录遍历实现的。
+/// 我们只需要为每个文件提供执行搜索的 worker。
 ///
-/// Requesting a sorted output from ripgrep (such as with `--sort path`) will
-/// automatically disable parallelism and hence sorting is not handled here.
+/// 请求 ripgrep 排序的输出（例如 `--sort path`）将自动禁用并行处理，因此此处不处理排序。
 fn search_parallel(args: &Args) -> Result<bool> {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::SeqCst;
@@ -196,11 +184,11 @@ fn search_parallel(args: &Args) -> Result<bool> {
                 *stats += search_result.stats().unwrap();
             }
             if let Err(err) = bufwtr.print(searcher.printer().get_mut()) {
-                // A broken pipe means graceful termination.
+                // Broken pipe意味着优雅终止。
                 if err.kind() == io::ErrorKind::BrokenPipe {
                     return WalkState::Quit;
                 }
-                // Otherwise, we continue on our merry way.
+                // 否则，我们继续进行。
                 err_message!("{}: {}", subject.path().display(), err);
             }
             if matched.load(SeqCst) && quit_after_match {
@@ -220,7 +208,7 @@ fn search_parallel(args: &Args) -> Result<bool> {
         let elapsed = Instant::now().duration_since(started_at);
         let stats = locked_stats.lock().unwrap();
         let mut searcher = args.search_worker(args.stdout())?;
-        // We don't care if we couldn't print this successfully.
+        // 对于打印可能失败的情况，我们不关心。
         let _ = searcher.print_stats(elapsed, &stats);
     }
     Ok(matched.load(SeqCst))
@@ -228,20 +216,16 @@ fn search_parallel(args: &Args) -> Result<bool> {
 
 fn eprint_nothing_searched() {
     err_message!(
-        "No files were searched, which means ripgrep probably \
-         applied a filter you didn't expect.\n\
-         Running with --debug will show why files are being skipped."
+        "未搜索到任何文件，这意味着 ripgrep 可能应用了您未预期的过滤器。\n\
+         使用 --debug 标志将显示为何跳过文件。"
     );
 }
 
-/// The top-level entry point for listing files without searching them. This
-/// recursively steps through the file list (current directory by default) and
-/// prints each path sequentially using a single thread.
+/// 无搜索的情况下列出文件的顶级入口点。这会递归地遍历文件列表（默认为当前目录），
+/// 并使用单个线程顺序地打印每个路径。
 fn files(args: &Args) -> Result<bool> {
-    /// The meat of the routine is here. This lets us call the same iteration
-    /// code over each file regardless of whether we stream over the files
-    /// as they're produced by the underlying directory traversal or whether
-    /// they've been collected and sorted (for example) first.
+    /// 例程的核心在这里。这使我们可以调用相同的迭代代码，而不管是以底层目录遍历产生的文件流形式
+    /// 还是已经收集并排序（例如）的文件。
     fn iter(
         args: &Args,
         subjects: impl Iterator<Item = Subject>,
@@ -256,12 +240,11 @@ fn files(args: &Args) -> Result<bool> {
                 break;
             }
             if let Err(err) = path_printer.write_path(subject.path()) {
-                // A broken pipe means graceful termination.
+                // Broken pipe意味着优雅终止。
                 if err.kind() == io::ErrorKind::BrokenPipe {
                     break;
                 }
-                // Otherwise, we have some other error that's preventing us from
-                // writing to stdout, so we should bubble it up.
+                // 否则，我们有一些阻止我们写入stdout的其他错误，因此我们应该将其上升。
                 return Err(err.into());
             }
         }
@@ -280,12 +263,10 @@ fn files(args: &Args) -> Result<bool> {
     }
 }
 
-/// The top-level entry point for listing files without searching them. This
-/// recursively steps through the file list (current directory by default) and
-/// prints each path sequentially using multiple threads.
+/// 无搜索的情况下并行列出文件的顶级入口点。这会递归地遍历文件列表（默认为当前目录），
+/// 并使用多个线程顺序地打印每个路径。
 ///
-/// Requesting a sorted output from ripgrep (such as with `--sort path`) will
-/// automatically disable parallelism and hence sorting is not handled here.
+/// 请求 ripgrep 排序的输出（例如 `--sort path`）将自动禁用并行处理，因此此处不处理排序。
 fn files_parallel(args: &Args) -> Result<bool> {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::SeqCst;
@@ -327,9 +308,8 @@ fn files_parallel(args: &Args) -> Result<bool> {
     });
     drop(tx);
     if let Err(err) = print_thread.join().unwrap() {
-        // A broken pipe means graceful termination, so fall through.
-        // Otherwise, something bad happened while writing to stdout, so bubble
-        // it up.
+        // Broken pipe意味着优雅终止，所以继续执行。
+        // 否则，写入stdout时发生了一些问题，因此上升。
         if err.kind() != io::ErrorKind::BrokenPipe {
             return Err(err.into());
         }
@@ -337,7 +317,7 @@ fn files_parallel(args: &Args) -> Result<bool> {
     Ok(matched.load(SeqCst))
 }
 
-/// The top-level entry point for --type-list.
+/// --type-list 的顶级入口点。
 fn types(args: &Args) -> Result<bool> {
     let mut count = 0;
     let mut stdout = args.stdout();
@@ -359,7 +339,7 @@ fn types(args: &Args) -> Result<bool> {
     Ok(count > 0)
 }
 
-/// The top-level entry point for --pcre2-version.
+/// --pcre2-version 的顶级入口点。
 fn pcre2_version(args: &Args) -> Result<bool> {
     #[cfg(feature = "pcre2")]
     fn imp(args: &Args) -> Result<bool> {
@@ -379,7 +359,7 @@ fn pcre2_version(args: &Args) -> Result<bool> {
     #[cfg(not(feature = "pcre2"))]
     fn imp(args: &Args) -> Result<bool> {
         let mut stdout = args.stdout();
-        writeln!(stdout, "PCRE2 is not available in this build of ripgrep.")?;
+        writeln!(stdout, "此版本的 ripgrep 中不可用 PCRE2.")?;
         Ok(false)
     }
 

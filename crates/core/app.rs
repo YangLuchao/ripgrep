@@ -68,21 +68,18 @@ pub fn app() -> App<'static, 'static> {
     }
     app
 }
-
-/// Return the "long" format of ripgrep's version string.
+/// 返回 ripgrep 版本的“长”格式字符串。
 ///
-/// If a revision hash is given, then it is used. If one isn't given, then
-/// the RIPGREP_BUILD_GIT_HASH env var is inspected for it. If that isn't set,
-/// then a revision hash is not included in the version string returned.
+/// 如果给定了修订哈希，则使用它。如果未给出，那么将检查 RIPGREP_BUILD_GIT_HASH 环境变量是否设置了它。
+/// 如果未设置，则版本字符串中不包含修订哈希。
 ///
-/// If `cpu` is true, then the version string will include the compiled and
-/// runtime CPU features.
+/// 如果 `cpu` 为 true，则版本字符串将包括编译和运行时 CPU 特性。
 pub fn long_version(revision_hash: Option<&str>, cpu: bool) -> String {
-    // Do we have a git hash?
-    // (Yes, if ripgrep was built on a machine with `git` installed.)
+    // 是否有git哈希？
+    // （是的，如果在安装了 `git` 的机器上构建了 ripgrep。）
     let hash = match revision_hash.or(option_env!("RIPGREP_BUILD_GIT_HASH")) {
         None => String::new(),
-        Some(githash) => format!(" (rev {})", githash),
+        Some(githash) => format!("（修订 {}）", githash),
     };
     if !cpu {
         format!("{}{}", crate_version!(), hash,)
@@ -90,14 +87,14 @@ pub fn long_version(revision_hash: Option<&str>, cpu: bool) -> String {
         let runtime = runtime_cpu_features();
         if runtime.is_empty() {
             format!(
-                "{}{}\n{} (compiled)",
+                "{}{}\n{}（编译）",
                 crate_version!(),
                 hash,
                 compile_cpu_features().join(" ")
             )
         } else {
             format!(
-                "{}{}\n{} (compiled)\n{} (runtime)",
+                "{}{}\n{}（编译）\n{}（运行时）",
                 crate_version!(),
                 hash,
                 compile_cpu_features().join(" "),
@@ -107,7 +104,7 @@ pub fn long_version(revision_hash: Option<&str>, cpu: bool) -> String {
     }
 }
 
-/// Returns the relevant CPU features enabled at compile time.
+/// 返回编译时启用的相关 CPU 特性。
 fn compile_cpu_features() -> Vec<&'static str> {
     let mut features = vec![];
     if cfg!(feature = "simd-accel") {
@@ -123,11 +120,10 @@ fn compile_cpu_features() -> Vec<&'static str> {
     features
 }
 
-/// Returns the relevant CPU features enabled at runtime.
+/// 返回运行时启用的相关 CPU 特性。
 #[cfg(target_arch = "x86_64")]
 fn runtime_cpu_features() -> Vec<&'static str> {
-    // This is kind of a dirty violation of abstraction, since it assumes
-    // knowledge about what specific SIMD features are being used.
+    // 这有点不太符合抽象，因为它假设了特定的SIMD功能的知识。
 
     let mut features = vec![];
     if is_x86_feature_detected!("ssse3") {
@@ -143,39 +139,39 @@ fn runtime_cpu_features() -> Vec<&'static str> {
     features
 }
 
-/// Returns the relevant CPU features enabled at runtime.
+/// 返回运行时启用的相关 CPU 特性。
 #[cfg(not(target_arch = "x86_64"))]
 fn runtime_cpu_features() -> Vec<&'static str> {
     vec![]
 }
 
-/// Arg is a light alias for a clap::Arg that is specialized to compile time
-/// string literals.
+/// Arg 是一个对 clap::Arg 的轻量级别别名，专门用于编译时字符串文字。
 type Arg = clap::Arg<'static, 'static>;
 
-/// RGArg 是对 clap::Arg 的轻量封装，还包含了关于底层 Arg 的一些元数据，以便可以进行其他用途的检查
+/// RGArg 是对 clap::Arg 的轻量级别封装，还包含关于底层 Arg 的一些元数据，以便可以进行其他用途的检查
 /// （例如，希望生成一个手册页）。
 ///
-/// 请注意，这种类型故意过于限制于 ripgrep 对 clap 的特定使用。
+/// 请注意，这种类型故意过于限制于 ripgrep 对 clap 使用的特定情况。
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct RGArg {
-    /// 底层的 clap 参数。
+    /// 底层 clap 参数。
     claparg: Arg,
-    /// 此参数的名称。始终存在，并且是在运行时查找参数值的代码中使用的名称。
+    /// 此参数的名称。始终存在，并且在运行时查找参数值的代码中使用的名称。
     pub name: &'static str,
     /// 简短的文档字符串，描述此参数。此字符串应适合一行，并且是一个完整的句子。
     ///
-    /// 这会显示在 `-h` 输出中。
+    /// 这将显示在 `-h` 输出中。
     pub doc_short: &'static str,
-    /// 更长的文档字符串，描述此参数。通常以 `doc_short` 的内容开头。通常有很多行，可能有段落，并且可以包含示例和附加的散文。
+    /// 更长的文档字符串，描述此参数。通常以 `doc_short` 的内容开头。通常有多行，可能有段落，并且可以包含示例和附加的散文。
     ///
-    /// 这会显示在 `--help` 输出中。
+    /// 这将显示在 `--help` 输出中。
     pub doc_long: &'static str,
     /// 此标志是否是隐藏的。
     ///
-    /// 这通常用于不常见的标志，这些标志只用于覆盖其他标志。例如，--no-ignore 是一个显著的标志，用于禁用 ripgrep 的 gitignore 功能，
-    /// 但是 --ignore 重新启用它。由于 gitignore 支持默认启用，使用 --ignore 标志有点小众，主要用于用户使用配置文件设置默认值的特殊情况。
+    /// 这通常用于不常见的标志，这些标志只用于覆盖其他标志。例如，--no-ignore 是一个显著的标志，
+    /// 用于禁用 ripgrep 的 gitignore 功能，但是 --ignore 重新启用它。由于 gitignore 支持默认启用，
+    /// 使用 --ignore 标志有点小众，主要用于用户使用配置文件设置默认值的特殊情况。
     ///
     /// 通常，应该在覆盖的标志的文档中记录这些标志。
     pub hidden: bool,
@@ -183,99 +179,69 @@ pub struct RGArg {
     pub kind: RGArgKind,
 }
 
-/// The kind of a ripgrep argument.
+/// ripgrep 参数的种类。
 ///
-/// This can be one of three possibilities: a positional argument, a boolean
-/// switch flag or a flag that accepts exactly one argument. Each variant
-/// stores argument type specific data.
+/// 这可以是三种可能性之一：位置参数、布尔开关标志或接受恰好一个参数的标志。每个变体都存储特定于参数类型的数据。
 ///
-/// Note that clap supports more types of arguments than this, but we don't
-/// (and probably shouldn't) use them in ripgrep.
+/// 请注意，clap 支持的参数类型比这个多，但是我们不应该（也不应该）在 ripgrep 中使用它们。
 ///
-/// Finally, note that we don't capture *all* state about an argument in this
-/// type. Some state is only known to clap. There isn't any particular reason
-/// why; the state we do capture is motivated by use cases (like generating
-/// documentation).
+/// 最后，注意我们没有在这种类型中捕获 *所有* 关于参数的状态。有些状态只有 clap 才知道。没有特定的原因；
+/// 我们捕获的状态是由用例（如生成文档）驱动的（非常类似于用例驱动的开发）。
 #[derive(Clone)]
 pub enum RGArgKind {
-    /// A positional argument.
+    /// 位置参数。
     Positional {
-        /// The name of the value used in the `-h/--help` output. By
-        /// convention, this is an all-uppercase string. e.g., `PATH` or
-        /// `PATTERN`.
+        /// 用于 `-h/--help` 输出的值的名称。按约定，这是一个全大写字符串。例如，`PATH` 或 `PATTERN`。
         value_name: &'static str,
-        /// Whether an argument can be repeated multiple times or not.
+        /// 是否可以多次重复参数。
         ///
-        /// The only argument this applies to is PATH, where an end user can
-        /// specify multiple paths for ripgrep to search.
+        /// 唯一应用此设置的参数是 PATH，其中用户可以为 ripgrep 搜索指定多个路径。
         ///
-        /// If this is disabled, then an argument can only be provided once.
-        /// For example, PATTERN is one such argument. (Note that the
-        /// -e/--regexp flag is distinct from the positional PATTERN argument,
-        /// and it can be provided multiple times.)
+        /// 如果禁用此选项，则参数只能提供一次。例如，PATTERN 就是这样一个参数。
+        /// （注意，-e/--regexp 标志与位置参数 PATTERN 是不同的，可以多次提供。）
         multiple: bool,
     },
-    /// A boolean switch.
+    /// 布尔开关。
     Switch {
-        /// The long name of a flag. This is always non-empty.
+        /// 标志的长名称。这始终不为空。
         long: &'static str,
-        /// The short name of a flag. This is empty if a flag only has a long
-        /// name.
+        /// 标志的短名称。如果标志只有长名称，则为空。
         short: Option<&'static str>,
-        /// Whether this switch can be provided multiple times where meaning
-        /// is attached to the number of times this flag is given.
+        /// 此开关是否可以多次提供，其中次数与给出此标志的次数相关联。
         ///
-        /// Note that every switch can be provided multiple times. This
-        /// particular state indicates whether all instances of a switch are
-        /// relevant or not.
+        /// 注意，每个开关都可以多次提供。这个特定状态指示所有开关实例是否相关。
         ///
-        /// For example, the -u/--unrestricted flag can be provided multiple
-        /// times where each repeated use of it indicates more relaxing of
-        /// ripgrep's filtering. Conversely, the -i/--ignore-case flag can
-        /// also be provided multiple times, but it is simply considered either
-        /// present or not. In these cases, -u/--unrestricted has `multiple`
-        /// set to `true` while -i/--ignore-case has `multiple` set to `false`.
+        /// 例如，-u/--unrestricted 标志可以多次提供，其中每次重复使用它表示对 ripgrep 过滤的放宽。
+        /// 相反，-i/--ignore-case 标志也可以多次提供，但只是被视为是否出现。
+        /// 在这些情况下，-u/--unrestricted 设置为 `true`，而 -i/--ignore-case 设置为 `false`。
         multiple: bool,
     },
-    /// A flag the accepts a single value.
+    /// 接受单个值的标志。
     Flag {
-        /// The long name of a flag. This is always non-empty.
+        /// 标志的长名称。这始终不为空。
         long: &'static str,
-        /// The short name of a flag. This is empty if a flag only has a long
-        /// name.
+        /// 标志的短名称。如果标志只有长名称，则为空。
         short: Option<&'static str>,
-        /// The name of the value used in the `-h/--help` output. By
-        /// convention, this is an all-uppercase string. e.g., `PATH` or
-        /// `PATTERN`.
+        /// 用于 `-h/--help` 输出的值的名称。按约定，这是一个全大写字符串。例如，`PATH` 或 `PATTERN`。
         value_name: &'static str,
-        /// Whether this flag can be provided multiple times with multiple
-        /// distinct values.
+        /// 此标志是否可以多次提供，每次提供多个不同的值。
         ///
-        /// Note that every flag can be provided multiple times. This
-        /// particular state indicates whether all instances of a flag are
-        /// relevant or not.
+        /// 注意，每个标志都可以多次提供。这个特定状态指示所有标志实例是否相关。
         ///
-        /// For example, the -g/--glob flag can be provided multiple times and
-        /// all of its values should be interpreted by ripgrep. Conversely,
-        /// while the -C/--context flag can also be provided multiple times,
-        /// only its last instance is used while all previous instances are
-        /// ignored. In these cases, -g/--glob has `multiple` set to `true`
-        /// while -C/--context has `multiple` set to `false`.
+        /// 例如，-g/--glob 标志可以多次提供，ripgrep 将解释其所有值。
+        /// 相反，尽管 -C/--context 标志也可以多次提供，但仅使用最后一个实例，
+        /// 所有先前的实例都会被忽略。在这些情况下，-g/--glob 设置为 `true`，
+        /// 而 -C/--context 设置为 `false`。
         multiple: bool,
-        /// A set of possible values for this flag. If an end user provides
-        /// any value other than what's in this set, then clap will report an
-        /// error.
+        /// 此标志的可能值集。如果最终用户提供的值不在此集合中，则 clap 将报告错误。
         possible_values: Vec<&'static str>,
     },
 }
-
 impl RGArg {
-    /// Create a positional argument.
+    /// 创建一个位置参数。
     ///
-    /// The `long_name` parameter is the name of the argument, e.g., `pattern`.
-    /// The `value_name` parameter is a name that describes the type of
-    /// argument this flag accepts. It should be in uppercase, e.g., PATH or
-    /// PATTERN.
+    /// `long_name` 参数是参数的名称，例如 `pattern`。
+    /// `value_name` 参数是描述此标志接受的参数类型的名称。应该是大写的，例如 PATH 或 PATTERN。
     fn positional(name: &'static str, value_name: &'static str) -> RGArg {
         RGArg {
             claparg: Arg::with_name(name).value_name(value_name),
@@ -287,14 +253,12 @@ impl RGArg {
         }
     }
 
-    /// Create a boolean switch.
+    /// 创建一个布尔开关。
     ///
-    /// The `long_name` parameter is the name of the flag, e.g., `--long-name`.
+    /// `long_name` 参数是标志的名称，例如 `--long-name`。
     ///
-    /// All switches may be repeated an arbitrary number of times. If a switch
-    /// is truly boolean, that consumers of clap's configuration should only
-    /// check whether the flag is present or not. Otherwise, consumers may
-    /// inspect the number of times the switch is used.
+    /// 所有开关可以重复任意次数。如果开关是真正的布尔值，则 clap 配置的消费者应只检查标志是否存在。
+    /// 否则，消费者可以检查开关的使用次数。
     fn switch(long_name: &'static str) -> RGArg {
         let claparg = Arg::with_name(long_name).long(long_name);
         RGArg {
@@ -311,16 +275,12 @@ impl RGArg {
         }
     }
 
-    /// Create a flag. A flag always accepts exactly one argument.
+    /// 创建一个标志。标志始终接受一个参数。
     ///
-    /// The `long_name` parameter is the name of the flag, e.g., `--long-name`.
-    /// The `value_name` parameter is a name that describes the type of
-    /// argument this flag accepts. It should be in uppercase, e.g., PATH or
-    /// PATTERN.
+    /// `long_name` 参数是标志的名称，例如 `--long-name`。
+    /// `value_name` 参数是描述此标志接受的参数类型的名称。应该是大写的，例如 PATH 或 PATTERN。
     ///
-    /// All flags may be repeated an arbitrary number of times. If a flag has
-    /// only one logical value, that consumers of clap's configuration should
-    /// only use the last value.
+    /// 所有标志可以重复任意次数。如果标志只有一个逻辑值，则 clap 配置的消费者应仅使用最后一个值。
     fn flag(long_name: &'static str, value_name: &'static str) -> RGArg {
         let claparg = Arg::with_name(long_name)
             .long(long_name)
@@ -343,9 +303,9 @@ impl RGArg {
         }
     }
 
-    /// Set the short flag name.
+    /// 设置短标志名称。
     ///
-    /// This panics if this arg isn't a switch or a flag.
+    /// 如果此参数不是开关或标志，则会引发错误。
     fn short(mut self, name: &'static str) -> RGArg {
         match self.kind {
             RGArgKind::Positional { .. } => panic!("expected switch or flag"),
@@ -360,41 +320,33 @@ impl RGArg {
         self
     }
 
-    /// Set the "short" help text.
+    /// 设置“短”帮助文本。
     ///
-    /// This should be a single line. It is shown in the `-h` output.
+    /// 这应该是一行。它会显示在 `-h` 输出中。
     fn help(mut self, text: &'static str) -> RGArg {
         self.doc_short = text;
         self.claparg = self.claparg.help(text);
         self
     }
 
-    /// Set the "long" help text.
+    /// 设置“长”帮助文本。
     ///
-    /// This should be at least a single line, usually longer. It is shown in
-    /// the `--help` output.
+    /// 这应该至少是一行，通常更长。它会显示在 `--help` 输出中。
     fn long_help(mut self, text: &'static str) -> RGArg {
         self.doc_long = text;
         self.claparg = self.claparg.long_help(text);
         self
     }
 
-    /// Enable this argument to accept multiple values.
+    /// 启用此参数接受多个值。
     ///
-    /// Note that while switches and flags can always be repeated an arbitrary
-    /// number of times, this particular method enables the flag to be
-    /// logically repeated where each occurrence of the flag may have
-    /// significance. That is, when this is disabled, then a switch is either
-    /// present or not and a flag has exactly one value (the last one given).
-    /// When this is enabled, then a switch has a count corresponding to the
-    /// number of times it is used and a flag's value is a list of all values
-    /// given.
+    /// 请注意，尽管开关和标志始终可以重复任意次数，但此方法使标志可以逻辑重复使用，其中每次使用标志都可能有意义。
+    /// 也就是说，当禁用此选项时，开关要么存在要么不存在，标志只有一个值（最后一个给定的值）。
+    /// 启用此选项后，开关的计数将与使用它的次数相对应，标志的值是给定的所有值的列表。
     ///
-    /// For the most part, this distinction is resolved by consumers of clap's
-    /// configuration.
+    /// 在大多数情况下，此区别由 clap 配置的消费者解决。
     fn multiple(mut self) -> RGArg {
-        // Why not put `multiple` on RGArg proper? Because it's useful to
-        // document it distinct for each different kind. See RGArgKind docs.
+        // 为什么不直接将 `multiple` 放在 RGArg 上？因为为每个不同的种类单独记录它是有用的。请参阅 RGArgKind 文档。
         match self.kind {
             RGArgKind::Positional { ref mut multiple, .. } => {
                 *multiple = true;
@@ -410,22 +362,19 @@ impl RGArg {
         self
     }
 
-    /// Hide this flag from all documentation.
+    /// 从所有文档中隐藏此标志。
     fn hidden(mut self) -> RGArg {
         self.hidden = true;
         self.claparg = self.claparg.hidden(true);
         self
     }
 
-    /// Set the possible values for this argument. If this argument is not
-    /// a flag, then this panics.
+    /// 为此参数设置可能的值。如果此参数不是标志，则会引发错误。
     ///
-    /// If the end user provides any value other than what is given here, then
-    /// clap will report an error to the user.
+    /// 如果最终用户提供的任何值不在此处给出，clap 将向用户报告错误。
     ///
-    /// Note that this will suppress clap's automatic output of possible values
-    /// when using -h/--help, so users of this method should provide
-    /// appropriate documentation for the choices in the "long" help text.
+    /// 请注意，这将抑制在使用 -h/--help 时自动输出可能值的 clap 行为，
+    /// 因此使用此方法的用户应为 "长" 帮助文本提供适当的选项文档。
     fn possible_values(mut self, values: &[&'static str]) -> RGArg {
         match self.kind {
             RGArgKind::Positional { .. } => panic!("expected flag"),
@@ -441,17 +390,17 @@ impl RGArg {
         self
     }
 
-    /// Add an alias to this argument.
+    /// 为此参数添加一个别名。
     ///
-    /// Aliases are not show in the output of -h/--help.
+    /// 别名不会显示在 -h/--help 输出中。
     fn alias(mut self, name: &'static str) -> RGArg {
         self.claparg = self.claparg.alias(name);
         self
     }
 
-    /// Permit this flag to have values that begin with a hyphen.
+    /// 允许此标志的值以连字符开头。
     ///
-    /// This panics if this arg is not a flag.
+    /// 如果此参数不是标志，则会引发错误。
     fn allow_leading_hyphen(mut self) -> RGArg {
         match self.kind {
             RGArgKind::Positional { .. } => panic!("expected flag"),
@@ -463,39 +412,32 @@ impl RGArg {
         self
     }
 
-    /// Sets this argument to a required argument, unless one of the given
-    /// arguments is provided.
+    /// 将此参数设置为必填参数，除非提供了给定参数之一。
     fn required_unless(mut self, names: &[&'static str]) -> RGArg {
         self.claparg = self.claparg.required_unless_one(names);
         self
     }
 
-    /// Sets conflicting arguments. That is, if this argument is used whenever
-    /// any of the other arguments given here are used, then clap will report
-    /// an error.
+    /// 设置冲突的参数。也就是说，如果在任何给定的参数中使用了此参数，那么 clap 将报告错误。
     fn conflicts(mut self, names: &[&'static str]) -> RGArg {
         self.claparg = self.claparg.conflicts_with_all(names);
         self
     }
 
-    /// Sets an overriding argument. That is, if this argument and the given
-    /// argument are both provided by an end user, then the "last" one will
-    /// win. ripgrep will behave as if any previous instantiations did not
-    /// happen.
+    /// 设置覆盖参数。也就是说，如果最终用户同时提供了此参数和给定参数，则以 "最后" 一个为准。
+    /// ripgrep 将表现得好像之前的实例没有发生过。
     fn overrides(mut self, name: &'static str) -> RGArg {
         self.claparg = self.claparg.overrides_with(name);
         self
     }
 
-    /// Sets the default value of this argument when not specified at
-    /// runtime.
+    /// 设置未在运行时指定的情况下的默认值。
     fn default_value(mut self, value: &'static str) -> RGArg {
         self.claparg = self.claparg.default_value(value);
         self
     }
 
-    /// Sets the default value of this argument if and only if the argument
-    /// given is present.
+    /// 仅当提供了参数时，设置此参数的默认值。
     fn default_value_if(
         mut self,
         value: &'static str,
@@ -505,8 +447,7 @@ impl RGArg {
         self
     }
 
-    /// Indicate that any value given to this argument should be a number. If
-    /// it's not a number, then clap will report an error to the end user.
+    /// 指示给定的参数值应为数字。如果不是数字，则 clap 将向最终用户报告错误。
     fn number(mut self) -> RGArg {
         self.claparg = self.claparg.validator(|val| {
             val.parse::<usize>().map(|_| ()).map_err(|err| err.to_string())
@@ -515,8 +456,7 @@ impl RGArg {
     }
 }
 
-// We add an extra space to long descriptions so that a blank line is inserted
-// between flag descriptions in --help output.
+// 我们在长描述中添加额外的空格，以便在 --help 输出中在标志描述之间插入一个空行。
 macro_rules! long {
     ($lit:expr) => {
         concat!($lit, " ")

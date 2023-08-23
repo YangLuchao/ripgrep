@@ -302,7 +302,7 @@ pub struct SearchWorker<W> {
 impl<W: WriteColor> SearchWorker<W> {
     /// 在给定主题上执行搜索。
     pub fn search(&mut self, subject: &Subject) -> io::Result<SearchResult> {
-        let bin = if subject.is_explicit() {
+        let bin: BinaryDetection = if subject.is_explicit() {
             self.config.binary_explicit.clone()
         } else {
             self.config.binary_implicit.clone()
@@ -359,6 +359,46 @@ impl<W: WriteColor> SearchWorker<W> {
             return true;
         }
         !self.config.preprocessor_globs.matched(path, false).is_ignore()
+    }
+
+    /// 搜索给定的文件路径，首先向预处理器请求要搜索的数据，而不是直接打开路径。
+    fn search_preprocessor(
+        &mut self,
+        path: &Path,
+    ) -> io::Result<SearchResult> {
+        let bin = self.config.preprocessor.as_ref().unwrap();
+        let mut cmd = Command::new(bin);
+        cmd.arg(path).stdin(Stdio::from(File::open(path)?));
+
+        let mut rdr = self.command_builder.build(&mut cmd).map_err(|err| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "preprocessor command could not start: '{:?}': {}",
+                    cmd, err,
+                ),
+            )
+        })?;
+        let result = self.search_reader(path, &mut rdr).map_err(|err| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("preprocessor command failed: '{:?}': {}", cmd, err),
+            )
+        });
+        let close_result = rdr.close();
+        let search_result = result?;
+        close_result?;
+        Ok(search_result)
+    }
+
+    /// 尝试在给定的文件路径上解压缩数据并搜索结果。如果给定的文件路径不被识别为压缩文件，则然后搜索它，而不进行任何解压缩。
+    fn search_decompress(&mut self, path: &Path) -> io::Result<SearchResult> {
+        let mut rdr = self.decomp_builder.build(path)?;
+        let result = self.search_reader(path, &mut rdr);
+        let close_result = rdr.close();
+        let search_result = result?;
+        close_result?;
+        Ok(search_result)
     }
 
     /// 使用给定的匹配器、搜索器和打印机搜索给定文件路径。
