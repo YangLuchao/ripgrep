@@ -19,10 +19,9 @@ use crate::overrides::Override;
 use crate::types::Types;
 use crate::{Error, PartialErrorBuilder};
 
-/// A directory entry with a possible error attached.
+/// 带有可能附加错误的目录条目。
 ///
-/// The error typically refers to a problem parsing ignore files in a
-/// particular directory.
+/// 错误通常指的是在特定目录中解析忽略文件时出现的问题。
 #[derive(Clone, Debug)]
 pub struct DirEntry {
     dent: DirEntryInner,
@@ -30,74 +29,71 @@ pub struct DirEntry {
 }
 
 impl DirEntry {
-    /// The full path that this entry represents.
+    /// 此条目表示的完整路径。
     pub fn path(&self) -> &Path {
         self.dent.path()
     }
 
-    /// The full path that this entry represents.
-    /// Analogous to [`path`], but moves ownership of the path.
+    /// 此条目表示的完整路径。
+    /// 与 [`path`] 类似，但会移动路径的所有权。
     ///
     /// [`path`]: struct.DirEntry.html#method.path
     pub fn into_path(self) -> PathBuf {
         self.dent.into_path()
     }
 
-    /// Whether this entry corresponds to a symbolic link or not.
+    /// 此条目是否对应符号链接。
     pub fn path_is_symlink(&self) -> bool {
         self.dent.path_is_symlink()
     }
 
-    /// Returns true if and only if this entry corresponds to stdin.
+    /// 仅当此条目对应 stdin 时才返回 true。
     ///
-    /// i.e., The entry has depth 0 and its file name is `-`.
+    /// 即，条目的深度为 0，且其文件名为 `-`。
     pub fn is_stdin(&self) -> bool {
         self.dent.is_stdin()
     }
 
-    /// Return the metadata for the file that this entry points to.
+    /// 返回此条目所指向文件的元数据。
     pub fn metadata(&self) -> Result<Metadata, Error> {
         self.dent.metadata()
     }
 
-    /// Return the file type for the file that this entry points to.
+    /// 返回此条目所指向文件的文件类型。
     ///
-    /// This entry doesn't have a file type if it corresponds to stdin.
+    /// 如果此条目对应 stdin，则没有文件类型。
     pub fn file_type(&self) -> Option<FileType> {
         self.dent.file_type()
     }
 
-    /// Return the file name of this entry.
+    /// 返回此条目的文件名。
     ///
-    /// If this entry has no file name (e.g., `/`), then the full path is
-    /// returned.
+    /// 如果此条目没有文件名（例如 `/`），则返回完整路径。
     pub fn file_name(&self) -> &OsStr {
         self.dent.file_name()
     }
 
-    /// Returns the depth at which this entry was created relative to the root.
+    /// 返回此条目相对于根目录的创建深度。
     pub fn depth(&self) -> usize {
         self.dent.depth()
     }
 
-    /// Returns the underlying inode number if one exists.
+    /// 返回底层 inode 号（如果存在）。
     ///
-    /// If this entry doesn't have an inode number, then `None` is returned.
+    /// 如果此条目没有 inode 号，则返回 `None`。
     #[cfg(unix)]
     pub fn ino(&self) -> Option<u64> {
         self.dent.ino()
     }
 
-    /// Returns an error, if one exists, associated with processing this entry.
+    /// 返回与处理此条目相关联的错误（如果存在）。
     ///
-    /// An example of an error is one that occurred while parsing an ignore
-    /// file. Errors related to traversing a directory tree itself are reported
-    /// as part of yielding the directory entry, and not with this method.
+    /// 错误的一个示例是在解析忽略文件时发生的错误。与遍历目录树本身相关的错误作为产生目录条目的一部分报告，而不是作为此方法的一部分报告。
     pub fn error(&self) -> Option<&Error> {
         self.err.as_ref()
     }
 
-    /// Returns true if and only if this entry points to a directory.
+    /// 仅当此条目指向目录时才返回 true。
     pub(crate) fn is_dir(&self) -> bool {
         self.dent.is_dir()
     }
@@ -429,55 +425,31 @@ impl DirEntryRaw {
         )))
     }
 }
-
-/// WalkBuilder builds a recursive directory iterator.
+/// `WalkBuilder` 构建递归目录迭代器。
 ///
-/// The builder supports a large number of configurable options. This includes
-/// specific glob overrides, file type matching, toggling whether hidden
-/// files are ignored or not, and of course, support for respecting gitignore
-/// files.
+/// 该构建器支持大量可配置的选项。这包括特定的 glob 覆盖、文件类型匹配、切换是否忽略隐藏文件，当然还包括支持遵循 gitignore 文件。
 ///
-/// By default, all ignore files found are respected. This includes `.ignore`,
-/// `.gitignore`, `.git/info/exclude` and even your global gitignore
-/// globs, usually found in `$XDG_CONFIG_HOME/git/ignore`.
+/// 默认情况下，会尊重找到的所有忽略文件。这包括 `.ignore`、`.gitignore`、`.git/info/exclude` 以及通常位于 `$XDG_CONFIG_HOME/git/ignore` 的全局 gitignore glob。
 ///
-/// Some standard recursive directory options are also supported, such as
-/// limiting the recursive depth or whether to follow symbolic links (disabled
-/// by default).
+/// 该构建器还支持一些标准的递归目录选项，比如限制递归深度或是否遵循符号链接（默认情况下禁用）。
 ///
-/// # Ignore rules
+/// # 忽略规则
 ///
-/// There are many rules that influence whether a particular file or directory
-/// is skipped by this iterator. Those rules are documented here. Note that
-/// the rules assume a default configuration.
+/// 有许多规则会影响迭代器是否跳过特定的文件或目录。这些规则在这里进行了文档化。注意这些规则假设默认配置。
 ///
-/// * First, glob overrides are checked. If a path matches a glob override,
-/// then matching stops. The path is then only skipped if the glob that matched
-/// the path is an ignore glob. (An override glob is a whitelist glob unless it
-/// starts with a `!`, in which case it is an ignore glob.)
-/// * Second, ignore files are checked. Ignore files currently only come from
-/// git ignore files (`.gitignore`, `.git/info/exclude` and the configured
-/// global gitignore file), plain `.ignore` files, which have the same format
-/// as gitignore files, or explicitly added ignore files. The precedence order
-/// is: `.ignore`, `.gitignore`, `.git/info/exclude`, global gitignore and
-/// finally explicitly added ignore files. Note that precedence between
-/// different types of ignore files is not impacted by the directory hierarchy;
-/// any `.ignore` file overrides all `.gitignore` files. Within each precedence
-/// level, more nested ignore files have a higher precedence than less nested
-/// ignore files.
-/// * Third, if the previous step yields an ignore match, then all matching
-/// is stopped and the path is skipped. If it yields a whitelist match, then
-/// matching continues. A whitelist match can be overridden by a later matcher.
-/// * Fourth, unless the path is a directory, the file type matcher is run on
-/// the path. As above, if it yields an ignore match, then all matching is
-/// stopped and the path is skipped. If it yields a whitelist match, then
-/// matching continues.
-/// * Fifth, if the path hasn't been whitelisted and it is hidden, then the
-/// path is skipped.
-/// * Sixth, unless the path is a directory, the size of the file is compared
-/// against the max filesize limit. If it exceeds the limit, it is skipped.
-/// * Seventh, if the path has made it this far then it is yielded in the
-/// iterator.
+/// * 首先，会检查 glob 覆盖。如果路径与 glob 覆盖匹配，匹配会停止。然后，只有在匹配路径的 glob 是忽略 glob 时，该路径才会被跳过。（覆盖 glob 是白名单 glob，除非它以 `!` 开头，这种情况下它是忽略 glob。）
+///
+/// * 其次，会检查忽略文件。忽略文件目前仅来自于 git 忽略文件（`.gitignore`、`.git/info/exclude` 和配置的全局 gitignore 文件）、纯粹的 `.ignore` 文件（与 gitignore 文件具有相同的格式）或显式添加的忽略文件。优先级顺序是：`.ignore`、`.gitignore`、`.git/info/exclude`、全局 gitignore，最后是显式添加的忽略文件。请注意，不同类型的忽略文件之间的优先级不受目录层次结构的影响；任何 `.ignore` 文件都会覆盖所有 `.gitignore` 文件。在每个优先级级别内，嵌套更深的忽略文件的优先级高于嵌套较浅的忽略文件。
+///
+/// * 第三，如果前面的步骤产生了忽略匹配，那么所有匹配都会停止，路径会被跳过。如果它产生了白名单匹配，那么匹配将继续。白名单匹配可以被后面的匹配器覆盖。
+///
+/// * 第四，除非路径是目录，否则会在路径上运行文件类型匹配器。与上述相同，如果它产生了忽略匹配，那么所有匹配都会停止，路径会被跳过。如果它产生了白名单匹配，那么匹配将继续。
+///
+/// * 第五，如果路径未被列入白名单，并且它是隐藏的，则路径会被跳过。
+///
+/// * 第六，除非路径是目录，否则会将文件的大小与最大文件大小限制进行比较。如果超过了限制，就会跳过它。
+///
+/// * 第七，如果路径到了这一步，那么它会在迭代器中生成。
 #[derive(Clone)]
 pub struct WalkBuilder {
     paths: Vec<PathBuf>,

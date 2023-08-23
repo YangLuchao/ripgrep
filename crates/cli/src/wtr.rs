@@ -1,26 +1,19 @@
 use std::io;
-
 use termcolor;
 
 use crate::is_tty_stdout;
 
-/// A writer that supports coloring with either line or block buffering.
+/// 支持在行缓冲或块缓冲下着色的写入器。
 pub struct StandardStream(StandardStreamKind);
 
-/// Returns a possibly buffered writer to stdout for the given color choice.
+/// 根据给定的颜色选择返回可能带缓冲的标准输出写入器。
 ///
-/// The writer returned is either line buffered or block buffered. The decision
-/// between these two is made automatically based on whether a tty is attached
-/// to stdout or not. If a tty is attached, then line buffering is used.
-/// Otherwise, block buffering is used. In general, block buffering is more
-/// efficient, but may increase the time it takes for the end user to see the
-/// first bits of output.
+/// 返回的写入器可以是行缓冲或块缓冲。这个决定是根据是否在标准输出上连接了终端自动做出的。
+/// 如果连接了终端，那么使用行缓冲。否则，使用块缓冲。通常来说，块缓冲更高效，但可能会增加用户看到输出的时间。
 ///
-/// If you need more fine grained control over the buffering mode, then use one
-/// of `stdout_buffered_line` or `stdout_buffered_block`.
+/// 如果你需要更精细的控制缓冲模式，可以使用 `stdout_buffered_line` 或 `stdout_buffered_block`。
 ///
-/// The color choice given is passed along to the underlying writer. To
-/// completely disable colors in all cases, use `ColorChoice::Never`.
+/// 给定的颜色选择将传递给底层写入器。要完全禁用所有情况下的颜色，可以使用 `ColorChoice::Never`。
 pub fn stdout(color_choice: termcolor::ColorChoice) -> StandardStream {
     if is_tty_stdout() {
         stdout_buffered_line(color_choice)
@@ -29,16 +22,13 @@ pub fn stdout(color_choice: termcolor::ColorChoice) -> StandardStream {
     }
 }
 
-/// Returns a line buffered writer to stdout for the given color choice.
+/// 根据给定的颜色选择返回行缓冲的标准输出写入器。
 ///
-/// This writer is useful when printing results directly to a tty such that
-/// users see output as soon as it's written. The downside of this approach
-/// is that it can be slower, especially when there is a lot of output.
+/// 当将结果直接打印到终端时，这个写入器很有用，用户会立即看到输出。这种方法的缺点是它可能会更慢，
+/// 尤其是在有大量输出时。
 ///
-/// You might consider using
-/// [`stdout`](fn.stdout.html)
-/// instead, which chooses the buffering strategy automatically based on
-/// whether stdout is connected to a tty.
+/// 你可能会考虑使用 [`stdout`](fn.stdout.html)，
+/// 它会根据标准输出是否连接到终端自动选择缓冲策略。
 pub fn stdout_buffered_line(
     color_choice: termcolor::ColorChoice,
 ) -> StandardStream {
@@ -46,16 +36,12 @@ pub fn stdout_buffered_line(
     StandardStream(StandardStreamKind::LineBuffered(out))
 }
 
-/// Returns a block buffered writer to stdout for the given color choice.
+/// 根据给定的颜色选择返回块缓冲的标准输出写入器。
 ///
-/// This writer is useful when printing results to a file since it amortizes
-/// the cost of writing data. The downside of this approach is that it can
-/// increase the latency of display output when writing to a tty.
+/// 当将结果写入文件时，这个写入器很有用，因为它摊销了写入数据的成本。这种方法的缺点是它可能会增加写入终端时的显示延迟。
 ///
-/// You might consider using
-/// [`stdout`](fn.stdout.html)
-/// instead, which chooses the buffering strategy automatically based on
-/// whether stdout is connected to a tty.
+/// 你可能会考虑使用 [`stdout`](fn.stdout.html)，
+/// 它会根据标准输出是否连接到终端自动选择缓冲策略。
 pub fn stdout_buffered_block(
     color_choice: termcolor::ColorChoice,
 ) -> StandardStream {

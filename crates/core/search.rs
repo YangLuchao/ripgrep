@@ -18,9 +18,7 @@ use termcolor::WriteColor;
 
 use crate::subject::Subject;
 
-/// The configuration for the search worker. Among a few other things, the
-/// configuration primarily controls the way we show search results to users
-/// at a very high level.
+/// 搜索工作者的配置。除了其他一些设置，配置主要控制如何向用户展示搜索结果的高级设置。
 #[derive(Clone, Debug)]
 struct Config {
     json_stats: bool,
@@ -44,7 +42,7 @@ impl Default for Config {
     }
 }
 
-/// A builder for configuring and constructing a search worker.
+/// 用于配置和构建搜索工作者的构建器。
 #[derive(Clone, Debug)]
 pub struct SearchWorkerBuilder {
     config: Config,
@@ -59,7 +57,7 @@ impl Default for SearchWorkerBuilder {
 }
 
 impl SearchWorkerBuilder {
-    /// Create a new builder for configuring and constructing a search worker.
+    /// 创建一个新的构建器，用于配置和构建搜索工作者。
     pub fn new() -> SearchWorkerBuilder {
         let mut cmd_builder = cli::CommandReaderBuilder::new();
         cmd_builder.async_stderr(true);
@@ -74,8 +72,7 @@ impl SearchWorkerBuilder {
         }
     }
 
-    /// Create a new search worker using the given searcher, matcher and
-    /// printer.
+    /// 使用给定的搜索器、匹配器和打印机创建一个新的搜索工作者。
     pub fn build<W: WriteColor>(
         &self,
         matcher: PatternMatcher,
@@ -95,23 +92,19 @@ impl SearchWorkerBuilder {
         }
     }
 
-    /// Forcefully use JSON to emit statistics, even if the underlying printer
-    /// is not the JSON printer.
+    /// 强制使用 JSON 输出统计数据，即使底层打印机不是 JSON 打印机。
     ///
-    /// This is useful for implementing flag combinations like
-    /// `--json --quiet`, which uses the summary printer for implementing
-    /// `--quiet` but still wants to emit summary statistics, which should
-    /// be JSON formatted because of the `--json` flag.
+    /// 这在实现诸如 `--json --quiet` 这样的标志组合时很有用，它使用摘要打印机来实现
+    /// `--quiet`，但仍希望以 JSON 格式输出摘要统计数据，因为有 `--json` 标志。
     pub fn json_stats(&mut self, yes: bool) -> &mut SearchWorkerBuilder {
         self.config.json_stats = yes;
         self
     }
 
-    /// Set the path to a preprocessor command.
+    /// 设置预处理器命令的路径。
     ///
-    /// When this is set, instead of searching files directly, the given
-    /// command will be run with the file path as the first argument, and the
-    /// output of that command will be searched instead.
+    /// 当设置了预处理器命令时，将不直接搜索文件，而是使用文件路径作为第一个参数运行给定的命令，
+    /// 并搜索该命令的输出。
     pub fn preprocessor(
         &mut self,
         cmd: Option<PathBuf>,
@@ -125,9 +118,9 @@ impl SearchWorkerBuilder {
         Ok(self)
     }
 
-    /// Set the globs for determining which files should be run through the
-    /// preprocessor. By default, with no globs and a preprocessor specified,
-    /// every file is run through the preprocessor.
+    /// 设置用于确定应该通过预处理器运行哪些文件的文件模式。
+    ///
+    /// 默认情况下，如果没有文件模式且设置了预处理器，则会将每个文件都通过预处理器运行。
     pub fn preprocessor_globs(
         &mut self,
         globs: Override,
@@ -136,25 +129,21 @@ impl SearchWorkerBuilder {
         self
     }
 
-    /// Enable the decompression and searching of common compressed files.
+    /// 启用对常见压缩文件的解压缩和搜索。
     ///
-    /// When enabled, if a particular file path is recognized as a compressed
-    /// file, then it is decompressed before searching.
+    /// 启用后，如果识别出某个文件路径为压缩文件，则在搜索之前将其解压缩。
     ///
-    /// Note that if a preprocessor command is set, then it overrides this
-    /// setting.
+    /// 请注意，如果设置了预处理器命令，则该设置将被覆盖。
     pub fn search_zip(&mut self, yes: bool) -> &mut SearchWorkerBuilder {
         self.config.search_zip = yes;
         self
     }
 
-    /// Set the binary detection that should be used when searching files
-    /// found via a recursive directory search.
+    /// 设置递归目录搜索时应使用的二进制检测。
     ///
-    /// Generally, this binary detection may be `BinaryDetection::quit` if
-    /// we want to skip binary files completely.
+    /// 一般来说，这个二进制检测可能是 `BinaryDetection::quit`，如果我们想完全跳过二进制文件的话。
     ///
-    /// By default, no binary detection is performed.
+    /// 默认情况下，不执行任何二进制检测。
     pub fn binary_detection_implicit(
         &mut self,
         detection: BinaryDetection,
@@ -163,14 +152,11 @@ impl SearchWorkerBuilder {
         self
     }
 
-    /// Set the binary detection that should be used when searching files
-    /// explicitly supplied by an end user.
+    /// 设置应在搜索由最终用户明确提供的文件时使用的二进制检测。
     ///
-    /// Generally, this binary detection should NOT be `BinaryDetection::quit`,
-    /// since we never want to automatically filter files supplied by the end
-    /// user.
+    /// 一般来说，这个二进制检测不应该是 `BinaryDetection::quit`，因为我们永远不希望自动过滤最终用户提供的文件。
     ///
-    /// By default, no binary detection is performed.
+    /// 默认情况下，不执行任何二进制检测。
     pub fn binary_detection_explicit(
         &mut self,
         detection: BinaryDetection,
@@ -180,12 +166,9 @@ impl SearchWorkerBuilder {
     }
 }
 
-/// The result of executing a search.
+/// 搜索执行的结果。
 ///
-/// Generally speaking, the "result" of a search is sent to a printer, which
-/// writes results to an underlying writer such as stdout or a file. However,
-/// every search also has some aggregate statistics or meta data that may be
-/// useful to higher level routines.
+/// 一般来说，搜索的“结果”会发送给打印机，将结果写入底层写入器，如 stdout 或文件。但是，每个搜索还有一些可能对更高级别的例程有用的聚合统计或元数据。
 #[derive(Clone, Debug, Default)]
 pub struct SearchResult {
     has_match: bool,
@@ -193,21 +176,20 @@ pub struct SearchResult {
 }
 
 impl SearchResult {
-    /// Whether the search found a match or not.
+    /// 搜索是否找到匹配项。
     pub fn has_match(&self) -> bool {
         self.has_match
     }
 
-    /// Return aggregate search statistics for a single search, if available.
+    /// 返回单个搜索的聚合统计信息，如果可用。
     ///
-    /// It can be expensive to compute statistics, so these are only present
-    /// if explicitly enabled in the printer provided by the caller.
+    /// 计算统计信息可能很昂贵，因此只有在打印机中显式启用时才会出现。
     pub fn stats(&self) -> Option<&Stats> {
         self.stats.as_ref()
     }
 }
 
-/// 搜索工作者使用的模式匹配器。
+/// 用于搜索工作者的模式匹配器。
 #[derive(Clone, Debug)]
 pub enum PatternMatcher {
     RustRegex(RustRegexMatcher),
@@ -215,17 +197,16 @@ pub enum PatternMatcher {
     PCRE2(PCRE2RegexMatcher),
 }
 
-/// The printer used by a search worker.
+/// 搜索工作者使用的打印机。
 ///
-/// The `W` type parameter refers to the type of the underlying writer.
+/// `W` 类型参数指的是底层写入器的类型。
 #[derive(Debug)]
 pub enum Printer<W> {
-    /// Use the standard printer, which supports the classic grep-like format.
+    /// 使用标准打印机，支持经典的类似 grep 的格式。
     Standard(Standard<W>),
-    /// Use the summary printer, which supports aggregate displays of search
-    /// results.
+    /// 使用摘要打印机，支持搜索结果的聚合显示。
     Summary(Summary<W>),
-    /// A JSON printer, which emits results in the JSON Lines format.
+    /// JSON 打印机，以 JSON Lines 格式输出结果。
     JSON(JSON<W>),
 }
 
@@ -251,14 +232,14 @@ impl<W: WriteColor> Printer<W> {
         write!(
             self.get_mut(),
             "
-{matches} matches
-{lines} matched lines
-{searches_with_match} files contained matches
-{searches} files searched
-{bytes_printed} bytes printed
-{bytes_searched} bytes searched
-{search_time:0.6} seconds spent searching
-{process_time:0.6} seconds
+{matches} 匹配项
+{lines} 匹配行数
+{searches_with_match} 包含匹配项的文件
+{searches} 搜索的文件数
+{bytes_printed} 打印的字节数
+{bytes_searched} 搜索的字节数
+{search_time:0.6} 秒用于搜索
+{process_time:0.6} 秒
 ",
             matches = stats.matches(),
             lines = stats.matched_lines(),
@@ -276,9 +257,7 @@ impl<W: WriteColor> Printer<W> {
         total_duration: Duration,
         stats: &Stats,
     ) -> io::Result<()> {
-        // We specifically match the format laid out by the JSON printer in
-        // the grep-printer crate. We simply "extend" it with the 'summary'
-        // message type.
+        // 我们特意匹配 grep-printer crate 中 JSON 打印机规定的格式。我们只是在其中添加了 'summary' 消息类型。
         let fractional = fractional_seconds(total_duration);
         json::to_writer(
             self.get_mut(),
@@ -297,7 +276,7 @@ impl<W: WriteColor> Printer<W> {
         write!(self.get_mut(), "\n")
     }
 
-    /// Return a mutable reference to the underlying printer's writer.
+    /// 返回对底层打印机的写入器的可变引用。
     pub fn get_mut(&mut self) -> &mut W {
         match *self {
             Printer::Standard(ref mut p) => p.get_mut(),
@@ -307,11 +286,9 @@ impl<W: WriteColor> Printer<W> {
     }
 }
 
-/// A worker for executing searches.
+/// 执行搜索的工作者。
 ///
-/// It is intended for a single worker to execute many searches, and is
-/// generally intended to be used from a single thread. When searching using
-/// multiple threads, it is better to create a new worker for each thread.
+/// 执行多次搜索时，通常一个工作者会执行多个搜索，一般来说，它应该在单个线程中使用。当使用多个线程进行搜索时，最好为每个线程创建一个新的工作者。
 #[derive(Debug)]
 pub struct SearchWorker<W> {
     config: Config,
@@ -323,7 +300,7 @@ pub struct SearchWorker<W> {
 }
 
 impl<W: WriteColor> SearchWorker<W> {
-    /// Execute a search over the given subject.
+    /// 在给定主题上执行搜索。
     pub fn search(&mut self, subject: &Subject) -> io::Result<SearchResult> {
         let bin = if subject.is_explicit() {
             self.config.binary_explicit.clone()
@@ -331,7 +308,7 @@ impl<W: WriteColor> SearchWorker<W> {
             self.config.binary_implicit.clone()
         };
         let path = subject.path();
-        log::trace!("{}: binary detection: {:?}", path.display(), bin);
+        log::trace!("{}: 二进制检测: {:?}", path.display(), bin);
 
         self.searcher.set_binary_detection(bin);
         if subject.is_stdin() {
@@ -345,17 +322,14 @@ impl<W: WriteColor> SearchWorker<W> {
         }
     }
 
-    /// Return a mutable reference to the underlying printer.
+    /// 返回对底层打印机的可变引用。
     pub fn printer(&mut self) -> &mut Printer<W> {
         &mut self.printer
     }
 
-    /// Print the given statistics to the underlying writer in a way that is
-    /// consistent with this searcher's printer's format.
+    /// 将给定的统计信息以与此搜索器的打印机的格式一致的方式打印到底层写入器中。
     ///
-    /// While `Stats` contains a duration itself, this only corresponds to the
-    /// time spent searching, where as `total_duration` should roughly
-    /// approximate the lifespan of the ripgrep process itself.
+    /// 虽然 `Stats` 自己包含了一个持续时间，但这仅对搜索所花费的时间进行了统计，而 `total_duration` 应该大致估计了 ripgrep 进程本身的生命周期。
     pub fn print_stats(
         &mut self,
         total_duration: Duration,
@@ -368,8 +342,7 @@ impl<W: WriteColor> SearchWorker<W> {
         }
     }
 
-    /// Returns true if and only if the given file path should be
-    /// decompressed before searching.
+    /// 如果且仅如果给定的文件路径应在搜索之前被解压缩，则返回 `true`。
     fn should_decompress(&self, path: &Path) -> bool {
         if !self.config.search_zip {
             return false;
@@ -377,8 +350,7 @@ impl<W: WriteColor> SearchWorker<W> {
         self.decomp_builder.get_matcher().has_command(path)
     }
 
-    /// Returns true if and only if the given file path should be run through
-    /// the preprocessor.
+    /// 如果且仅如果给定的文件路径应由预处理器运行，则返回 `true`。
     fn should_preprocess(&self, path: &Path) -> bool {
         if !self.config.preprocessor.is_some() {
             return false;
@@ -389,50 +361,7 @@ impl<W: WriteColor> SearchWorker<W> {
         !self.config.preprocessor_globs.matched(path, false).is_ignore()
     }
 
-    /// Search the given file path by first asking the preprocessor for the
-    /// data to search instead of opening the path directly.
-    fn search_preprocessor(
-        &mut self,
-        path: &Path,
-    ) -> io::Result<SearchResult> {
-        let bin = self.config.preprocessor.as_ref().unwrap();
-        let mut cmd = Command::new(bin);
-        cmd.arg(path).stdin(Stdio::from(File::open(path)?));
-
-        let mut rdr = self.command_builder.build(&mut cmd).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "preprocessor command could not start: '{:?}': {}",
-                    cmd, err,
-                ),
-            )
-        })?;
-        let result = self.search_reader(path, &mut rdr).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("preprocessor command failed: '{:?}': {}", cmd, err),
-            )
-        });
-        let close_result = rdr.close();
-        let search_result = result?;
-        close_result?;
-        Ok(search_result)
-    }
-
-    /// Attempt to decompress the data at the given file path and search the
-    /// result. If the given file path isn't recognized as a compressed file,
-    /// then search it without doing any decompression.
-    fn search_decompress(&mut self, path: &Path) -> io::Result<SearchResult> {
-        let mut rdr = self.decomp_builder.build(path)?;
-        let result = self.search_reader(path, &mut rdr);
-        let close_result = rdr.close();
-        let search_result = result?;
-        close_result?;
-        Ok(search_result)
-    }
-
-    /// Search the contents of the given file path.
+    /// 使用给定的匹配器、搜索器和打印机搜索给定文件路径。
     fn search_path(&mut self, path: &Path) -> io::Result<SearchResult> {
         use self::PatternMatcher::*;
 
@@ -444,15 +373,7 @@ impl<W: WriteColor> SearchWorker<W> {
         }
     }
 
-    /// Executes a search on the given reader, which may or may not correspond
-    /// directly to the contents of the given file path. Instead, the reader
-    /// may actually cause something else to be searched (for example, when
-    /// a preprocessor is set or when decompression is enabled). In those
-    /// cases, the file path is used for visual purposes only.
-    ///
-    /// Generally speaking, this method should only be used when there is no
-    /// other choice. Searching via `search_path` provides more opportunities
-    /// for optimizations (such as memory maps).
+    /// 使用给定的匹配器、搜索器和打印机在给定读取器上执行搜索。
     fn search_reader<R: io::Read>(
         &mut self,
         path: &Path,
@@ -469,8 +390,7 @@ impl<W: WriteColor> SearchWorker<W> {
     }
 }
 
-/// Search the contents of the given file path using the given matcher,
-/// searcher and printer.
+/// 使用给定的匹配器、搜索器和打印机在给定文件路径上执行搜索。
 fn search_path<M: Matcher, W: WriteColor>(
     matcher: M,
     searcher: &mut Searcher,
@@ -505,8 +425,7 @@ fn search_path<M: Matcher, W: WriteColor>(
     }
 }
 
-/// Search the contents of the given reader using the given matcher, searcher
-/// and printer.
+/// 使用给定的匹配器、搜索器和打印机在给定读取器上执行搜索。
 fn search_reader<M: Matcher, R: io::Read, W: WriteColor>(
     matcher: M,
     searcher: &mut Searcher,
@@ -542,7 +461,7 @@ fn search_reader<M: Matcher, R: io::Read, W: WriteColor>(
     }
 }
 
-/// Return the given duration as fractional seconds.
+/// 将给定持续时间格式化为精确到小数点后六位的秒数。
 fn fractional_seconds(duration: Duration) -> f64 {
-    (duration.as_secs() as f64) + (duration.subsec_nanos() as f64 * 1e-9)
+    duration.as_secs() as f64 + f64::from(duration.subsec_nanos()) * 1e-9
 }

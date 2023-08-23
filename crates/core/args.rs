@@ -143,34 +143,29 @@ impl Args {
         matches.to_args()
     }
 
-    /// Return direct access to command line arguments.
+    /// 返回直接访问命令行参数。
     fn matches(&self) -> &ArgMatches {
         &self.0.matches
     }
 
-    /// Return the matcher builder from the patterns.
+    /// 返回来自模式的匹配器构建器。
     fn matcher(&self) -> &PatternMatcher {
         &self.0.matcher
     }
 
-    /// Return the paths found in the command line arguments. This is
-    /// guaranteed to be non-empty. In the case where no explicit arguments are
-    /// provided, a single default path is provided automatically.
+    /// 返回在命令行参数中找到的路径。保证非空。如果没有提供显式参数，则会自动提供单个默认路径。
     fn paths(&self) -> &[PathBuf] {
         &self.0.paths
     }
 
-    /// Returns true if and only if `paths` had to be populated with a default
-    /// path, which occurs only when no paths were given as command line
-    /// arguments.
+    /// 当且仅当 `paths` 必须使用默认路径填充时返回 true，这仅在未将路径作为命令行参数给出时发生。
     pub fn using_default_path(&self) -> bool {
         self.0.using_default_path
     }
 
-    /// Return the printer that should be used for formatting the output of
-    /// search results.
+    /// 返回应用于格式化搜索结果输出的打印机。
     ///
-    /// The returned printer will write results to the given writer.
+    /// 返回的打印机将结果写入给定的写入器。
     fn printer<W: WriteColor>(&self, wtr: W) -> Result<Printer<W>> {
         match self.matches().output_kind() {
             OutputKind::Standard => {
@@ -190,26 +185,23 @@ impl Args {
     }
 }
 
-/// High level public routines for building data structures used by ripgrep
-/// from command line arguments.
+/// 从命令行参数构建 ripgrep 使用的数据结构的高级公共例程。
 impl Args {
-    /// Create a new buffer writer for multi-threaded printing with color
-    /// support.
+    /// 创建一个带有颜色支持的多线程打印缓冲区写入器。
     pub fn buffer_writer(&self) -> Result<BufferWriter> {
         let mut wtr = BufferWriter::stdout(self.matches().color_choice());
         wtr.separator(self.matches().file_separator()?);
         Ok(wtr)
     }
 
-    /// Return the high-level command that ripgrep should run.
+    /// 返回 ripgrep 应该运行的高级命令。
     pub fn command(&self) -> Command {
         self.0.command
     }
 
-    /// Builder a path printer that can be used for printing just file paths,
-    /// with optional color support.
+    /// 构建一个可用于仅打印文件路径的路径打印机，支持可选的颜色。
     ///
-    /// The printer will print paths to the given writer.
+    /// 打印机将文件路径打印到给定的写入器。
     pub fn path_printer<W: WriteColor>(
         &self,
         wtr: W,
@@ -222,29 +214,28 @@ impl Args {
         Ok(builder.build(wtr))
     }
 
-    /// Returns true if and only if ripgrep should be "quiet."
+    /// 当且仅当 ripgrep 应该"安静"时返回 true。
     pub fn quiet(&self) -> bool {
         self.matches().is_present("quiet")
     }
 
-    /// Returns true if and only if the search should quit after finding the
-    /// first match.
+    /// 当且仅当搜索在找到第一个匹配后应该退出时返回 true。
     pub fn quit_after_match(&self) -> Result<bool> {
         Ok(self.matches().is_present("quiet") && self.stats()?.is_none())
     }
 
-    /// Build a worker for executing searches.
+    /// 构建一个用于执行搜索的工作者。
     ///
-    /// Search results are written to the given writer.
+    /// 搜索结果将写入给定的写入器。
     pub fn search_worker<W: WriteColor>(
         &self,
         wtr: W,
     ) -> Result<SearchWorker<W>> {
-        let matches = self.matches();
-        let matcher = self.matcher().clone();
-        let printer = self.printer(wtr)?;
-        let searcher = matches.searcher(self.paths())?;
-        let mut builder = SearchWorkerBuilder::new();
+        let matches: &ArgMatches = self.matches();
+        let matcher: PatternMatcher = self.matcher().clone();
+        let printer: Printer<W> = self.printer(wtr)?;
+        let searcher: Searcher = matches.searcher(self.paths())?;
+        let mut builder: SearchWorkerBuilder = SearchWorkerBuilder::new();
         builder
             .json_stats(matches.is_present("json"))
             .preprocessor(matches.preprocessor())?
@@ -255,11 +246,9 @@ impl Args {
         Ok(builder.build(matcher, searcher, printer))
     }
 
-    /// Returns a zero value for tracking statistics if and only if it has been
-    /// requested.
+    /// 当且仅当已请求统计信息时，返回一个零值以跟踪统计信息。
     ///
-    /// When this returns a `Stats` value, then it is guaranteed that the
-    /// search worker will be configured to track statistics as well.
+    /// 当返回一个 `Stats` 值时，可以保证搜索工作者也会被配置为跟踪统计信息。
     pub fn stats(&self) -> Result<Option<Stats>> {
         Ok(if self.command().is_search() && self.matches().stats() {
             Some(Stats::new())
@@ -268,17 +257,14 @@ impl Args {
         })
     }
 
-    /// Return a builder for constructing subjects. A subject represents a
-    /// single unit of something to search. Typically, this corresponds to a
-    /// file or a stream such as stdin.
+    /// 返回一个用于构建主题的构建器。一个主题表示要搜索的单个单位。通常，这对应于文件或流，如 stdin。
     pub fn subject_builder(&self) -> SubjectBuilder {
         let mut builder = SubjectBuilder::new();
         builder.strip_dot_prefix(self.using_default_path());
         builder
     }
 
-    /// Execute the given function with a writer to stdout that enables color
-    /// support based on the command line configuration.
+    /// 使用启用基于命令行配置的颜色支持的写入器执行给定函数。
     pub fn stdout(&self) -> cli::StandardStream {
         let color = self.matches().color_choice();
         if self.matches().is_present("line-buffered") {
@@ -290,15 +276,14 @@ impl Args {
         }
     }
 
-    /// Return the type definitions compiled into ripgrep.
+    /// 返回编译到 ripgrep 中的类型定义。
     ///
-    /// If there was a problem reading and parsing the type definitions, then
-    /// this returns an error.
+    /// 如果读取和解析类型定义时出现问题，将返回错误。
     pub fn type_defs(&self) -> Result<Vec<FileTypeDef>> {
         Ok(self.matches().types()?.definitions().to_vec())
     }
 
-    /// Return a walker that never uses additional threads.
+    /// 返回一个从不使用额外线程的 walker 执行器。
     pub fn walker(&self) -> Result<Walk> {
         Ok(self
             .matches()
@@ -306,7 +291,7 @@ impl Args {
             .build())
     }
 
-    /// Returns true if and only if `stat`-related sorting is required
+    /// 当且仅当需要 `stat` 相关的排序时返回 true。
     pub fn needs_stat_sort(&self) -> bool {
         return self.matches().sort_by().map_or(
             false,
@@ -319,14 +304,11 @@ impl Args {
         );
     }
 
-    /// Sort subjects if a sorter is specified, but only if the sort requires
-    /// stat calls. Non-stat related sorts are handled during file traversal
+    /// 如果指定了排序器，则对主题进行排序，但仅在排序需要 `stat` 调用时进行。
     ///
-    /// This function assumes that it is known that a stat-related sort is
-    /// required, and does not check for it again.
+    /// 此函数假设已知需要 `stat` 相关的排序，并且不再次检查该条件。
     ///
-    /// It is important that that precondition is fulfilled, since this function
-    /// consumes the subjects iterator, and is therefore a blocking function.
+    /// 重要的是满足该前提条件，因为此函数会消耗主题迭代器，因此是一个阻塞函数。
     pub fn sort_by_stat<I>(&self, subjects: I) -> Vec<Subject>
     where
         I: Iterator<Item = Subject>,
@@ -346,7 +328,7 @@ impl Args {
         keyed.into_iter().map(|v| v.1).collect()
     }
 
-    /// Return a parallel walker that may use additional threads.
+    /// 返回一个可能使用额外线程的并行 walker。
     pub fn walker_parallel(&self) -> Result<WalkParallel> {
         Ok(self
             .matches()
@@ -477,8 +459,8 @@ impl ArgMatches {
         ArgMatches(clap_matches)
     }
 
-    /// 运行 clap 并返回匹配的结果，如果存在配置文件则使用配置文件。如果 clap
-    /// 发现用户提供的参数存在问题（或者给出了 --help 或 --version），则会打印错误、用法或版本信息，
+    /// 运行 clap 并返回匹配的结果，如果存在配置文件则使用配置文件。
+    /// 如果 clap 发现用户提供的参数存在问题（或者给出了 --help 或 --version），则会打印错误、用法或版本信息，
     /// 然后进程将退出。
     ///
     /// 如果没有来自环境的附加参数（例如，配置文件），则给定的匹配将原样返回。
@@ -828,17 +810,15 @@ impl ArgMatches {
         Ok(builder.build())
     }
 
-    /// Return a builder for recursively traversing a directory while
-    /// respecting ignore rules.
+    /// 返回一个构建器，用于在遵循忽略规则的同时递归地遍历目录。
     ///
-    /// If there was a problem parsing the CLI arguments necessary for
-    /// constructing the builder, then this returns an error.
+    /// 如果在构建器构造所需的 CLI 参数解析过程中出现问题，那么将返回错误。
     fn walker_builder(
         &self,
         paths: &[PathBuf],
         threads: usize,
     ) -> Result<WalkBuilder> {
-        let mut builder = WalkBuilder::new(&paths[0]);
+        let mut builder: WalkBuilder = WalkBuilder::new(&paths[0]);
         for path in &paths[1..] {
             builder.add(path);
         }
@@ -1755,7 +1735,7 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    let err = match app::app().get_matches_from_safe(args) {
+    let err: clap::Error = match app::app().get_matches_from_safe(args) {
         Ok(matches) => return Ok(matches),
         Err(err) => err,
     };

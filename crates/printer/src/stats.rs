@@ -3,20 +3,19 @@ use std::time::Duration;
 
 use crate::util::NiceDuration;
 
-/// Summary statistics produced at the end of a search.
+/// 在搜索结束时产生的汇总统计信息。
 ///
-/// When statistics are reported by a printer, they correspond to all searches
-/// executed with that printer.
+/// 当打印机报告统计信息时，它们对应于使用该打印机执行的所有搜索。
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde1", derive(serde::Serialize))]
 pub struct Stats {
-    elapsed: NiceDuration,
-    searches: u64,
-    searches_with_match: u64,
-    bytes_searched: u64,
-    bytes_printed: u64,
-    matched_lines: u64,
-    matches: u64,
+    elapsed: NiceDuration,    // 经过的时间
+    searches: u64,            // 执行的搜索次数
+    searches_with_match: u64, // 执行搜索且至少找到一个匹配的次数
+    bytes_searched: u64,      // 搜索的总字节数
+    bytes_printed: u64,       // 打印的总字节数
+    matched_lines: u64,       // 参与匹配的总行数
+    matches: u64,             // 总匹配数
 }
 
 impl Add for Stats {
@@ -63,84 +62,83 @@ impl<'a> AddAssign<&'a Stats> for Stats {
 }
 
 impl Stats {
-    /// Return a new value for tracking aggregate statistics across searches.
+    /// 返回一个用于跟踪搜索之间的汇总统计信息的新值。
     ///
-    /// All statistics are set to `0`.
+    /// 所有统计信息都设置为 `0`。
     pub fn new() -> Stats {
         Stats::default()
     }
 
-    /// Return the total amount of time elapsed.
+    /// 返回总经过的时间。
     pub fn elapsed(&self) -> Duration {
         self.elapsed.0
     }
 
-    /// Return the total number of searches executed.
+    /// 返回执行的总搜索次数。
     pub fn searches(&self) -> u64 {
         self.searches
     }
 
-    /// Return the total number of searches that found at least one match.
+    /// 返回找到至少一个匹配的总搜索次数。
     pub fn searches_with_match(&self) -> u64 {
         self.searches_with_match
     }
 
-    /// Return the total number of bytes searched.
+    /// 返回总搜索的字节数。
     pub fn bytes_searched(&self) -> u64 {
         self.bytes_searched
     }
 
-    /// Return the total number of bytes printed.
+    /// 返回总打印的字节数。
     pub fn bytes_printed(&self) -> u64 {
         self.bytes_printed
     }
 
-    /// Return the total number of lines that participated in a match.
+    /// 返回参与匹配的总行数。
     ///
-    /// When matches may contain multiple lines then this includes every line
-    /// that is part of every match.
+    /// 当匹配可能包含多行时，这包括每个匹配的每行。
     pub fn matched_lines(&self) -> u64 {
         self.matched_lines
     }
 
-    /// Return the total number of matches.
+    /// 返回总匹配数。
     ///
-    /// There may be multiple matches per line.
+    /// 一行中可能有多个匹配。
     pub fn matches(&self) -> u64 {
         self.matches
     }
 
-    /// Add to the elapsed time.
+    /// 增加经过的时间。
     pub fn add_elapsed(&mut self, duration: Duration) {
         self.elapsed.0 += duration;
     }
 
-    /// Add to the number of searches executed.
+    /// 增加执行的搜索次数。
     pub fn add_searches(&mut self, n: u64) {
         self.searches += n;
     }
 
-    /// Add to the number of searches that found at least one match.
+    /// 增加找到至少一个匹配的搜索次数。
     pub fn add_searches_with_match(&mut self, n: u64) {
         self.searches_with_match += n;
     }
 
-    /// Add to the total number of bytes searched.
+    /// 增加总搜索的字节数。
     pub fn add_bytes_searched(&mut self, n: u64) {
         self.bytes_searched += n;
     }
 
-    /// Add to the total number of bytes printed.
+    /// 增加总打印的字节数。
     pub fn add_bytes_printed(&mut self, n: u64) {
         self.bytes_printed += n;
     }
 
-    /// Add to the total number of lines that participated in a match.
+    /// 增加参与匹配的总行数。
     pub fn add_matched_lines(&mut self, n: u64) {
         self.matched_lines += n;
     }
 
-    /// Add to the total number of matches.
+    /// 增加总匹配数。
     pub fn add_matches(&mut self, n: u64) {
         self.matches += n;
     }

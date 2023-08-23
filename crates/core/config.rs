@@ -14,7 +14,7 @@ use crate::Result;
 
 /// 从 ripgrep 配置文件派生一系列参数。
 pub fn args() -> Vec<OsString> {
-    let config_path = match env::var_os("RIPGREP_CONFIG_PATH") {
+    let config_path: PathBuf = match env::var_os("RIPGREP_CONFIG_PATH") {
         None => return vec![],
         Some(config_path) => {
             if config_path.is_empty() {

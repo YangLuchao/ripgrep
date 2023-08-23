@@ -528,20 +528,20 @@ impl<'a> Iterator for Parents<'a> {
     }
 }
 
-/// A builder for creating an Ignore matcher.
+/// 用于创建 Ignore 匹配器的构建器。
 #[derive(Clone, Debug)]
 pub struct IgnoreBuilder {
-    /// The root directory path for this ignore matcher.
+    /// 此 ignore 匹配器的根目录路径。
     dir: PathBuf,
-    /// An override matcher (default is empty).
+    /// 一个覆盖匹配器（默认为空）。
     overrides: Arc<Override>,
-    /// A type matcher (default is empty).
+    /// 一个类型匹配器（默认为空）。
     types: Arc<Types>,
-    /// Explicit global ignore matchers.
+    /// 显式的全局忽略匹配器。
     explicit_ignores: Vec<Gitignore>,
-    /// Ignore files in addition to .ignore.
+    /// 除了 .ignore 文件外的其他忽略文件。
     custom_ignore_filenames: Vec<OsString>,
-    /// Ignore config.
+    /// 忽略配置。
     opts: IgnoreOptions,
 }
 

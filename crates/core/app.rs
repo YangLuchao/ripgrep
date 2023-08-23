@@ -525,7 +525,7 @@ macro_rules! long {
 
 /// 生成所有位置参数和标志参数的序列。
 pub fn all_args_and_flags() -> Vec<RGArg> {
-    let mut args = vec![];
+    let mut args: Vec<RGArg> = vec![];
     // 位置参数必须首先按顺序定义。
     arg_pattern(&mut args);
     arg_path(&mut args);
