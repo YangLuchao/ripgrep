@@ -13,14 +13,12 @@ use app::{RGArg, RGArgKind};
 mod app;
 
 fn main() {
-    // OUT_DIR is set by Cargo and it's where any additional build artifacts
-    // are written.
+    // OUT_DIR 是由 Cargo 设置的，用于写入任何额外的构建产物。
     let outdir = match env::var_os("OUT_DIR") {
         Some(outdir) => outdir,
         None => {
             eprintln!(
-                "OUT_DIR environment variable not defined. \
-                 Please file a bug: \
+                "OUT_DIR 环境变量未定义。请提交错误报告: \
                  https://github.com/BurntSushi/ripgrep/issues/new"
             );
             process::exit(1);
@@ -30,29 +28,25 @@ fn main() {
 
     let stamp_path = Path::new(&outdir).join("ripgrep-stamp");
     if let Err(err) = File::create(&stamp_path) {
-        panic!("failed to write {}: {}", stamp_path.display(), err);
+        panic!("无法写入 {}: {}", stamp_path.display(), err);
     }
     if let Err(err) = generate_man_page(&outdir) {
-        eprintln!("failed to generate man page: {}", err);
+        eprintln!("生成 man 手册失败: {}", err);
     }
 
-    // Use clap to build completion files.
+    // 使用 clap 构建自动完成文件。
     let mut app = app::app();
     app.gen_completions("rg", Shell::Bash, &outdir);
     app.gen_completions("rg", Shell::Fish, &outdir);
     app.gen_completions("rg", Shell::PowerShell, &outdir);
-    // Note that we do not use clap's support for zsh. Instead, zsh completions
-    // are manually maintained in `complete/_rg`.
+    // 注意我们不使用 clap 对 zsh 的支持。相反，zsh 的自动完成在 `complete/_rg` 中手动维护。
 
-    // Make the current git hash available to the build.
+    // 将当前的 Git 哈希值用于构建。
     if let Some(rev) = git_revision_hash() {
         println!("cargo:rustc-env=RIPGREP_BUILD_GIT_HASH={}", rev);
     }
-    // Embed a Windows manifest and set some linker options. The main reason
-    // for this is to enable long path support on Windows. This still, I
-    // believe, requires enabling long path support in the registry. But if
-    // that's enabled, then this will let ripgrep use C:\... style paths that
-    // are longer than 260 characters.
+    // 嵌入 Windows 执行文件的清单并设置一些链接器选项。这主要是为了在 Windows 上启用长路径支持。
+    // 我相信这仍然需要在注册表中启用长路径支持。但如果启用了，这将允许 ripgrep 使用超过 260 字符的 C:\... 样式路径。
     set_windows_exe_options();
 }
 
@@ -70,11 +64,10 @@ fn set_windows_exe_options() {
     let Some(manifest) = manifest.to_str() else { return };
 
     println!("cargo:rerun-if-changed={}", MANIFEST);
-    // Embed the Windows application manifest file.
+    // 嵌入 Windows 应用程序清单文件。
     println!("cargo:rustc-link-arg-bin=rg=/MANIFEST:EMBED");
     println!("cargo:rustc-link-arg-bin=rg=/MANIFESTINPUT:{manifest}");
-    // Turn linker warnings into errors. Helps debugging, otherwise the
-    // warnings get squashed (I believe).
+    // 将链接器警告转换为错误。这有助于调试，否则警告会被压制（我相信）。
     println!("cargo:rustc-link-arg-bin=rg=/WX");
 }
 
@@ -93,18 +86,16 @@ fn git_revision_hash() -> Option<String> {
 }
 
 fn generate_man_page<P: AsRef<Path>>(outdir: P) -> io::Result<()> {
-    // If asciidoctor isn't installed, fallback to asciidoc.
+    // 如果未安装 asciidoctor，则回退到 asciidoc。
     if let Err(err) = process::Command::new("asciidoctor").output() {
-        eprintln!(
-            "Could not run 'asciidoctor' binary, falling back to 'a2x'."
-        );
-        eprintln!("Error from running 'asciidoctor': {}", err);
+        eprintln!("无法运行 'asciidoctor' 二进制文件，回退到 'a2x'。");
+        eprintln!("运行 'asciidoctor' 时出错: {}", err);
         return legacy_generate_man_page::<P>(outdir);
     }
-    // 1. Read asciidoctor template.
-    // 2. Interpolate template with auto-generated docs.
-    // 3. Save interpolation to disk.
-    // 4. Use asciidoctor to convert to man page.
+    // 1. 读取 asciidoctor 模板。
+    // 2. 使用自动生成的文档对模板进行插值。
+    // 3. 将插值保存到磁盘。
+    // 4. 使用 asciidoctor 转换为 man 手册。
     let outdir = outdir.as_ref();
     let cwd = env::current_dir()?;
     let tpl_path = cwd.join("doc").join("rg.1.txt.tpl");
@@ -130,24 +121,23 @@ fn generate_man_page<P: AsRef<Path>>(outdir: P) -> io::Result<()> {
         .spawn()?
         .wait()?;
     if !result.success() {
-        let msg =
-            format!("'asciidoctor' failed with exit code {:?}", result.code());
+        let msg = format!("'asciidoctor' 失败，退出码: {:?}", result.code());
         return Err(ioerr(msg));
     }
     Ok(())
 }
 
 fn legacy_generate_man_page<P: AsRef<Path>>(outdir: P) -> io::Result<()> {
-    // If asciidoc isn't installed, then don't do anything.
+    // 如果未安装 asciidoc，则不执行任何操作。
     if let Err(err) = process::Command::new("a2x").output() {
-        eprintln!("Could not run 'a2x' binary, skipping man page generation.");
-        eprintln!("Error from running 'a2x': {}", err);
+        eprintln!("无法运行 'a2x' 二进制文件，跳过手册生成。");
+        eprintln!("运行 'a2x' 时出错: {}", err);
         return Ok(());
     }
-    // 1. Read asciidoc template.
-    // 2. Interpolate template with auto-generated docs.
-    // 3. Save interpolation to disk.
-    // 4. Use a2x (part of asciidoc) to convert to man page.
+    // 1. 读取 asciidoc 模板。
+    // 2. 使用自动生成的文档对模板进行插值。
+    // 3. 将插值保存到磁盘。
+    // 4. 使用 a2x（asciidoc 的一部分）转换为 man 手册。
     let outdir = outdir.as_ref();
     let cwd = env::current_dir()?;
     let tpl_path = cwd.join("doc").join("rg.1.txt.tpl");
@@ -172,7 +162,7 @@ fn legacy_generate_man_page<P: AsRef<Path>>(outdir: P) -> io::Result<()> {
         .spawn()?
         .wait()?;
     if !result.success() {
-        let msg = format!("'a2x' failed with exit code {:?}", result.code());
+        let msg = format!("'a2x' 失败，退出码: {:?}", result.code());
         return Err(ioerr(msg));
     }
     Ok(())
@@ -187,9 +177,7 @@ fn formatted_options() -> io::Result<String> {
         if arg.hidden {
             continue;
         }
-        // ripgrep only has two positional arguments, and probably will only
-        // ever have two positional arguments, so we just hardcode them into
-        // the template.
+        // ripgrep 只有两个定位参数，而且可能永远只有两个定位参数，所以我们直接在模板中硬编码它们。
         if let app::RGArgKind::Positional { .. } = arg.kind {
             continue;
         }
@@ -201,7 +189,7 @@ fn formatted_options() -> io::Result<String> {
 fn formatted_arg(arg: &RGArg) -> io::Result<String> {
     match arg.kind {
         RGArgKind::Positional { .. } => {
-            panic!("unexpected positional argument")
+            panic!("意外的定位参数")
         }
         RGArgKind::Switch { long, short, multiple } => {
             let mut out = vec![];
@@ -245,15 +233,13 @@ fn formatted_doc_txt(arg: &RGArg) -> io::Result<String> {
         .doc_long
         .replace("{", "&#123;")
         .replace("}", r"&#125;")
-        // Hack to render ** literally in man page correctly. We can't put
-        // these crazy +++ in the help text directly, since that shows
-        // literally in --help output.
+        // 以正确的方式在 man 手册中呈现 **。我们不能直接将这些疯狂的 +++ 放入帮助文本中，因为这会在 --help 输出中直接显示。
         .replace("*-g 'foo/**'*", "*-g +++'foo/**'+++*")
         .split("\n\n")
         .map(|s| s.to_string())
         .collect();
     if paragraphs.is_empty() {
-        return Err(ioerr(format!("missing docs for --{}", arg.name)));
+        return Err(ioerr(format!("缺少 --{} 的文档", arg.name)));
     }
     let first = format!("  {}", paragraphs[0].replace("\n", "\n  "));
     if paragraphs.len() == 1 {

@@ -1,10 +1,7 @@
 /*!
-The gitignore module provides a way to match globs from a gitignore file
-against file paths.
+`gitignore` 模块提供了一种匹配来自 gitignore 文件的 glob 与文件路径的方法。
 
-Note that this module implements the specification as described in the
-`gitignore` man page from scratch. That is, this module does *not* shell out to
-the `git` command line tool.
+请注意，此模块从头开始实现了 `gitignore` 手册中描述的规范。也就是说，此模块*不会*使用 `git` 命令行工具。
 */
 
 use std::cell::RefCell;
@@ -21,60 +18,56 @@ use thread_local::ThreadLocal;
 
 use crate::pathutil::{is_file_name, strip_prefix};
 use crate::{Error, Match, PartialErrorBuilder};
-
-/// Glob represents a single glob in a gitignore file.
+/// Glob 表示 gitignore 文件中的一个 glob 表达式。
 ///
-/// This is used to report information about the highest precedent glob that
-/// matched in one or more gitignore files.
+/// 用于报告在一个或多个 gitignore 文件中匹配的最高优先级 glob 的信息。
 #[derive(Clone, Debug)]
 pub struct Glob {
-    /// The file path that this glob was extracted from.
+    /// 定义这个 glob 表达式的文件路径。
     from: Option<PathBuf>,
-    /// The original glob string.
+    /// 原始的 glob 字符串。
     original: String,
-    /// The actual glob string used to convert to a regex.
+    /// 转换为正则表达式的实际 glob 字符串。
     actual: String,
-    /// Whether this is a whitelisted glob or not.
+    /// 是否为白名单的 glob。
     is_whitelist: bool,
-    /// Whether this glob should only match directories or not.
+    /// 是否只匹配目录。
     is_only_dir: bool,
 }
 
 impl Glob {
-    /// Returns the file path that defined this glob.
+    /// 返回定义此 glob 表达式的文件路径。
     pub fn from(&self) -> Option<&Path> {
         self.from.as_ref().map(|p| &**p)
     }
 
-    /// The original glob as it was defined in a gitignore file.
+    /// 原始的 glob 表达式，就如在 gitignore 文件中定义的那样。
     pub fn original(&self) -> &str {
         &self.original
     }
 
-    /// The actual glob that was compiled to respect gitignore
-    /// semantics.
+    /// 编译为符合 gitignore 语义的实际 glob 表达式。
     pub fn actual(&self) -> &str {
         &self.actual
     }
 
-    /// Whether this was a whitelisted glob or not.
+    /// 是否为白名单的 glob。
     pub fn is_whitelist(&self) -> bool {
         self.is_whitelist
     }
 
-    /// Whether this glob must match a directory or not.
+    /// 是否只匹配目录。
     pub fn is_only_dir(&self) -> bool {
         self.is_only_dir
     }
 
-    /// Returns true if and only if this glob has a `**/` prefix.
+    /// 如果且仅当此 glob 具有 `**/` 前缀时返回 true。
     fn has_doublestar_prefix(&self) -> bool {
         self.actual.starts_with("**/") || self.actual == "**"
     }
 }
 
-/// Gitignore is a matcher for the globs in one or more gitignore files
-/// in the same directory.
+/// Gitignore 是一个匹配器，用于匹配位于同一目录中一个或多个 gitignore 文件中的 glob 表达式。
 #[derive(Clone, Debug)]
 pub struct Gitignore {
     set: GlobSet,
@@ -86,18 +79,15 @@ pub struct Gitignore {
 }
 
 impl Gitignore {
-    /// Creates a new gitignore matcher from the gitignore file path given.
+    /// 根据给定的 gitignore 文件路径创建一个新的 gitignore 匹配器。
     ///
-    /// If it's desirable to include multiple gitignore files in a single
-    /// matcher, or read gitignore globs from a different source, then
-    /// use `GitignoreBuilder`.
+    /// 如果希望在单个匹配器中包含多个 gitignore 文件，或者从不同来源读取 gitignore glob 表达式，
+    /// 则可以使用 `GitignoreBuilder`。
     ///
-    /// This always returns a valid matcher, even if it's empty. In particular,
-    /// a Gitignore file can be partially valid, e.g., when one glob is invalid
-    /// but the rest aren't.
+    /// 即使它是空的，它也总是返回一个有效的匹配器。特别地，一个 gitignore 文件可以部分有效，
+    /// 例如，一个 glob 无效但其余的有效。
     ///
-    /// Note that I/O errors are ignored. For more granular control over
-    /// errors, use `GitignoreBuilder`.
+    /// 请注意，会忽略 I/O 错误。要更精细地控制错误，可以使用 `GitignoreBuilder`。
     pub fn new<P: AsRef<Path>>(
         gitignore_path: P,
     ) -> (Gitignore, Option<Error>) {
@@ -115,23 +105,20 @@ impl Gitignore {
         }
     }
 
-    /// Creates a new gitignore matcher from the global ignore file, if one
-    /// exists.
+    /// 根据全局 gitignore 文件（如果存在）创建一个新的 gitignore 匹配器。
     ///
-    /// The global config file path is specified by git's `core.excludesFile`
-    /// config option.
+    /// 全局配置文件的路径由 git 的 `core.excludesFile` 配置选项指定。
     ///
-    /// Git's config file location is `$HOME/.gitconfig`. If `$HOME/.gitconfig`
-    /// does not exist or does not specify `core.excludesFile`, then
-    /// `$XDG_CONFIG_HOME/git/ignore` is read. If `$XDG_CONFIG_HOME` is not
-    /// set or is empty, then `$HOME/.config/git/ignore` is used instead.
+    /// Git 的配置文件位置是 `$HOME/.gitconfig`。如果 `$HOME/.gitconfig` 不存在或未指定
+    /// `core.excludesFile`，则将读取 `$XDG_CONFIG_HOME/git/ignore`。
+    /// 如果 `$XDG_CONFIG_HOME` 未设置或为空，则使用 `$HOME/.config/git/ignore`。
     pub fn global() -> (Gitignore, Option<Error>) {
         GitignoreBuilder::new("").build_global()
     }
 
-    /// Creates a new empty gitignore matcher that never matches anything.
+    /// 创建一个新的空的 gitignore 匹配器，它永远不会匹配任何内容。
     ///
-    /// Its path is empty.
+    /// 它的路径为空。
     pub fn empty() -> Gitignore {
         Gitignore {
             set: GlobSet::empty(),
@@ -143,46 +130,40 @@ impl Gitignore {
         }
     }
 
-    /// Returns the directory containing this gitignore matcher.
+    /// 返回包含此 gitignore 匹配器的目录。
     ///
-    /// All matches are done relative to this path.
+    /// 所有匹配都相对于此路径进行。
     pub fn path(&self) -> &Path {
         &*self.root
     }
 
-    /// Returns true if and only if this gitignore has zero globs, and
-    /// therefore never matches any file path.
+    /// 当且仅当此 gitignore 具有零个 glob 时（因此永远不会匹配任何文件路径）返回 true。
     pub fn is_empty(&self) -> bool {
         self.set.is_empty()
     }
 
-    /// Returns the total number of globs, which should be equivalent to
-    /// `num_ignores + num_whitelists`.
+    /// 返回总的 glob 数量，应该等于 `num_ignores + num_whitelists`。
     pub fn len(&self) -> usize {
         self.set.len()
     }
 
-    /// Returns the total number of ignore globs.
+    /// 返回总的忽略 glob 数量。
     pub fn num_ignores(&self) -> u64 {
         self.num_ignores
     }
 
-    /// Returns the total number of whitelisted globs.
+    /// 返回总的白名单 glob 数量。
     pub fn num_whitelists(&self) -> u64 {
         self.num_whitelists
     }
 
-    /// Returns whether the given path (file or directory) matched a pattern in
-    /// this gitignore matcher.
+    /// 返回给定路径（文件或目录）是否在此 gitignore 匹配器中匹配了一个模式。
     ///
-    /// `is_dir` should be true if the path refers to a directory and false
-    /// otherwise.
+    /// 如果 `is_dir` 为 true，则路径应为目录；否则为文件。
     ///
-    /// The given path is matched relative to the path given when building
-    /// the matcher. Specifically, before matching `path`, its prefix (as
-    /// determined by a common suffix of the directory containing this
-    /// gitignore) is stripped. If there is no common suffix/prefix overlap,
-    /// then `path` is assumed to be relative to this matcher.
+    /// 给定路径相对于构建匹配器时给定的路径进行匹配。具体来说，在匹配 `path` 之前，会删除其前缀
+    /// （由包含此 gitignore 的目录的公共后缀确定）。如果没有公共后缀/前缀重叠，则假定 `path`
+    /// 相对于此匹配器。
     pub fn matched<P: AsRef<Path>>(
         &self,
         path: P,
@@ -194,27 +175,21 @@ impl Gitignore {
         self.matched_stripped(self.strip(path.as_ref()), is_dir)
     }
 
-    /// Returns whether the given path (file or directory, and expected to be
-    /// under the root) or any of its parent directories (up to the root)
-    /// matched a pattern in this gitignore matcher.
+    /// 返回给定路径（文件或目录，应在根目录下）或其任何父目录（最多到根目录）是否在此 gitignore
+    /// 匹配器中匹配了一个模式。
     ///
-    /// NOTE: This method is more expensive than walking the directory hierarchy
-    /// top-to-bottom and matching the entries. But, is easier to use in cases
-    /// when a list of paths are available without a hierarchy.
+    /// 注意：与从上到下遍历目录层次结构并匹配条目相比，此方法的效率更低。但是，在存在没有层次结构的
+    /// 情况下，有一个可用的路径列表时更容易使用。
     ///
-    /// `is_dir` should be true if the path refers to a directory and false
-    /// otherwise.
+    /// 如果 `is_dir` 为 true，则路径应为目录；否则为文件。
     ///
-    /// The given path is matched relative to the path given when building
-    /// the matcher. Specifically, before matching `path`, its prefix (as
-    /// determined by a common suffix of the directory containing this
-    /// gitignore) is stripped. If there is no common suffix/prefix overlap,
-    /// then `path` is assumed to be relative to this matcher.
+    /// 给定路径相对于构建匹配器时给定的路径进行匹配。具体来说，在匹配 `path` 之前，会删除其前缀
+    /// （由包含此 gitignore 的目录的公共后缀确定）。如果没有公共后缀/前缀重叠，则假定 `path`
+    /// 相对于此匹配器。
     ///
     /// # Panics
     ///
-    /// This method panics if the given file path is not under the root path
-    /// of this matcher.
+    /// 如果给定的文件路径不在此匹配器的根路径下，则此方法会 panic。
     pub fn matched_path_or_any_parents<P: AsRef<Path>>(
         &self,
         path: P,
@@ -224,22 +199,21 @@ impl Gitignore {
             return Match::None;
         }
         let mut path = self.strip(path.as_ref());
-        assert!(!path.has_root(), "path is expected to be under the root");
+        assert!(!path.has_root(), "预期路径在根目录下");
 
         match self.matched_stripped(path, is_dir) {
-            Match::None => (), // walk up
+            Match::None => (), // 向上遍历
             a_match => return a_match,
         }
         while let Some(parent) = path.parent() {
             match self.matched_stripped(parent, /* is_dir */ true) {
-                Match::None => path = parent, // walk up
+                Match::None => path = parent, // 向上遍历
                 a_match => return a_match,
             }
         }
         Match::None
     }
-
-    /// Like matched, but takes a path that has already been stripped.
+    /// 与 matched 相似，但接受已经被剥离的路径。
     fn matched_stripped<P: AsRef<Path>>(
         &self,
         path: P,
@@ -266,31 +240,25 @@ impl Gitignore {
         Match::None
     }
 
-    /// Strips the given path such that it's suitable for matching with this
-    /// gitignore matcher.
+    /// 剥离给定的路径，使其适用于与此 gitignore 匹配器进行匹配。
     fn strip<'a, P: 'a + AsRef<Path> + ?Sized>(
         &'a self,
         path: &'a P,
     ) -> &'a Path {
         let mut path = path.as_ref();
-        // A leading ./ is completely superfluous. We also strip it from
-        // our gitignore root path, so we need to strip it from our candidate
-        // path too.
+        // 一个前导的 ./ 是多余的。我们还从我们的 gitignore 根路径中剥离了它，
+        // 因此我们需要从候选路径中剥离它。
         if let Some(p) = strip_prefix("./", path) {
             path = p;
         }
-        // Strip any common prefix between the candidate path and the root
-        // of the gitignore, to make sure we get relative matching right.
-        // BUT, a file name might not have any directory components to it,
-        // in which case, we don't want to accidentally strip any part of the
-        // file name.
+        // 剥离候选路径与 gitignore 的根目录之间的任何共同前缀，以确保我们正确处理相对匹配。
+        // 但是，文件名可能没有任何目录组件，此时我们不希望意外地剥离文件名的任何部分。
         //
-        // As an additional special case, if the root is just `.`, then we
-        // shouldn't try to strip anything, e.g., when path begins with a `.`.
+        // 作为一个额外的特殊情况，如果根路径仅为 `.`，那么我们不应尝试剥离任何内容，例如，当路径以 `.` 开头时。
         if self.root != Path::new(".") && !is_file_name(path) {
             if let Some(p) = strip_prefix(&self.root, path) {
                 path = p;
-                // If we're left with a leading slash, get rid of it.
+                // 如果剩下一个前导斜杠，则将其去除。
                 if let Some(p) = strip_prefix("/", path) {
                     path = p;
                 }
@@ -300,7 +268,7 @@ impl Gitignore {
     }
 }
 
-/// Builds a matcher for a single set of globs from a .gitignore file.
+/// 构建来自 .gitignore 文件中单个 glob 集的匹配器。
 #[derive(Clone, Debug)]
 pub struct GitignoreBuilder {
     builder: GlobSetBuilder,
@@ -310,12 +278,10 @@ pub struct GitignoreBuilder {
 }
 
 impl GitignoreBuilder {
-    /// Create a new builder for a gitignore file.
+    /// 为一个 gitignore 文件创建一个新的构建器。
     ///
-    /// The path given should be the path at which the globs for this gitignore
-    /// file should be matched. Note that paths are always matched relative
-    /// to the root path given here. Generally, the root path should correspond
-    /// to the *directory* containing a `.gitignore` file.
+    /// 给定的路径应该是应该匹配此 gitignore 文件的 glob 的路径。注意，路径总是相对于
+    /// 此处给定的根路径进行匹配。一般来说，根路径应对应包含 `.gitignore` 文件的*目录*。
     pub fn new<P: AsRef<Path>>(root: P) -> GitignoreBuilder {
         let root = root.as_ref();
         GitignoreBuilder {
@@ -326,9 +292,9 @@ impl GitignoreBuilder {
         }
     }
 
-    /// Builds a new matcher from the globs added so far.
+    /// 从迄今为止添加的 glob 构建一个新的匹配器。
     ///
-    /// Once a matcher is built, no new globs can be added to it.
+    /// 一旦构建了匹配器，就无法再向其中添加新的 glob。
     pub fn build(&self) -> Result<Gitignore, Error> {
         let nignore = self.globs.iter().filter(|g| !g.is_whitelist()).count();
         let nwhite = self.globs.iter().filter(|g| g.is_whitelist()).count();
@@ -346,15 +312,11 @@ impl GitignoreBuilder {
         })
     }
 
-    /// Build a global gitignore matcher using the configuration in this
-    /// builder.
+    /// 使用此构建器中的配置构建全局 gitignore 匹配器。
     ///
-    /// This consumes ownership of the builder unlike `build` because it
-    /// must mutate the builder to add the global gitignore globs.
+    /// 与 `build` 不同，这会消耗构建器的所有权，因为它必须对构建器进行修改以添加全局 gitignore 的 glob。
     ///
-    /// Note that this ignores the path given to this builder's constructor
-    /// and instead derives the path automatically from git's global
-    /// configuration.
+    /// 请注意，这会忽略传递给此构建器构造函数的路径，并且会自动从 git 的全局配置中派生路径。
     pub fn build_global(mut self) -> (Gitignore, Option<Error>) {
         match gitconfig_excludes_path() {
             None => (Gitignore::empty(), None),
@@ -376,13 +338,11 @@ impl GitignoreBuilder {
         }
     }
 
-    /// Add each glob from the file path given.
+    /// 从给定的文件路径添加每个 glob。
     ///
-    /// The file given should be formatted as a `gitignore` file.
+    /// 给定的文件应格式化为 `gitignore` 文件。
     ///
-    /// Note that partial errors can be returned. For example, if there was
-    /// a problem adding one glob, an error for that will be returned, but
-    /// all other valid globs will still be added.
+    /// 请注意，可能会返回部分错误。例如，如果添加一个 glob 时出现问题，将返回一个针对该错误的错误，但所有其他有效的 glob 仍将被添加。
     pub fn add<P: AsRef<Path>>(&mut self, path: P) -> Option<Error> {
         let path = path.as_ref();
         let file = match File::open(path) {
@@ -407,12 +367,11 @@ impl GitignoreBuilder {
         errs.into_error_option()
     }
 
-    /// Add each glob line from the string given.
+    /// 从给定的字符串添加每个 glob 行。
     ///
-    /// If this string came from a particular `gitignore` file, then its path
-    /// should be provided here.
+    /// 如果此字符串来自特定的 `gitignore` 文件，则应在此处提供其路径。
     ///
-    /// The string given should be formatted as a `gitignore` file.
+    /// 给定的字符串应格式化为 `gitignore` 文件。
     #[cfg(test)]
     fn add_str(
         &mut self,
@@ -424,13 +383,11 @@ impl GitignoreBuilder {
         }
         Ok(self)
     }
-
-    /// Add a line from a gitignore file to this builder.
+    /// 向此构建器添加来自 gitignore 文件的一行。
     ///
-    /// If this line came from a particular `gitignore` file, then its path
-    /// should be provided here.
+    /// 如果此行来自特定的 `gitignore` 文件，则应在此处提供其路径。
     ///
-    /// If the line could not be parsed as a glob, then an error is returned.
+    /// 如果无法将行解析为 glob，则会返回错误。
     pub fn add_line(
         &mut self,
         from: Option<PathBuf>,
@@ -464,38 +421,34 @@ impl GitignoreBuilder {
                 line = &line[1..];
             }
             if line.starts_with("/") {
-                // `man gitignore` says that if a glob starts with a slash,
-                // then the glob can only match the beginning of a path
-                // (relative to the location of gitignore). We achieve this by
-                // simply banning wildcards from matching /.
+                // `man gitignore` 表示，如果一个 glob 以斜杠开头，
+                // 那么这个 glob 只能匹配路径的开头（相对于 gitignore 的位置）。
+                // 我们通过简单地禁止通配符与 / 匹配来实现这一点。
                 line = &line[1..];
                 is_absolute = true;
             }
         }
-        // If it ends with a slash, then this should only match directories,
-        // but the slash should otherwise not be used while globbing.
+        // 如果以斜杠结尾，则此项应仅匹配目录，但在进行 glob 匹配时不应使用斜杠。
         if line.as_bytes().last() == Some(&b'/') {
             glob.is_only_dir = true;
             line = &line[..line.len() - 1];
-            // If the slash was escaped, then remove the escape.
-            // See: https://github.com/BurntSushi/ripgrep/issues/2236
+            // 如果斜杠被转义，则移除转义。
+            // 参见：https://github.com/BurntSushi/ripgrep/issues/2236
             if line.as_bytes().last() == Some(&b'\\') {
                 line = &line[..line.len() - 1];
             }
         }
         glob.actual = line.to_string();
-        // If there is a literal slash, then this is a glob that must match the
-        // entire path name. Otherwise, we should let it match anywhere, so use
-        // a **/ prefix.
+        // 如果有一个字面上的斜杠，则这是一个必须匹配整个路径名的 glob。
+        // 否则，我们应该让它在任何地方匹配，所以使用 **/ 前缀。
         if !is_absolute && !line.chars().any(|c| c == '/') {
-            // ... but only if we don't already have a **/ prefix.
+            // ... 但前提是我们还没有 **/ 前缀。
             if !glob.has_doublestar_prefix() {
                 glob.actual = format!("**/{}", glob.actual);
             }
         }
-        // If the glob ends with `/**`, then we should only match everything
-        // inside a directory, but not the directory itself. Standard globs
-        // will match the directory. So we add `/*` to force the issue.
+        // 如果 glob 以 `/**` 结尾，则我们应该仅匹配目录内的所有内容，但不包括目录本身。
+        // 标准的 glob 会匹配目录本身。所以我们添加 `/*` 来强制执行这一点。
         if glob.actual.ends_with("/**") {
             glob.actual = format!("{}/*", glob.actual);
         }
@@ -513,31 +466,26 @@ impl GitignoreBuilder {
         Ok(self)
     }
 
-    /// Toggle whether the globs should be matched case insensitively or not.
+    /// 切换 glob 是否应进行大小写不敏感匹配。
     ///
-    /// When this option is changed, only globs added after the change will be
-    /// affected.
+    /// 更改此选项后，只有在更改后添加的 glob 才会受到影响。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项是禁用的。
     pub fn case_insensitive(
         &mut self,
         yes: bool,
     ) -> Result<&mut GitignoreBuilder, Error> {
-        // TODO: This should not return a `Result`. Fix this in the next semver
-        // release.
+        // TODO: 这不应返回 `Result`。在下一个版本中修复这个问题。
         self.case_insensitive = yes;
         Ok(self)
     }
 }
-
-/// Return the file path of the current environment's global gitignore file.
+/// 返回当前环境的全局 gitignore 文件的文件路径。
 ///
-/// Note that the file path returned may not exist.
+/// 注意，返回的文件路径可能不存在。
 pub fn gitconfig_excludes_path() -> Option<PathBuf> {
-    // git supports $HOME/.gitconfig and $XDG_CONFIG_HOME/git/config. Notably,
-    // both can be active at the same time, where $HOME/.gitconfig takes
-    // precedent. So if $HOME/.gitconfig defines a `core.excludesFile`, then
-    // we're done.
+    // git 支持 $HOME/.gitconfig 和 $XDG_CONFIG_HOME/git/config。
+    // 需要注意的是，两者可以同时有效，其中 $HOME/.gitconfig 优先。
     match gitconfig_home_contents().and_then(|x| parse_excludes_file(&x)) {
         Some(path) => return Some(path),
         None => {}
@@ -549,8 +497,7 @@ pub fn gitconfig_excludes_path() -> Option<PathBuf> {
     excludes_file_default()
 }
 
-/// Returns the file contents of git's global config file, if one exists, in
-/// the user's home directory.
+/// 返回 git 全局配置文件的文件内容，如果存在的话，在用户的主目录中。
 fn gitconfig_home_contents() -> Option<Vec<u8>> {
     let home = match home_dir() {
         None => return None,
@@ -564,8 +511,7 @@ fn gitconfig_home_contents() -> Option<Vec<u8>> {
     file.read_to_end(&mut contents).ok().map(|_| contents)
 }
 
-/// Returns the file contents of git's global config file, if one exists, in
-/// the user's XDG_CONFIG_HOME directory.
+/// 返回 git 全局配置文件的文件内容，如果存在的话，在用户的 XDG_CONFIG_HOME 目录中。
 fn gitconfig_xdg_contents() -> Option<Vec<u8>> {
     let path = env::var_os("XDG_CONFIG_HOME")
         .and_then(|x| if x.is_empty() { None } else { Some(PathBuf::from(x)) })
@@ -579,9 +525,9 @@ fn gitconfig_xdg_contents() -> Option<Vec<u8>> {
     file.read_to_end(&mut contents).ok().map(|_| contents)
 }
 
-/// Returns the default file path for a global .gitignore file.
+/// 返回全局 .gitignore 文件的默认文件路径。
 ///
-/// Specifically, this respects XDG_CONFIG_HOME.
+/// 具体来说，这会考虑 XDG_CONFIG_HOME。
 fn excludes_file_default() -> Option<PathBuf> {
     env::var_os("XDG_CONFIG_HOME")
         .and_then(|x| if x.is_empty() { None } else { Some(PathBuf::from(x)) })
@@ -589,12 +535,10 @@ fn excludes_file_default() -> Option<PathBuf> {
         .map(|x| x.join("git/ignore"))
 }
 
-/// Extract git's `core.excludesfile` config setting from the raw file contents
-/// given.
+/// 从给定的原始文件内容中提取 git 的 `core.excludesfile` 配置设置。
 fn parse_excludes_file(data: &[u8]) -> Option<PathBuf> {
-    // N.B. This is the lazy approach, and isn't technically correct, but
-    // probably works in more circumstances. I guess we would ideally have
-    // a full INI parser. Yuck.
+    // 注意：这是一种懒惰的方法，虽然不是严格正确的，但在更多情况下可能有效。
+    // 我们理想情况下应该有一个完整的 INI 解析器。但是这个方法可能会在许多情况下有效。
     lazy_static::lazy_static! {
         static ref RE: Regex = Regex::new(
             r"(?xim-u)
@@ -611,7 +555,7 @@ fn parse_excludes_file(data: &[u8]) -> Option<PathBuf> {
     str::from_utf8(&caps[1]).ok().map(|s| PathBuf::from(expand_tilde(s)))
 }
 
-/// Expands ~ in file paths to the value of $HOME.
+/// 将文件路径中的 ~ 扩展为 $HOME 的值。
 fn expand_tilde(path: &str) -> String {
     let home = match home_dir() {
         None => return path.to_string(),
@@ -620,11 +564,10 @@ fn expand_tilde(path: &str) -> String {
     path.replace("~", &home)
 }
 
-/// Returns the location of the user's home directory.
+/// 返回用户主目录的位置。
 fn home_dir() -> Option<PathBuf> {
-    // We're fine with using env::home_dir for now. Its bugs are, IMO, pretty
-    // minor corner cases. We should still probably eventually migrate to
-    // the `dirs` crate to get a proper implementation.
+    // 目前使用 env::home_dir 是可以的。其存在的问题，在我看来，是非常小的边缘情况。
+    // 我们最终可能会迁移到 `dirs` crate 来获取正确的实现。
     #![allow(deprecated)]
     env::home_dir()
 }

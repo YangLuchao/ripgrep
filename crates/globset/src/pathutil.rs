@@ -1,11 +1,10 @@
 use std::borrow::Cow;
 
 use bstr::{ByteSlice, ByteVec};
-
-/// The final component of the path, if it is a normal file.
+/// 如果路径的最后一个部分是普通文件，则返回路径的最后一个组件。
 ///
-/// If the path terminates in ., .., or consists solely of a root of prefix,
-/// file_name will return None.
+/// 如果路径以 .、.. 结尾，或者仅由根或前缀组成，
+/// 则 file_name 将返回 None。
 pub fn file_name<'a>(path: &Cow<'a, [u8]>) -> Option<Cow<'a, [u8]>> {
     if path.is_empty() {
         return None;
@@ -23,22 +22,21 @@ pub fn file_name<'a>(path: &Cow<'a, [u8]>) -> Option<Cow<'a, [u8]>> {
     })
 }
 
-/// Return a file extension given a path's file name.
+/// 给定路径的文件名，返回文件扩展名。
 ///
-/// Note that this does NOT match the semantics of std::path::Path::extension.
-/// Namely, the extension includes the `.` and matching is otherwise more
-/// liberal. Specifically, the extension is:
+/// 请注意，这与 std::path::Path::extension 的语义不匹配。
+/// 即，扩展名包括 `.`，匹配方式更自由。
+/// 具体来说，扩展名是：
 ///
-/// * None, if the file name given is empty;
-/// * None, if there is no embedded `.`;
-/// * Otherwise, the portion of the file name starting with the final `.`.
+/// * 如果给定的文件名为空，则为 None；
+/// * 如果没有嵌入的 `.`，则为 None；
+/// * 否则，从最后一个 `.` 开始的文件名部分。
 ///
-/// e.g., A file name of `.rs` has an extension `.rs`.
+/// 例如，文件名 `.rs` 具有扩展名 `.rs`。
 ///
-/// N.B. This is done to make certain glob match optimizations easier. Namely,
-/// a pattern like `*.rs` is obviously trying to match files with a `rs`
-/// extension, but it also matches files like `.rs`, which doesn't have an
-/// extension according to std::path::Path::extension.
+/// 注意：这是为了更容易进行某些 glob 匹配优化。
+/// 例如，模式 `*.rs` 显然是要匹配具有 `rs` 扩展名的文件，
+/// 但它也匹配没有扩展名的文件，如 `.rs`，根据 std::path::Path::extension，它没有扩展名。
 pub fn file_name_ext<'a>(name: &Cow<'a, [u8]>) -> Option<Cow<'a, [u8]>> {
     if name.is_empty() {
         return None;
@@ -57,16 +55,14 @@ pub fn file_name_ext<'a>(name: &Cow<'a, [u8]>) -> Option<Cow<'a, [u8]>> {
     })
 }
 
-/// Normalizes a path to use `/` as a separator everywhere, even on platforms
-/// that recognize other characters as separators.
+/// 将路径规范化为在任何平台上都使用 `/` 作为分隔符，即使在识别其他字符作为分隔符的平台上也是如此。
 #[cfg(unix)]
 pub fn normalize_path(path: Cow<'_, [u8]>) -> Cow<'_, [u8]> {
-    // UNIX only uses /, so we're good.
+    // UNIX 仅使用 /，所以我们没问题。
     path
 }
 
-/// Normalizes a path to use `/` as a separator everywhere, even on platforms
-/// that recognize other characters as separators.
+/// 将路径规范化为在任何平台上都使用 `/` 作为分隔符，即使在识别其他字符作为分隔符的平台上也是如此。
 #[cfg(not(unix))]
 pub fn normalize_path(mut path: Cow<[u8]>) -> Cow<[u8]> {
     use std::path::is_separator;

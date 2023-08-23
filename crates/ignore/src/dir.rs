@@ -1,17 +1,13 @@
-// This module provides a data structure, `Ignore`, that connects "directory
-// traversal" with "ignore matchers." Specifically, it knows about gitignore
-// semantics and precedence, and is organized based on directory hierarchy.
-// Namely, every matcher logically corresponds to ignore rules from a single
-// directory, and points to the matcher for its corresponding parent directory.
-// In this sense, `Ignore` is a *persistent* data structure.
+// 该模块提供一个名为 `Ignore` 的数据结构，将“目录遍历”与“忽略匹配器”相连接。
+// 具体来说，它了解 gitignore 的语义和优先级，并基于目录层次结构进行组织。
+// 每个匹配器在逻辑上对应于来自单个目录的忽略规则，并指向其相应父目录的匹配器。
+// 从这个意义上说，`Ignore` 是一个*持久化*数据结构。
 //
-// This design was specifically chosen to make it possible to use this data
-// structure in a parallel directory iterator.
+// 此设计是为了使这个数据结构能够在并行目录迭代器中使用。
 //
-// My initial intention was to expose this module as part of this crate's
-// public API, but I think the data structure's public API is too complicated
-// with non-obvious failure modes. Alas, such things haven't been documented
-// well.
+// 我最初的意图是将该模块作为这个 crate 的公共 API 的一部分公开，
+// 但我认为该数据结构的公共 API 太过复杂，存在非显而易见的故障模式。
+// 可惜，这些问题还没有被很好地记录。
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
@@ -26,14 +22,11 @@ use crate::pathutil::{is_hidden, strip_prefix};
 use crate::types::{self, Types};
 use crate::walk::DirEntry;
 use crate::{Error, Match, PartialErrorBuilder};
-
-/// IgnoreMatch represents information about where a match came from when using
-/// the `Ignore` matcher.
+/// `IgnoreMatch` 表示在使用 `Ignore` 匹配器时匹配的信息来源。
 #[derive(Clone, Debug)]
 pub struct IgnoreMatch<'a>(IgnoreMatchInner<'a>);
 
-/// IgnoreMatchInner describes precisely where the match information came from.
-/// This is private to allow expansion to more matchers in the future.
+/// `IgnoreMatchInner` 精确描述匹配信息的来源。为了将来能够扩展更多的匹配器，该类型是私有的。
 #[derive(Clone, Debug)]
 enum IgnoreMatchInner<'a> {
     Override(overrides::Glob<'a>),
@@ -60,103 +53,97 @@ impl<'a> IgnoreMatch<'a> {
     }
 }
 
-/// Options for the ignore matcher, shared between the matcher itself and the
-/// builder.
+/// 忽略匹配器的选项，用于匹配器本身和构建器之间共享。
 #[derive(Clone, Copy, Debug)]
 struct IgnoreOptions {
-    /// Whether to ignore hidden file paths or not.
+    /// 是否忽略隐藏文件路径。
     hidden: bool,
-    /// Whether to read .ignore files.
+    /// 是否读取 .ignore 文件。
     ignore: bool,
-    /// Whether to respect any ignore files in parent directories.
+    /// 是否遵循父目录中的任何 ignore 文件。
     parents: bool,
-    /// Whether to read git's global gitignore file.
+    /// 是否读取 git 的全局 gitignore 文件。
     git_global: bool,
-    /// Whether to read .gitignore files.
+    /// 是否读取 .gitignore 文件。
     git_ignore: bool,
-    /// Whether to read .git/info/exclude files.
+    /// 是否读取 .git/info/exclude 文件。
     git_exclude: bool,
-    /// Whether to ignore files case insensitively
+    /// 是否忽略文件的大小写。
     ignore_case_insensitive: bool,
-    /// Whether a git repository must be present in order to apply any
-    /// git-related ignore rules.
+    /// 是否要求存在 git 仓库才能应用任何与 git 相关的忽略规则。
     require_git: bool,
 }
 
-/// Ignore is a matcher useful for recursively walking one or more directories.
+/// `Ignore` 是一个用于递归地遍历一个或多个目录的匹配器。
 #[derive(Clone, Debug)]
 pub struct Ignore(Arc<IgnoreInner>);
 
 #[derive(Clone, Debug)]
 struct IgnoreInner {
-    /// A map of all existing directories that have already been
-    /// compiled into matchers.
+    /// 所有已编译为匹配器的现有目录的映射。
     ///
-    /// Note that this is never used during matching, only when adding new
-    /// parent directory matchers. This avoids needing to rebuild glob sets for
-    /// parent directories if many paths are being searched.
+    /// 注意，此映射在匹配时永不使用，只在添加新的父目录匹配器时使用。
+    /// 这避免了在搜索许多路径时需要重新构建父目录的 glob 集。
     compiled: Arc<RwLock<HashMap<OsString, Ignore>>>,
-    /// The path to the directory that this matcher was built from.
+    /// 用于构建匹配器的目录的路径。
     dir: PathBuf,
-    /// An override matcher (default is empty).
+    /// 一个覆盖匹配器（默认为空）。
     overrides: Arc<Override>,
-    /// A file type matcher.
+    /// 文件类型匹配器。
     types: Arc<Types>,
-    /// The parent directory to match next.
+    /// 下一个要匹配的父目录。
     ///
-    /// If this is the root directory or there are otherwise no more
-    /// directories to match, then `parent` is `None`.
+    /// 如果这是根目录或者没有更多目录要匹配，那么 `parent` 是 `None`。
     parent: Option<Ignore>,
-    /// Whether this is an absolute parent matcher, as added by add_parent.
+    /// 是否为绝对父匹配器，由 `add_parent` 添加。
     is_absolute_parent: bool,
-    /// The absolute base path of this matcher. Populated only if parent
-    /// directories are added.
+    /// 此匹配器的绝对基本路径。仅在添加父目录时填充。
     absolute_base: Option<Arc<PathBuf>>,
-    /// Explicit global ignore matchers specified by the caller.
+    /// 由调用者指定的显式全局忽略匹配器。
     explicit_ignores: Arc<Vec<Gitignore>>,
-    /// Ignore files used in addition to `.ignore`
+    /// 附加到 `.ignore` 的自定义忽略文件名。
     custom_ignore_filenames: Arc<Vec<OsString>>,
-    /// The matcher for custom ignore files
+    /// 自定义忽略文件的匹配器。
     custom_ignore_matcher: Gitignore,
-    /// The matcher for .ignore files.
+    /// `.ignore` 文件的匹配器。
     ignore_matcher: Gitignore,
-    /// A global gitignore matcher, usually from $XDG_CONFIG_HOME/git/ignore.
+    /// 全局 gitignore 匹配器，通常来自于 $XDG_CONFIG_HOME/git/ignore。
     git_global_matcher: Arc<Gitignore>,
-    /// The matcher for .gitignore files.
+    /// `.gitignore` 文件的匹配器。
     git_ignore_matcher: Gitignore,
-    /// Special matcher for `.git/info/exclude` files.
+    /// `.git/info/exclude` 文件的特殊匹配器。
     git_exclude_matcher: Gitignore,
-    /// Whether this directory contains a .git sub-directory.
+    /// 是否包含 `.git` 子目录。
     has_git: bool,
-    /// Ignore config.
+    /// 忽略配置。
     opts: IgnoreOptions,
 }
 
 impl Ignore {
-    /// Return the directory path of this matcher.
+    /// 返回此匹配器的目录路径。
     pub fn path(&self) -> &Path {
         &self.0.dir
     }
 
-    /// Return true if this matcher has no parent.
+    /// 如果此匹配器没有父目录，则返回 true。
     pub fn is_root(&self) -> bool {
         self.0.parent.is_none()
     }
 
-    /// Returns true if this matcher was added via the `add_parents` method.
+    /// 如果此匹配器是通过 `add_parents` 方法添加的，则返回 true。
     pub fn is_absolute_parent(&self) -> bool {
         self.0.is_absolute_parent
     }
 
-    /// Return this matcher's parent, if one exists.
+    /// 返回此匹配器的父目录（如果存在）。
     pub fn parent(&self) -> Option<Ignore> {
         self.0.parent.clone()
     }
 
-    /// Create a new `Ignore` matcher with the parent directories of `dir`.
+    /// 使用目录的父目录创建一个新的 `Ignore` 匹配器。
     ///
-    /// Note that this can only be called on an `Ignore` matcher with no
-    /// parents (i.e., `is_root` returns `true`). This will panic otherwise.
+    /// 注意，只能在没有父目录的 `Ignore` 匹配器上调用此方法（即 `is_root` 返回 `true`）。
+    /// 否则会触发 panic。
     pub fn add_parents<P: AsRef<Path>>(
         &self,
         path: P,
@@ -166,24 +153,21 @@ impl Ignore {
             && !self.0.opts.git_exclude
             && !self.0.opts.git_global
         {
-            // If we never need info from parent directories, then don't do
-            // anything.
+            // 如果我们从不需要来自父目录的信息，则不执行任何操作。
             return (self.clone(), None);
         }
         if !self.is_root() {
-            panic!("Ignore::add_parents called on non-root matcher");
+            panic!("在非根匹配器上调用了 Ignore::add_parents");
         }
         let absolute_base = match path.as_ref().canonicalize() {
             Ok(path) => Arc::new(path),
             Err(_) => {
-                // There's not much we can do here, so just return our
-                // existing matcher. We drop the error to be consistent
-                // with our general pattern of ignoring I/O errors when
-                // processing ignore files.
+                // 在这里我们无能为力，所以只需返回现有的匹配器。
+                // 我们忽略错误，以与处理忽略文件时忽略 I/O 错误的一般模式保持一致。
                 return (self.clone(), None);
             }
         };
-        // List of parents, from child to root.
+        // 从子到根的父目录列表。
         let mut parents = vec![];
         let mut path = &**absolute_base;
         while let Some(parent) = path.parent() {
@@ -214,14 +198,12 @@ impl Ignore {
         (ig, errs.into_error_option())
     }
 
-    /// Create a new `Ignore` matcher for the given child directory.
+    /// 为给定的子目录创建一个新的 `Ignore` 匹配器。
     ///
-    /// Since building the matcher may require reading from multiple
-    /// files, it's possible that this method partially succeeds. Therefore,
-    /// a matcher is always returned (which may match nothing) and an error is
-    /// returned if it exists.
+    /// 由于构建匹配器可能需要从多个文件中读取，因此此方法可能部分成功。
+    /// 因此，总是返回一个匹配器（可能匹配空内容）并返回一个存在的错误。
     ///
-    /// Note that all I/O errors are completely ignored.
+    /// 注意，所有 I/O 错误都完全被忽略。
     pub fn add_child<P: AsRef<Path>>(
         &self,
         dir: P,
@@ -230,7 +212,7 @@ impl Ignore {
         (Ignore(Arc::new(ig)), err)
     }
 
-    /// Like add_child, but takes a full path and returns an IgnoreInner.
+    /// 类似于 `add_child`，但接受完整路径并返回 `IgnoreInner`。
     fn add_child_path(&self, dir: &Path) -> (IgnoreInner, Option<Error>) {
         let git_type = if self.0.opts.require_git
             && (self.0.opts.git_ignore || self.0.opts.git_exclude)
@@ -319,7 +301,7 @@ impl Ignore {
         (ig, errs.into_error_option())
     }
 
-    /// Returns true if at least one type of ignore rule should be matched.
+    /// 返回 true 如果至少存在一种类型的忽略规则需要匹配。
     fn has_any_ignore_rules(&self) -> bool {
         let opts = self.0.opts;
         let has_custom_ignore_files =
@@ -334,7 +316,7 @@ impl Ignore {
             || has_explicit_ignores
     }
 
-    /// Like `matched`, but works with a directory entry instead.
+    /// 类似于 `matched`，但适用于目录条目。
     pub fn matched_dir_entry<'a>(
         &'a self,
         dent: &DirEntry,
@@ -346,25 +328,21 @@ impl Ignore {
         m
     }
 
-    /// Returns a match indicating whether the given file path should be
-    /// ignored or not.
+    /// 返回一个匹配，指示给定的文件路径是否应该被忽略。
     ///
-    /// The match contains information about its origin.
+    /// 匹配包含有关其来源的信息。
     fn matched<'a, P: AsRef<Path>>(
         &'a self,
         path: P,
         is_dir: bool,
     ) -> Match<IgnoreMatch<'a>> {
-        // We need to be careful with our path. If it has a leading ./, then
-        // strip it because it causes nothing but trouble.
+        // 我们需要小心处理路径。如果它具有前导的 ./，则将其删除，因为它只会带来麻烦。
         let mut path = path.as_ref();
         if let Some(p) = strip_prefix("./", path) {
             path = p;
         }
-        // Match against the override patterns. If an override matches
-        // regardless of whether it's whitelist/ignore, then we quit and
-        // return that result immediately. Overrides have the highest
-        // precedence.
+        // 根据覆盖模式匹配。如果有任何一个覆盖匹配，不管是白名单还是忽略，立即返回该结果。
+        // 覆盖具有最高的优先级。
         if !self.0.overrides.is_empty() {
             let mat = self
                 .0
@@ -396,8 +374,7 @@ impl Ignore {
         whitelisted
     }
 
-    /// Performs matching only on the ignore files for this directory and
-    /// all parent directories.
+    /// 仅对此目录及其所有父目录的忽略文件执行匹配。
     fn matched_ignore<'a>(
         &'a self,
         path: &Path,
@@ -478,12 +455,12 @@ impl Ignore {
             if !m_explicit.is_none() {
                 break;
             }
-            m_explicit = gi.matched(&path, is_dir).map(IgnoreMatch::gitignore);
+            m_explicit = gi.matched(path, is_dir).map(IgnoreMatch::gitignore);
         }
         let m_global = if any_git {
             self.0
                 .git_global_matcher
-                .matched(&path, is_dir)
+                .matched(path, is_dir)
                 .map(IgnoreMatch::gitignore)
         } else {
             Match::None
@@ -497,21 +474,20 @@ impl Ignore {
             .or(m_explicit)
     }
 
-    /// Returns an iterator over parent ignore matchers, including this one.
+    /// 返回一个迭代器，遍历父级忽略匹配器，包括本身。
     pub fn parents(&self) -> Parents<'_> {
         Parents(Some(self))
     }
 
-    /// Returns the first absolute path of the first absolute parent, if
-    /// one exists.
+    /// 如果存在至少一个绝对父级的绝对路径，则返回第一个绝对父级的绝对路径。
     fn absolute_base(&self) -> Option<&Path> {
         self.0.absolute_base.as_ref().map(|p| &***p)
     }
 }
 
-/// An iterator over all parents of an ignore matcher, including itself.
+/// 一个遍历忽略匹配器及其所有父级的迭代器，包括自身。
 ///
-/// The lifetime `'a` refers to the lifetime of the initial `Ignore` matcher.
+/// 生命周期 'a 指的是初始 Ignore 匹配器的生命周期。
 pub struct Parents<'a>(Option<&'a Ignore>);
 
 impl<'a> Iterator for Parents<'a> {
@@ -544,12 +520,10 @@ pub struct IgnoreBuilder {
     /// 忽略配置。
     opts: IgnoreOptions,
 }
-
 impl IgnoreBuilder {
-    /// Create a new builder for an `Ignore` matcher.
+    /// 创建一个新的 `Ignore` 匹配器的构建器。
     ///
-    /// All relative file paths are resolved with respect to the current
-    /// working directory.
+    /// 所有相对文件路径都将相对于当前工作目录解析。
     pub fn new() -> IgnoreBuilder {
         IgnoreBuilder {
             dir: Path::new("").to_path_buf(),
@@ -570,10 +544,9 @@ impl IgnoreBuilder {
         }
     }
 
-    /// Builds a new `Ignore` matcher.
+    /// 构建一个新的 `Ignore` 匹配器。
     ///
-    /// The matcher returned won't match anything until ignore rules from
-    /// directories are added to it.
+    /// 返回的匹配器在添加来自目录的忽略规则之前将不会匹配任何内容。
     pub fn build(&self) -> Ignore {
         let git_global_matcher = if !self.opts.git_global {
             Gitignore::empty()
@@ -611,38 +584,37 @@ impl IgnoreBuilder {
         }))
     }
 
-    /// Add an override matcher.
+    /// 添加一个覆盖匹配器。
     ///
-    /// By default, no override matcher is used.
+    /// 默认情况下，不使用任何覆盖匹配器。
     ///
-    /// This overrides any previous setting.
+    /// 这将覆盖任何先前的设置。
     pub fn overrides(&mut self, overrides: Override) -> &mut IgnoreBuilder {
         self.overrides = Arc::new(overrides);
         self
     }
 
-    /// Add a file type matcher.
+    /// 添加一个文件类型匹配器。
     ///
-    /// By default, no file type matcher is used.
+    /// 默认情况下，不使用任何文件类型匹配器。
     ///
-    /// This overrides any previous setting.
+    /// 这将覆盖任何先前的设置。
     pub fn types(&mut self, types: Types) -> &mut IgnoreBuilder {
         self.types = Arc::new(types);
         self
     }
 
-    /// Adds a new global ignore matcher from the ignore file path given.
+    /// 添加一个来自给定忽略文件路径的全局忽略匹配器。
     pub fn add_ignore(&mut self, ig: Gitignore) -> &mut IgnoreBuilder {
         self.explicit_ignores.push(ig);
         self
     }
 
-    /// Add a custom ignore file name
+    /// 添加自定义忽略文件名
     ///
-    /// These ignore files have higher precedence than all other ignore files.
+    /// 这些忽略文件的优先级高于所有其他忽略文件。
     ///
-    /// When specifying multiple names, earlier names have lower precedence than
-    /// later names.
+    /// 在指定多个名称时，先前的名称优先级低于后来的名称。
     pub fn add_custom_ignore_filename<S: AsRef<OsStr>>(
         &mut self,
         file_name: S,
@@ -651,84 +623,77 @@ impl IgnoreBuilder {
         self
     }
 
-    /// Enables ignoring hidden files.
+    /// 启用或禁用忽略隐藏文件。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用。
     pub fn hidden(&mut self, yes: bool) -> &mut IgnoreBuilder {
         self.opts.hidden = yes;
         self
     }
 
-    /// Enables reading `.ignore` files.
+    /// 启用或禁用读取 `.ignore` 文件。
     ///
-    /// `.ignore` files have the same semantics as `gitignore` files and are
-    /// supported by search tools such as ripgrep and The Silver Searcher.
+    /// `.ignore` 文件具有与 `gitignore` 文件相同的语义，并且受到工具（如 ripgrep 和 The Silver Searcher）的支持。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用。
     pub fn ignore(&mut self, yes: bool) -> &mut IgnoreBuilder {
         self.opts.ignore = yes;
         self
     }
 
-    /// Enables reading ignore files from parent directories.
+    /// 启用或禁用从父目录读取忽略文件。
     ///
-    /// If this is enabled, then .gitignore files in parent directories of each
-    /// file path given are respected. Otherwise, they are ignored.
+    /// 如果启用，将尊重每个给定文件路径的父目录中的 .gitignore 文件。否则，将忽略它们。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用。
     pub fn parents(&mut self, yes: bool) -> &mut IgnoreBuilder {
         self.opts.parents = yes;
         self
     }
 
-    /// Add a global gitignore matcher.
+    /// 添加全局 gitignore 匹配器。
     ///
-    /// Its precedence is lower than both normal `.gitignore` files and
-    /// `.git/info/exclude` files.
+    /// 其优先级低于正常的 `.gitignore` 文件和 `.git/info/exclude` 文件。
     ///
-    /// This overwrites any previous global gitignore setting.
+    /// 这将覆盖任何先前的全局 gitignore 设置。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用。
     pub fn git_global(&mut self, yes: bool) -> &mut IgnoreBuilder {
         self.opts.git_global = yes;
         self
     }
 
-    /// Enables reading `.gitignore` files.
+    /// 启用或禁用读取 `.gitignore` 文件。
     ///
-    /// `.gitignore` files have match semantics as described in the `gitignore`
-    /// man page.
+    /// `.gitignore` 文件的匹配语义如 `gitignore` 手册中所述。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用。
     pub fn git_ignore(&mut self, yes: bool) -> &mut IgnoreBuilder {
         self.opts.git_ignore = yes;
         self
     }
 
-    /// Enables reading `.git/info/exclude` files.
+    /// 启用或禁用读取 `.git/info/exclude` 文件。
     ///
-    /// `.git/info/exclude` files have match semantics as described in the
-    /// `gitignore` man page.
+    /// `.git/info/exclude` 文件的匹配语义如 `gitignore` 手册中所述。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用。
     pub fn git_exclude(&mut self, yes: bool) -> &mut IgnoreBuilder {
         self.opts.git_exclude = yes;
         self
     }
 
-    /// Whether a git repository is required to apply git-related ignore
-    /// rules (global rules, .gitignore and local exclude rules).
+    /// 是否需要存在 git 仓库以应用 git 相关的忽略规则（全局规则、.gitignore 和本地排除规则）。
     ///
-    /// When disabled, git-related ignore rules are applied even when searching
-    /// outside a git repository.
+    /// 当禁用时，即使在 git 仓库外搜索时，也将应用 git 相关的忽略规则。
     pub fn require_git(&mut self, yes: bool) -> &mut IgnoreBuilder {
         self.opts.require_git = yes;
         self
     }
 
-    /// Process ignore files case insensitively
+    /// 处理忽略文件时是否区分大小写
     ///
-    /// This is disabled by default.
+    /// 默认情况下禁用。
     pub fn ignore_case_insensitive(
         &mut self,
         yes: bool,
@@ -738,14 +703,12 @@ impl IgnoreBuilder {
     }
 }
 
-/// Creates a new gitignore matcher for the directory given.
+/// 为给定目录创建一个新的 gitignore 匹配器。
 ///
-/// The matcher is meant to match files below `dir`.
-/// Ignore globs are extracted from each of the file names relative to
-/// `dir_for_ignorefile` in the order given (earlier names have lower
-/// precedence than later names).
+/// 该匹配器旨在匹配位于 `dir` 以下的文件。
+/// 忽略的 glob 从每个相对于 `dir_for_ignorefile` 的文件名中提取，按照给定的顺序排列（较早的名称优先级低于较晚的名称）。
 ///
-/// I/O errors are ignored.
+/// 忽略 I/O 错误。
 pub fn create_gitignore<T: AsRef<OsStr>>(
     dir: &Path,
     dir_for_ignorefile: &Path,
@@ -757,18 +720,16 @@ pub fn create_gitignore<T: AsRef<OsStr>>(
     builder.case_insensitive(case_insensitive).unwrap();
     for name in names {
         let gipath = dir_for_ignorefile.join(name.as_ref());
-        // This check is not necessary, but is added for performance. Namely,
-        // a simple stat call checking for existence can often be just a bit
-        // quicker than actually trying to open a file. Since the number of
-        // directories without ignore files likely greatly exceeds the number
-        // with ignore files, this check generally makes sense.
+        // 这个检查不是必要的，但是为了性能而添加的。特别是，
+        // 一个简单的检查是否存在可能会比尝试打开文件稍微快一点。
+        // 由于没有忽略文件的目录数量很可能远远超过具有忽略文件的数量，
+        // 因此这个检查通常是有意义的。
         //
-        // However, until demonstrated otherwise, we speculatively do not do
-        // this on Windows since Windows is notorious for having slow file
-        // system operations. Namely, it's not clear whether this analysis
-        // makes sense on Windows.
+        // 然而，除非有证据证明不是这样的，否则我们暂时不在 Windows 上执行此操作，
+        // 因为 Windows 以文件系统操作缓慢而著名。
+        // 特别是，在 Windows 上是否适用这种分析还不清楚。
         //
-        // For more details: https://github.com/BurntSushi/ripgrep/pull/1381
+        // 详细信息：https://github.com/BurntSushi/ripgrep/pull/1381
         if cfg!(windows) || gipath.exists() {
             errs.maybe_push_ignore_io(builder.add(gipath));
         }
@@ -783,14 +744,12 @@ pub fn create_gitignore<T: AsRef<OsStr>>(
     (gi, errs.into_error_option())
 }
 
-/// Find the GIT_COMMON_DIR for the given git worktree.
+/// 找到给定 git 工作树的 GIT_COMMON_DIR。
 ///
-/// This is the directory that may contain a private ignore file
-/// "info/exclude". Unlike git, this function does *not* read environment
-/// variables GIT_DIR and GIT_COMMON_DIR, because it is not clear how to use
-/// them when multiple repositories are searched.
+/// 这是可能包含私有忽略文件 "info/exclude" 的目录。
+/// 与 git 不同，此函数不读取环境变量 GIT_DIR 和 GIT_COMMON_DIR，因为不清楚如何在搜索多个仓库时使用它们。
 ///
-/// Some I/O errors are ignored.
+/// 忽略一些 I/O 错误。
 fn resolve_git_commondir(
     dir: &Path,
     git_type: Option<FileType>,
@@ -830,7 +789,7 @@ fn resolve_git_commondir(
         None => return Err(None),
     };
     let commondir_abs = if commondir_line.starts_with(".") {
-        real_git_dir.join(commondir_line) // relative commondir
+        real_git_dir.join(commondir_line) // 相对 commondir
     } else {
         PathBuf::from(commondir_line)
     };

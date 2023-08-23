@@ -1,26 +1,17 @@
 /*!
-The ignore crate provides a fast recursive directory iterator that respects
-various filters such as globs, file types and `.gitignore` files. The precise
-matching rules and precedence is explained in the documentation for
-`WalkBuilder`.
+ignore crate 提供了一个快速的递归目录迭代器，它能够尊重各种过滤器，比如通配符、文件类型和 `.gitignore` 文件。精确的匹配规则和优先级在 `WalkBuilder` 的文档中有解释。
 
-Secondarily, this crate exposes gitignore and file type matchers for use cases
-that demand more fine-grained control.
+此外，该 crate 还为需要更精细控制的用例提供了 gitignore 和文件类型匹配器。
 
-# Example
+# 示例
 
-This example shows the most basic usage of this crate. This code will
-recursively traverse the current directory while automatically filtering out
-files and directories according to ignore globs found in files like
-`.ignore` and `.gitignore`:
-
+以下示例展示了这个 crate 的最基本用法。这段代码会递归遍历当前目录，并根据类似 `.ignore` 和 `.gitignore` 文件中的忽略通配符自动过滤文件和目录：
 
 ```rust,no_run
 use ignore::Walk;
 
 for result in Walk::new("./") {
-    // Each item yielded by the iterator is either a directory entry or an
-    // error, so either print the path or the error.
+    // 迭代器产生的每个项都是一个目录条目或者一个错误，所以要么打印路径，要么打印错误。
     match result {
         Ok(entry) => println!("{}", entry.path().display()),
         Err(err) => println!("ERROR: {}", err),
@@ -28,10 +19,9 @@ for result in Walk::new("./") {
 }
 ```
 
-# Example: advanced
+# 示例：高级用法
 
-By default, the recursive directory iterator will ignore hidden files and
-directories. This can be disabled by building the iterator with `WalkBuilder`:
+默认情况下，递归目录迭代器会忽略隐藏文件和目录。可以通过使用 `WalkBuilder` 来禁用这个行为：
 
 ```rust,no_run
 use ignore::WalkBuilder;
@@ -41,9 +31,8 @@ for result in WalkBuilder::new("./").hidden(false).build() {
 }
 ```
 
-See the documentation for `WalkBuilder` for many other options.
+有关 `WalkBuilder` 的许多其他选项，请参阅其文档。
 */
-
 #![deny(missing_docs)]
 
 use std::error;

@@ -9,50 +9,39 @@ use regex;
 use regex::bytes::Regex;
 
 use crate::{new_regex, Candidate, Error, ErrorKind};
-
-/// Describes a matching strategy for a particular pattern.
+/// 描述特定模式的匹配策略。
 ///
-/// This provides a way to more quickly determine whether a pattern matches
-/// a particular file path in a way that scales with a large number of
-/// patterns. For example, if many patterns are of the form `*.ext`, then it's
-/// possible to test whether any of those patterns matches by looking up a
-/// file path's extension in a hash table.
+/// 这提供了一种更快速地确定模式是否与特定文件路径匹配的方法，以便在大量模式的情况下进行扩展。
+/// 例如，如果许多模式的形式是 `*.ext`，则可以通过在哈希表中查找文件路径的扩展名来测试任何这些模式是否匹配。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MatchStrategy {
-    /// A pattern matches if and only if the entire file path matches this
-    /// literal string.
+    /// 如果整个文件路径与此字面字符串匹配，则模式匹配。
     Literal(String),
-    /// A pattern matches if and only if the file path's basename matches this
-    /// literal string.
+    /// 如果文件路径的基名与此字面字符串匹配，则模式匹配。
     BasenameLiteral(String),
-    /// A pattern matches if and only if the file path's extension matches this
-    /// literal string.
+    /// 如果文件路径的扩展名与此字面字符串匹配，则模式匹配。
     Extension(String),
-    /// A pattern matches if and only if this prefix literal is a prefix of the
-    /// candidate file path.
+    /// 如果此前缀字面字符串是候选文件路径的前缀，则模式匹配。
     Prefix(String),
-    /// A pattern matches if and only if this prefix literal is a prefix of the
-    /// candidate file path.
+    /// 如果此前缀字面字符串是候选文件路径的前缀，则模式匹配。
     ///
-    /// An exception: if `component` is true, then `suffix` must appear at the
-    /// beginning of a file path or immediately following a `/`.
+    /// 例外情况：如果 `component` 为 true，则 `suffix` 必须出现在文件路径的开头或紧接着 `/` 后面。
     Suffix {
-        /// The actual suffix.
+        /// 实际的后缀。
         suffix: String,
-        /// Whether this must start at the beginning of a path component.
+        /// 是否必须从路径组件的开头开始。
         component: bool,
     },
-    /// A pattern matches only if the given extension matches the file path's
-    /// extension. Note that this is a necessary but NOT sufficient criterion.
-    /// Namely, if the extension matches, then a full regex search is still
-    /// required.
+    /// 仅当给定的扩展名与文件路径的扩展名匹配时，模式才匹配。
+    /// 请注意，这是一个必要但不充分的条件。
+    /// 也就是说，如果扩展名匹配，则仍然需要进行完整的正则表达式搜索。
     RequiredExtension(String),
-    /// A regex needs to be used for matching.
+    /// 需要使用正则表达式进行匹配。
     Regex,
 }
 
 impl MatchStrategy {
-    /// Returns a matching strategy for the given pattern.
+    /// 根据给定的模式返回匹配策略。
     pub fn new(pat: &Glob) -> MatchStrategy {
         if let Some(lit) = pat.basename_literal() {
             MatchStrategy::BasenameLiteral(lit)
@@ -72,10 +61,9 @@ impl MatchStrategy {
     }
 }
 
-/// Glob represents a successfully parsed shell glob pattern.
+/// Glob 表示成功解析的 shell glob 模式。
 ///
-/// It cannot be used directly to match file paths, but it can be converted
-/// to a regular expression string or a matcher.
+/// 它不能直接用于匹配文件路径，但可以转换为正则表达式字符串或匹配器。
 #[derive(Clone, Debug, Eq)]
 pub struct Glob {
     glob: String,
@@ -111,50 +99,50 @@ impl str::FromStr for Glob {
     }
 }
 
-/// A matcher for a single pattern.
+/// 用于单个模式的匹配器。
 #[derive(Clone, Debug)]
 pub struct GlobMatcher {
-    /// The underlying pattern.
+    /// 底层模式。
     pat: Glob,
-    /// The pattern, as a compiled regex.
+    /// 模式，作为编译后的正则表达式。
     re: Regex,
 }
 
 impl GlobMatcher {
-    /// Tests whether the given path matches this pattern or not.
+    /// 测试给定的路径是否与此模式匹配。
     pub fn is_match<P: AsRef<Path>>(&self, path: P) -> bool {
         self.is_match_candidate(&Candidate::new(path.as_ref()))
     }
 
-    /// Tests whether the given path matches this pattern or not.
+    /// 测试给定的路径是否与此模式匹配。
     pub fn is_match_candidate(&self, path: &Candidate<'_>) -> bool {
         self.re.is_match(&path.path)
     }
 
-    /// Returns the `Glob` used to compile this matcher.
+    /// 返回用于编译此匹配器的 `Glob`。
     pub fn glob(&self) -> &Glob {
         &self.pat
     }
 }
 
-/// A strategic matcher for a single pattern.
+/// 用于单个模式的战略匹配器。
 #[cfg(test)]
 #[derive(Clone, Debug)]
 struct GlobStrategic {
-    /// The match strategy to use.
+    /// 要使用的匹配策略。
     strategy: MatchStrategy,
-    /// The pattern, as a compiled regex.
+    /// 模式，作为编译后的正则表达式。
     re: Regex,
 }
 
 #[cfg(test)]
 impl GlobStrategic {
-    /// Tests whether the given path matches this pattern or not.
+    /// 测试给定的路径是否与此模式匹配。
     fn is_match<P: AsRef<Path>>(&self, path: P) -> bool {
         self.is_match_candidate(&Candidate::new(path.as_ref()))
     }
 
-    /// Tests whether the given path matches this pattern or not.
+    /// 测试给定的路径是否与此模式匹配。
     fn is_match_candidate(&self, candidate: &Candidate<'_>) -> bool {
         let byte_path = &*candidate.path;
 
@@ -184,32 +172,30 @@ impl GlobStrategic {
     }
 }
 
-/// A builder for a pattern.
+/// 用于模式的构建器。
 ///
-/// This builder enables configuring the match semantics of a pattern. For
-/// example, one can make matching case insensitive.
+/// 此构建器使得可以配置模式的匹配语义。例如，可以使匹配不区分大小写。
 ///
-/// The lifetime `'a` refers to the lifetime of the pattern string.
+/// 生命周期 `'a` 是模式字符串的生命周期。
 #[derive(Clone, Debug)]
 pub struct GlobBuilder<'a> {
-    /// The glob pattern to compile.
+    /// 要编译的 glob 模式。
     glob: &'a str,
-    /// Options for the pattern.
+    /// 模式的选项。
     opts: GlobOptions,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct GlobOptions {
-    /// Whether to match case insensitively.
+    /// 是否进行不区分大小写的匹配。
     case_insensitive: bool,
-    /// Whether to require a literal separator to match a separator in a file
-    /// path. e.g., when enabled, `*` won't match `/`.
+    /// 是否要求字面分隔符与文件路径中的分隔符匹配。例如，启用时，`*` 不会匹配 `/`。
     literal_separator: bool,
-    /// Whether or not to use `\` to escape special characters.
-    /// e.g., when enabled, `\*` will match a literal `*`.
+    /// 是否使用 `\` 来转义特殊字符。
+    /// 例如，启用时，`\*` 将匹配字面 `*`。
     backslash_escape: bool,
-    /// Whether or not an empty case in an alternate will be removed.
-    /// e.g., when enabled, `{,a}` will match "" and "a".
+    /// 是否删除替代中的空情况。
+    /// 例如，启用时，`{,a}` 将匹配 "" 和 "a"。
     empty_alternates: bool,
 }
 
@@ -251,60 +237,47 @@ enum Token {
     Class { negated: bool, ranges: Vec<(char, char)> },
     Alternates(Vec<Tokens>),
 }
-
 impl Glob {
-    /// Builds a new pattern with default options.
+    /// 使用默认选项构建新模式。
     pub fn new(glob: &str) -> Result<Glob, Error> {
         GlobBuilder::new(glob).build()
     }
 
-    /// Returns a matcher for this pattern.
+    /// 返回此模式的匹配器。
     pub fn compile_matcher(&self) -> GlobMatcher {
-        let re =
-            new_regex(&self.re).expect("regex compilation shouldn't fail");
+        let re = new_regex(&self.re).expect("正则表达式编译不应失败");
         GlobMatcher { pat: self.clone(), re: re }
     }
 
-    /// Returns a strategic matcher.
+    /// 返回战略匹配器。
     ///
-    /// This isn't exposed because it's not clear whether it's actually
-    /// faster than just running a regex for a *single* pattern. If it
-    /// is faster, then GlobMatcher should do it automatically.
+    /// 这并未公开，因为目前不清楚是否比仅为 *单个* 模式运行正则表达式要快。
+    /// 如果更快，那么 GlobMatcher 应该自动执行。
     #[cfg(test)]
     fn compile_strategic_matcher(&self) -> GlobStrategic {
         let strategy = MatchStrategy::new(self);
-        let re =
-            new_regex(&self.re).expect("regex compilation shouldn't fail");
-        GlobStrategic { strategy: strategy, re: re }
+        let re = new_regex(&self.re).expect("正则表达式编译不应失败");
+        GlobStrategic { strategy, re }
     }
 
-    /// Returns the original glob pattern used to build this pattern.
+    /// 返回用于构建此模式的原始 glob 模式。
     pub fn glob(&self) -> &str {
         &self.glob
     }
 
-    /// Returns the regular expression string for this glob.
+    /// 返回此 glob 的正则表达式字符串。
     ///
-    /// Note that regular expressions for globs are intended to be matched on
-    /// arbitrary bytes (`&[u8]`) instead of Unicode strings (`&str`). In
-    /// particular, globs are frequently used on file paths, where there is no
-    /// general guarantee that file paths are themselves valid UTF-8. As a
-    /// result, callers will need to ensure that they are using a regex API
-    /// that can match on arbitrary bytes. For example, the
-    /// [`regex`](https://crates.io/regex)
-    /// crate's
-    /// [`Regex`](https://docs.rs/regex/*/regex/struct.Regex.html)
-    /// API is not suitable for this since it matches on `&str`, but its
-    /// [`bytes::Regex`](https://docs.rs/regex/*/regex/bytes/struct.Regex.html)
-    /// API is suitable for this.
+    /// 请注意，用于 glob 的正则表达式旨在与任意字节 (`&[u8]`) 进行匹配，而不是 Unicode 字符串 (`&str`)。
+    /// 特别是，glob 通常用于文件路径，其中通常无法保证文件路径本身是有效的 UTF-8 编码。
+    /// 因此，调用者需要确保他们使用的是可以在任意字节上进行匹配的正则表达式 API。
+    /// 例如，`regex` 库的 `Regex` API 不适用于此，因为它基于 `&str` 进行匹配，但其 `bytes::Regex` API 适用于此。
     pub fn regex(&self) -> &str {
         &self.re
     }
 
-    /// Returns the pattern as a literal if and only if the pattern must match
-    /// an entire path exactly.
+    /// 返回字面模式，仅当模式必须完全匹配整个路径时才返回。
     ///
-    /// The basic format of these patterns is `{literal}`.
+    /// 这些模式的基本格式是 `{字面}`。
     fn literal(&self) -> Option<String> {
         if self.opts.case_insensitive {
             return None;
@@ -323,13 +296,10 @@ impl Glob {
         }
     }
 
-    /// Returns an extension if this pattern matches a file path if and only
-    /// if the file path has the extension returned.
+    /// 如果此模式匹配的文件路径仅在文件路径具有返回的扩展名时才返回扩展名。
     ///
-    /// Note that this extension returned differs from the extension that
-    /// std::path::Path::extension returns. Namely, this extension includes
-    /// the '.'. Also, paths like `.rs` are considered to have an extension
-    /// of `.rs`.
+    /// 请注意，此处返回的扩展名与 std::path::Path::extension 返回的扩展名不同。
+    /// 即，此处的扩展名包括 '.'。此外，路径如 `.rs` 被视为具有扩展名 `.rs`。
     fn ext(&self) -> Option<String> {
         if self.opts.case_insensitive {
             return None;
@@ -341,9 +311,8 @@ impl Glob {
         };
         match self.tokens.get(start) {
             Some(&Token::ZeroOrMore) => {
-                // If there was no recursive prefix, then we only permit
-                // `*` if `*` can match a `/`. For example, if `*` can't
-                // match `/`, then `*.c` doesn't match `foo/bar.c`.
+                // 如果没有递归前缀，则仅当 `*` 可以匹配 `/` 时，我们才允许 `*`。
+                // 例如，如果 `*` 无法匹配 `/`，则 `*.c` 不会匹配 `foo/bar.c`。
                 if start == 0 && self.opts.literal_separator {
                     return None;
                 }
@@ -369,16 +338,14 @@ impl Glob {
         }
     }
 
-    /// This is like `ext`, but returns an extension even if it isn't sufficient
-    /// to imply a match. Namely, if an extension is returned, then it is
-    /// necessary but not sufficient for a match.
+    /// 类似于 `ext`，但即使它不足以暗示匹配，也会返回扩展名。
+    /// 也就是说，如果返回了扩展名，则它是必要但不充分的条件。
     fn required_ext(&self) -> Option<String> {
         if self.opts.case_insensitive {
             return None;
         }
-        // We don't care at all about the beginning of this pattern. All we
-        // need to check for is if it ends with a literal of the form `.ext`.
-        let mut ext: Vec<char> = vec![]; // built in reverse
+        // 我们不关心此模式的开头。我们唯一需要检查的就是它是否以 `.ext` 字面结尾。
+        let mut ext: Vec<char> = vec![]; // 以相反的顺序构建
         for t in self.tokens.iter().rev() {
             match *t {
                 Token::Literal('/') => return None,
@@ -399,8 +366,7 @@ impl Glob {
         }
     }
 
-    /// Returns a literal prefix of this pattern if the entire pattern matches
-    /// if the literal prefix matches.
+    /// 返回此模式的字面前缀，仅当整个模式匹配时字面前缀才匹配。
     fn prefix(&self) -> Option<String> {
         if self.opts.case_insensitive {
             return None;
@@ -408,12 +374,9 @@ impl Glob {
         let (end, need_sep) = match self.tokens.last() {
             Some(&Token::ZeroOrMore) => {
                 if self.opts.literal_separator {
-                    // If a trailing `*` can't match a `/`, then we can't
-                    // assume a match of the prefix corresponds to a match
-                    // of the overall pattern. e.g., `foo/*` with
-                    // `literal_separator` enabled matches `foo/bar` but not
-                    // `foo/bar/baz`, even though `foo/bar/baz` has a `foo/`
-                    // literal prefix.
+                    // 如果尾部的 `*` 不能匹配 `/`，则我们不能假定前缀的匹配对应于整个模式的匹配。
+                    // 例如，启用 `literal_separator` 的情况下，`foo/*` 匹配 `foo/bar`，但不匹配 `foo/bar/baz`，
+                    // 即使 `foo/bar/baz` 有一个 `foo/` 的字面前缀。
                     return None;
                 }
                 (self.tokens.len() - 1, false)
@@ -438,18 +401,11 @@ impl Glob {
         }
     }
 
-    /// Returns a literal suffix of this pattern if the entire pattern matches
-    /// if the literal suffix matches.
+    /// 返回此模式的字面后缀，仅当整个模式匹配时字面后缀才匹配。
     ///
-    /// If a literal suffix is returned and it must match either the entire
-    /// file path or be preceded by a `/`, then also return true. This happens
-    /// with a pattern like `**/foo/bar`. Namely, this pattern matches
-    /// `foo/bar` and `baz/foo/bar`, but not `foofoo/bar`. In this case, the
-    /// suffix returned is `/foo/bar` (but should match the entire path
-    /// `foo/bar`).
-    ///
-    /// When this returns true, the suffix literal is guaranteed to start with
-    /// a `/`.
+    /// 如果字面后缀必须匹配整个文件路径或位于 `/` 之前，则返回 true。
+    /// 这种情况发生在模式类似于 `**/foo/bar`。换句话说，此模式匹配 `foo/bar` 和 `baz/foo/bar`，
+    /// 但不匹配 `foofoo/bar`。在这种情况下，返回的后缀是 `/foo/bar`（但应与整个路径 `foo/bar` 匹配）。
     fn suffix(&self) -> Option<(String, bool)> {
         if self.opts.case_insensitive {
             return None;
@@ -457,8 +413,7 @@ impl Glob {
         let mut lit = String::new();
         let (start, entire) = match self.tokens.get(0) {
             Some(&Token::RecursivePrefix) => {
-                // We only care if this follows a path component if the next
-                // token is a literal.
+                // 仅当下一个标记是字面时，我们才关心是否跟随路径组件。
                 if let Some(&Token::Literal(_)) = self.tokens.get(1) {
                     lit.push('/');
                     (1, true)
@@ -470,9 +425,8 @@ impl Glob {
         };
         let start = match self.tokens.get(start) {
             Some(&Token::ZeroOrMore) => {
-                // If literal_separator is enabled, then a `*` can't
-                // necessarily match everything, so reporting a suffix match
-                // as a match of the pattern would be a false positive.
+                // 如果启用了 literal_separator，则 `*` 可以不必然地匹配一切，
+                // 因此将后缀匹配报告为模式匹配是误报。
                 if self.opts.literal_separator {
                     return None;
                 }
@@ -493,17 +447,13 @@ impl Glob {
         }
     }
 
-    /// If this pattern only needs to inspect the basename of a file path,
-    /// then the tokens corresponding to only the basename match are returned.
+    /// 如果此模式仅需要检查文件路径的基名，则返回仅基名匹配的标记。
     ///
-    /// For example, given a pattern of `**/*.foo`, only the tokens
-    /// corresponding to `*.foo` are returned.
+    /// 例如，对于模式 `**/*.foo`，仅返回与 `*.foo` 对应的标记。
     ///
-    /// Note that this will return None if any match of the basename tokens
-    /// doesn't correspond to a match of the entire pattern. For example, the
-    /// glob `foo` only matches when a file path has a basename of `foo`, but
-    /// doesn't *always* match when a file path has a basename of `foo`. e.g.,
-    /// `foo` doesn't match `abc/foo`.
+    /// 请注意，如果基名标记的任何匹配不对应于整个模式的匹配，则将返回 None。
+    /// 例如，glob `foo` 仅在文件路径具有基名 `foo` 时匹配，但并不总是在文件路径具有基名 `foo` 时都匹配。
+    /// 例如，`foo` 不匹配 `abc/foo`。
     fn basename_tokens(&self) -> Option<&[Token]> {
         if self.opts.case_insensitive {
             return None;
@@ -511,9 +461,7 @@ impl Glob {
         let start = match self.tokens.get(0) {
             Some(&Token::RecursivePrefix) => 1,
             _ => {
-                // With nothing to gobble up the parent portion of a path,
-                // we can't assume that matching on only the basename is
-                // correct.
+                // 没有任何内容来处理路径的父部分，因此不能假设仅在基名上进行匹配是正确的。
                 return None;
             }
         };
@@ -523,12 +471,10 @@ impl Glob {
         for t in &self.tokens[start..] {
             match *t {
                 Token::Literal('/') => return None,
-                Token::Literal(_) => {} // OK
+                Token::Literal(_) => {} // 可以
                 Token::Any | Token::ZeroOrMore => {
                     if !self.opts.literal_separator {
-                        // In this case, `*` and `?` can match a path
-                        // separator, which means this could reach outside
-                        // the basename.
+                        // 在这种情况下，`*` 和 `?` 可以匹配路径分隔符，这意味着它可能会超出基名。
                         return None;
                     }
                 }
@@ -538,9 +484,7 @@ impl Glob {
                     return None;
                 }
                 Token::Class { .. } | Token::Alternates(..) => {
-                    // We *could* be a little smarter here, but either one
-                    // of these is going to prevent our literal optimizations
-                    // anyway, so give up.
+                    // 我们可以更聪明一些，但这两者之一都将阻止我们的字面优化，所以放弃。
                     return None;
                 }
             }
@@ -548,11 +492,9 @@ impl Glob {
         Some(&self.tokens[start..])
     }
 
-    /// Returns the pattern as a literal if and only if the pattern exclusively
-    /// matches the basename of a file path *and* is a literal.
+    /// 仅当模式完全匹配文件路径的基名 *且*是字面时，将模式作为字面返回。
     ///
-    /// The basic format of these patterns is `**/{literal}`, where `{literal}`
-    /// does not contain a path separator.
+    /// 这些模式的基本格式是 `**/{字面}`，其中 `{字面}` 不包含路径分隔符。
     fn basename_literal(&self) -> Option<String> {
         let tokens = match self.basename_tokens() {
             None => return None,
@@ -568,16 +510,15 @@ impl Glob {
         Some(lit)
     }
 }
-
 impl<'a> GlobBuilder<'a> {
-    /// Create a new builder for the pattern given.
+    /// 创建给定模式的新构建器。
     ///
-    /// The pattern is not compiled until `build` is called.
+    /// 只有在调用 `build` 时，模式才会被编译。
     pub fn new(glob: &'a str) -> GlobBuilder<'a> {
-        GlobBuilder { glob: glob, opts: GlobOptions::default() }
+        GlobBuilder { glob, opts: GlobOptions::default() }
     }
 
-    /// Parses and builds the pattern.
+    /// 解析并构建模式。
     pub fn build(&self) -> Result<Glob, Error> {
         let mut p = Parser {
             glob: &self.glob,
@@ -604,45 +545,41 @@ impl<'a> GlobBuilder<'a> {
                 glob: self.glob.to_string(),
                 re: tokens.to_regex_with(&self.opts),
                 opts: self.opts,
-                tokens: tokens,
+                tokens,
             })
         }
     }
 
-    /// Toggle whether the pattern matches case insensitively or not.
+    /// 切换模式是否进行大小写不敏感匹配。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项被禁用。
     pub fn case_insensitive(&mut self, yes: bool) -> &mut GlobBuilder<'a> {
         self.opts.case_insensitive = yes;
         self
     }
 
-    /// Toggle whether a literal `/` is required to match a path separator.
+    /// 切换是否需要字面的 `/` 来匹配路径分隔符。
     ///
-    /// By default this is false: `*` and `?` will match `/`.
+    /// 默认情况下，这是 false：`*` 和 `?` 将匹配 `/`。
     pub fn literal_separator(&mut self, yes: bool) -> &mut GlobBuilder<'a> {
         self.opts.literal_separator = yes;
         self
     }
 
-    /// When enabled, a back slash (`\`) may be used to escape
-    /// special characters in a glob pattern. Additionally, this will
-    /// prevent `\` from being interpreted as a path separator on all
-    /// platforms.
+    /// 当启用时，可以使用反斜杠（`\`）来转义 glob 模式中的特殊字符。
+    /// 此外，在所有平台上都将防止将 `\` 解释为路径分隔符。
     ///
-    /// This is enabled by default on platforms where `\` is not a
-    /// path separator and disabled by default on platforms where `\`
-    /// is a path separator.
+    /// 在 `\` 不是路径分隔符的平台上默认启用，在 `\` 是路径分隔符的平台上默认禁用。
     pub fn backslash_escape(&mut self, yes: bool) -> &mut GlobBuilder<'a> {
         self.opts.backslash_escape = yes;
         self
     }
 
-    /// Toggle whether an empty pattern in a list of alternates is accepted.
+    /// 切换在替代列表中是否接受空模式。
     ///
-    /// For example, if this is set then the glob `foo{,.txt}` will match both `foo` and `foo.txt`.
+    /// 例如，如果设置了这个选项，那么 glob `foo{,.txt}` 将同时匹配 `foo` 和 `foo.txt`。
     ///
-    /// By default this is false.
+    /// 默认情况下，这是 false。
     pub fn empty_alternates(&mut self, yes: bool) -> &mut GlobBuilder<'a> {
         self.opts.empty_alternates = yes;
         self
@@ -650,9 +587,7 @@ impl<'a> GlobBuilder<'a> {
 }
 
 impl Tokens {
-    /// Convert this pattern to a string that is guaranteed to be a valid
-    /// regular expression and will represent the matching semantics of this
-    /// glob pattern and the options given.
+    /// 将此模式转换为保证是有效的正则表达式且将表示此 glob 模式的匹配语义和给定选项的字符串。
     fn to_regex_with(&self, options: &GlobOptions) -> String {
         let mut re = String::new();
         re.push_str("(?-u)");
@@ -660,8 +595,7 @@ impl Tokens {
             re.push_str("(?i)");
         }
         re.push('^');
-        // Special case. If the entire glob is just `**`, then it should match
-        // everything.
+        // 特殊情况。如果整个 glob 仅为 `**`，则应该匹配一切。
         if self.len() == 1 && self[0] == Token::RecursivePrefix {
             re.push_str(".*");
             re.push('$');
@@ -713,7 +647,7 @@ impl Tokens {
                     }
                     for r in ranges {
                         if r.0 == r.1 {
-                            // Not strictly necessary, but nicer to look at.
+                            // 不是严格必要的，但更好看。
                             re.push_str(&char_to_escaped_literal(r.0));
                         } else {
                             re.push_str(&char_to_escaped_literal(r.0));
@@ -733,8 +667,7 @@ impl Tokens {
                         }
                     }
 
-                    // It is possible to have an empty set in which case the
-                    // resulting alternation '()' would be an error.
+                    // 可能会有一个空集，此时生成的交替 '()' 将是错误。
                     if !parts.is_empty() {
                         re.push_str("(?:");
                         re.push_str(&parts.join("|"));
@@ -746,14 +679,12 @@ impl Tokens {
     }
 }
 
-/// Convert a Unicode scalar value to an escaped string suitable for use as
-/// a literal in a non-Unicode regex.
+/// 将 Unicode 标量值转换为适用于在非 Unicode 正则表达式中用作字面的转义字符串。
 fn char_to_escaped_literal(c: char) -> String {
     bytes_to_escaped_literal(&c.to_string().into_bytes())
 }
 
-/// Converts an arbitrary sequence of bytes to a UTF-8 string. All non-ASCII
-/// code units are converted to their escaped form.
+/// 将任意字节序列转换为 UTF-8 字符串。所有非 ASCII 代码单元将转换为其转义形式。
 fn bytes_to_escaped_literal(bs: &[u8]) -> String {
     let mut s = String::with_capacity(bs.len());
     for &b in bs {
@@ -765,7 +696,6 @@ fn bytes_to_escaped_literal(bs: &[u8]) -> String {
     }
     s
 }
-
 struct Parser<'a> {
     glob: &'a str,
     stack: Vec<Tokens>,
@@ -777,7 +707,7 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn error(&self, kind: ErrorKind) -> Error {
-        Error { glob: Some(self.glob.to_string()), kind: kind }
+        Error { glob: Some(self.glob.to_string()), kind }
     }
 
     fn parse(&mut self) -> Result<(), Error> {
@@ -833,9 +763,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_comma(&mut self) -> Result<(), Error> {
-        // If we aren't inside a group alternation, then don't
-        // treat commas specially. Otherwise, we need to start
-        // a new alternate.
+        // 如果我们不在组替代中，那么不特殊处理逗号。否则，我们需要开始新的替代。
         if self.stack.len() <= 1 {
             self.push_token(Token::Literal(','))
         } else {
@@ -850,7 +778,7 @@ impl<'a> Parser<'a> {
                 Some(c) => self.push_token(Token::Literal(c)),
             }
         } else if is_separator('\\') {
-            // Normalize all patterns to use / as a separator.
+            // 将所有模式标准化为使用 / 作为分隔符。
             self.push_token(Token::Literal('/'))
         } else {
             self.push_token(Token::Literal('\\'))
@@ -948,8 +876,7 @@ impl<'a> Parser<'a> {
         loop {
             let c = match self.bump() {
                 Some(c) => c,
-                // The only way to successfully break this loop is to observe
-                // a ']'.
+                // 唯一能成功中断此循环的方式是观察到 ']'。
                 None => return Err(self.error(ErrorKind::UnclosedClass)),
             };
             match c {
@@ -964,8 +891,7 @@ impl<'a> Parser<'a> {
                     if first {
                         ranges.push(('-', '-'));
                     } else if in_range {
-                        // invariant: in_range is only set when there is
-                        // already at least one character seen.
+                        // 不变式：只有在已经看到至少一个字符时，才设置 in_range。
                         let r = ranges.last_mut().unwrap();
                         add_to_last_range(&self.glob, r, '-')?;
                         in_range = false;
@@ -976,8 +902,7 @@ impl<'a> Parser<'a> {
                 }
                 c => {
                     if in_range {
-                        // invariant: in_range is only set when there is
-                        // already at least one character seen.
+                        // 不变式：只有在已经看到至少一个字符时，才设置 in_range。
                         add_to_last_range(
                             &self.glob,
                             ranges.last_mut().unwrap(),
@@ -992,11 +917,10 @@ impl<'a> Parser<'a> {
             first = false;
         }
         if in_range {
-            // Means that the last character in the class was a '-', so add
-            // it as a literal.
+            // 意味着类中的最后一个字符是 '-'，因此将其添加为字面值。
             ranges.push(('-', '-'));
         }
-        self.push_token(Token::Class { negated: negated, ranges: ranges })
+        self.push_token(Token::Class { negated, ranges })
     }
 
     fn bump(&mut self) -> Option<char> {
@@ -1006,7 +930,7 @@ impl<'a> Parser<'a> {
     }
 
     fn peek(&mut self) -> Option<char> {
-        self.chars.peek().map(|&ch| ch)
+        self.chars.peek().copied()
     }
 }
 

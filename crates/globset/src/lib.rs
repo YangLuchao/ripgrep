@@ -1,9 +1,7 @@
 /*!
-The globset crate provides cross platform single glob and glob set matching.
+globset crate 提供了跨平台的单个 glob 和 glob 集合匹配功能。
 
-Glob set matching is the process of matching one or more glob patterns against
-a single candidate path simultaneously, and returning all of the globs that
-matched. For example, given this set of globs:
+Glob 集合匹配是将一个或多个 glob 模式与单个候选路径同时匹配的过程，并返回所有匹配的 glob。例如，给定以下一组 glob：
 
 ```ignore
 *.rs
@@ -11,12 +9,11 @@ src/lib.rs
 src/**/foo.rs
 ```
 
-and a path `src/bar/baz/foo.rs`, then the set would report the first and third
-globs as matching.
+以及路径 `src/bar/baz/foo.rs`，那么该集合将报告第一个和第三个 glob 匹配。
 
-# Example: one glob
+# 示例：匹配单个 glob
 
-This example shows how to match a single glob against a single file path.
+这个示例展示了如何将单个 glob 与单个文件路径匹配。
 
 ```
 # fn example() -> Result<(), globset::Error> {
@@ -30,10 +27,9 @@ assert!(!glob.is_match("Cargo.toml"));
 # Ok(()) } example().unwrap();
 ```
 
-# Example: configuring a glob matcher
+# 示例：配置 glob 匹配器
 
-This example shows how to use a `GlobBuilder` to configure aspects of match
-semantics. In this example, we prevent wildcards from matching path separators.
+这个示例展示了如何使用 `GlobBuilder` 配置匹配的语义方面。在这个示例中，我们阻止通配符匹配路径分隔符。
 
 ```
 # fn example() -> Result<(), globset::Error> {
@@ -43,22 +39,21 @@ let glob = GlobBuilder::new("*.rs")
     .literal_separator(true).build()?.compile_matcher();
 
 assert!(glob.is_match("foo.rs"));
-assert!(!glob.is_match("foo/bar.rs")); // no longer matches
+assert!(!glob.is_match("foo/bar.rs")); // 不再匹配
 assert!(!glob.is_match("Cargo.toml"));
 # Ok(()) } example().unwrap();
 ```
 
-# Example: match multiple globs at once
+# 示例：同时匹配多个 glob
 
-This example shows how to match multiple glob patterns at once.
+这个示例展示了如何同时匹配多个 glob 模式。
 
 ```
 # fn example() -> Result<(), globset::Error> {
 use globset::{Glob, GlobSetBuilder};
 
 let mut builder = GlobSetBuilder::new();
-// A GlobBuilder can be used to configure each glob's match semantics
-// independently.
+// 可以使用 GlobBuilder 配置每个 glob 的匹配语义。
 builder.add(Glob::new("*.rs")?);
 builder.add(Glob::new("src/lib.rs")?);
 builder.add(Glob::new("src/**/foo.rs")?);
@@ -68,37 +63,19 @@ assert_eq!(set.matches("src/bar/baz/foo.rs"), vec![0, 2]);
 # Ok(()) } example().unwrap();
 ```
 
-# Syntax
+# 语法
 
-Standard Unix-style glob syntax is supported:
+支持标准的 Unix 风格的 glob 语法：
 
-* `?` matches any single character. (If the `literal_separator` option is
-  enabled, then `?` can never match a path separator.)
-* `*` matches zero or more characters. (If the `literal_separator` option is
-  enabled, then `*` can never match a path separator.)
-* `**` recursively matches directories but are only legal in three situations.
-  First, if the glob starts with <code>\*\*&#x2F;</code>, then it matches
-  all directories. For example, <code>\*\*&#x2F;foo</code> matches `foo`
-  and `bar/foo` but not `foo/bar`. Secondly, if the glob ends with
-  <code>&#x2F;\*\*</code>, then it matches all sub-entries. For example,
-  <code>foo&#x2F;\*\*</code> matches `foo/a` and `foo/a/b`, but not `foo`.
-  Thirdly, if the glob contains <code>&#x2F;\*\*&#x2F;</code> anywhere within
-  the pattern, then it matches zero or more directories. Using `**` anywhere
-  else is illegal (N.B. the glob `**` is allowed and means "match everything").
-* `{a,b}` matches `a` or `b` where `a` and `b` are arbitrary glob patterns.
-  (N.B. Nesting `{...}` is not currently allowed.)
-* `[ab]` matches `a` or `b` where `a` and `b` are characters. Use
-  `[!ab]` to match any character except for `a` and `b`.
-* Metacharacters such as `*` and `?` can be escaped with character class
-  notation. e.g., `[*]` matches `*`.
-* When backslash escapes are enabled, a backslash (`\`) will escape all meta
-  characters in a glob. If it precedes a non-meta character, then the slash is
-  ignored. A `\\` will match a literal `\\`. Note that this mode is only
-  enabled on Unix platforms by default, but can be enabled on any platform
-  via the `backslash_escape` setting on `Glob`.
+* `?` 匹配任意单个字符。（如果启用了 `literal_separator` 选项，则 `?` 将永远不会匹配路径分隔符。）
+* `*` 匹配零个或多个字符。（如果启用了 `literal_separator` 选项，则 `*` 将永远不会匹配路径分隔符。）
+* `**` 递归匹配目录，但只在三种情况下合法。首先，如果 glob 以 <code>\*\*&#x2F;</code> 开头，则匹配所有目录。例如，<code>\*\*&#x2F;foo</code> 匹配 `foo` 和 `bar/foo`，但不匹配 `foo/bar`。其次，如果 glob 以 <code>&#x2F;\*\*</code> 结尾，则匹配所有子条目。例如，<code>foo&#x2F;\*\*</code> 匹配 `foo/a` 和 `foo/a/b`，但不匹配 `foo`。第三，如果 glob 在模式中的任何位置包含 <code>&#x2F;\*\*&#x2F;</code>，则匹配零个或多个目录。在其他任何地方使用 `**` 都是非法的（注意，glob `**` 是允许的，表示“匹配一切”）。
+* `{a,b}` 匹配 `a` 或 `b`，其中 `a` 和 `b` 是任意的 glob 模式。（注意：目前不允许嵌套 `{...}`。）
+* `[ab]` 匹配字符 `a` 或 `b`，其中 `a` 和 `b` 是字符。使用 `[!ab]` 匹配除 `a` 和 `b` 之外的任何字符。
+* 元字符（如 `*` 和 `?`）可以通过字符类表示法进行转义。例如，`[*]` 匹配 `*`。
+* 在启用反斜杠转义时，反斜杠（`\`）将转义 glob 中的所有元字符。如果在非元字符之前出现，斜杠将被忽略。`\\` 将匹配文字 `\\`。请注意，默认情况下只在 Unix 平台上启用此模式，但可以通过 `Glob` 的 `backslash_escape` 设置在任何平台上启用。
 
-A `GlobBuilder` can be used to prevent wildcards from matching path separators,
-or to enable case insensitive matching.
+`GlobBuilder` 可以用于防止通配符匹配路径分隔符，或者启用大小写不敏感匹配。
 */
 
 #![deny(missing_docs)]
@@ -134,49 +111,42 @@ macro_rules! debug {
 macro_rules! debug {
     ($($token:tt)*) => {};
 }
-
-/// Represents an error that can occur when parsing a glob pattern.
+/// 表示解析 glob 模式时可能发生的错误。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {
-    /// The original glob provided by the caller.
+    /// 调用者提供的原始 glob。
     glob: Option<String>,
-    /// The kind of error.
+    /// 错误的类型。
     kind: ErrorKind,
 }
 
-/// The kind of error that can occur when parsing a glob pattern.
+/// 解析 glob 模式时可能发生的错误类型。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
-    /// **DEPRECATED**.
+    /// **已弃用**。
     ///
-    /// This error used to occur for consistency with git's glob specification,
-    /// but the specification now accepts all uses of `**`. When `**` does not
-    /// appear adjacent to a path separator or at the beginning/end of a glob,
-    /// it is now treated as two consecutive `*` patterns. As such, this error
-    /// is no longer used.
+    /// 这个错误以前用于与 git 的 glob 规范保持一致，但是该规范现在接受所有使用 `**` 的情况。
+    /// 当 `**` 不与路径分隔符相邻，也不在 glob 的开头/结尾时，它现在被视为两个连续的 `*` 模式。
+    /// 因此，不再使用此错误。
     InvalidRecursive,
-    /// Occurs when a character class (e.g., `[abc]`) is not closed.
+    /// 当字符类（例如，`[abc]`）没有闭合时发生。
     UnclosedClass,
-    /// Occurs when a range in a character (e.g., `[a-z]`) is invalid. For
-    /// example, if the range starts with a lexicographically larger character
-    /// than it ends with.
+    /// 当字符类中的范围（例如，`[a-z]`）无效时发生。例如，如果范围的开始字符比结束字符大。
     InvalidRange(char, char),
-    /// Occurs when a `}` is found without a matching `{`.
+    /// 当找到一个没有匹配的 `}`。
     UnopenedAlternates,
-    /// Occurs when a `{` is found without a matching `}`.
+    /// 当找到一个没有匹配的 `{`。
     UnclosedAlternates,
-    /// Occurs when an alternating group is nested inside another alternating
-    /// group, e.g., `{{a,b},{c,d}}`.
+    /// 当一个交替组嵌套在另一个交替组内部时发生，例如，`{{a,b},{c,d}}`。
     NestedAlternates,
-    /// Occurs when an unescaped '\' is found at the end of a glob.
+    /// 当在 glob 的末尾找到未转义的 '\' 时发生。
     DanglingEscape,
-    /// An error associated with parsing or compiling a regex.
+    /// 与解析或编译正则表达式相关的错误。
     Regex(String),
-    /// Hints that destructuring should not be exhaustive.
+    /// 提示不应该穷尽地进行解构。
     ///
-    /// This enum may grow additional variants, so this makes sure clients
-    /// don't count on exhaustive matching. (Otherwise, adding a new variant
-    /// could break existing code.)
+    /// 此枚举可能会增加其他变体，因此这确保客户端不依赖于穷尽匹配。
+    /// （否则，添加新的变体可能会破坏现有代码。）
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -188,12 +158,12 @@ impl StdError for Error {
 }
 
 impl Error {
-    /// Return the glob that caused this error, if one exists.
+    /// 返回导致此错误的 glob，如果存在的话。
     pub fn glob(&self) -> Option<&str> {
         self.glob.as_ref().map(|s| &**s)
     }
 
-    /// Return the kind of this error.
+    /// 返回此错误的类型。
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }
@@ -203,24 +173,20 @@ impl ErrorKind {
     fn description(&self) -> &str {
         match *self {
             ErrorKind::InvalidRecursive => {
-                "invalid use of **; must be one path component"
+                "无效的 ** 使用；必须是一个路径组件"
             }
-            ErrorKind::UnclosedClass => {
-                "unclosed character class; missing ']'"
-            }
-            ErrorKind::InvalidRange(_, _) => "invalid character range",
+            ErrorKind::UnclosedClass => "未闭合的字符类；缺少 ']'",
+            ErrorKind::InvalidRange(_, _) => "无效的字符范围",
             ErrorKind::UnopenedAlternates => {
-                "unopened alternate group; missing '{' \
-                (maybe escape '}' with '[}]'?)"
+                "未打开的交替组；缺少 '{' \
+                （可以用 '[}]' 转义 '}' 吗？）"
             }
             ErrorKind::UnclosedAlternates => {
-                "unclosed alternate group; missing '}' \
-                (maybe escape '{' with '[{]'?)"
+                "未闭合的交替组；缺少 '}' \
+                （可以用 '[{]' 转义 '{' 吗？）"
             }
-            ErrorKind::NestedAlternates => {
-                "nested alternate groups are not allowed"
-            }
-            ErrorKind::DanglingEscape => "dangling '\\'",
+            ErrorKind::NestedAlternates => "不允许嵌套的交替组",
+            ErrorKind::DanglingEscape => "悬空的 '\\'",
             ErrorKind::Regex(ref err) => err,
             ErrorKind::__Nonexhaustive => unreachable!(),
         }
@@ -232,7 +198,7 @@ impl fmt::Display for Error {
         match self.glob {
             None => self.kind.fmt(f),
             Some(ref glob) => {
-                write!(f, "error parsing glob '{}': {}", glob, self.kind)
+                write!(f, "解析 glob '{}' 时发生错误：{}", glob, self.kind)
             }
         }
     }
@@ -249,7 +215,7 @@ impl fmt::Display for ErrorKind {
             | ErrorKind::DanglingEscape
             | ErrorKind::Regex(_) => write!(f, "{}", self.description()),
             ErrorKind::InvalidRange(s, e) => {
-                write!(f, "invalid range; '{}' > '{}'", s, e)
+                write!(f, "无效的范围；'{}' > '{}'", s, e)
             }
             ErrorKind::__Nonexhaustive => unreachable!(),
         }
@@ -281,42 +247,39 @@ where
 
 type Fnv = hash::BuildHasherDefault<fnv::FnvHasher>;
 
-/// GlobSet represents a group of globs that can be matched together in a
-/// single pass.
+/// GlobSet 表示一组可以在单次匹配中一起匹配的 glob。
 #[derive(Clone, Debug)]
 pub struct GlobSet {
     len: usize,
     strats: Vec<GlobSetMatchStrategy>,
 }
-
 impl GlobSet {
-    /// Create an empty `GlobSet`. An empty set matches nothing.
+    /// 创建一个空的 `GlobSet`。一个空集合不会匹配任何内容。
     #[inline]
     pub fn empty() -> GlobSet {
         GlobSet { len: 0, strats: vec![] }
     }
 
-    /// Returns true if this set is empty, and therefore matches nothing.
+    /// 如果这个集合为空，即不匹配任何内容，则返回 true。
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    /// Returns the number of globs in this set.
+    /// 返回这个集合中的 glob 数量。
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
-    /// Returns true if any glob in this set matches the path given.
+    /// 如果这个集合中的任何一个 glob 匹配给定的路径，则返回 true。
     pub fn is_match<P: AsRef<Path>>(&self, path: P) -> bool {
         self.is_match_candidate(&Candidate::new(path.as_ref()))
     }
 
-    /// Returns true if any glob in this set matches the path given.
+    /// 如果这个集合中的任何一个 glob 匹配给定的路径，则返回 true。
     ///
-    /// This takes a Candidate as input, which can be used to amortize the
-    /// cost of preparing a path for matching.
+    /// 这个方法接受 Candidate 作为输入，可以用于摊销准备路径匹配的成本。
     pub fn is_match_candidate(&self, path: &Candidate<'_>) -> bool {
         if self.is_empty() {
             return false;
@@ -329,17 +292,14 @@ impl GlobSet {
         false
     }
 
-    /// Returns the sequence number of every glob pattern that matches the
-    /// given path.
+    /// 返回与给定路径匹配的每个 glob 模式的序列号。
     pub fn matches<P: AsRef<Path>>(&self, path: P) -> Vec<usize> {
         self.matches_candidate(&Candidate::new(path.as_ref()))
     }
 
-    /// Returns the sequence number of every glob pattern that matches the
-    /// given path.
+    /// 返回与给定路径匹配的每个 glob 模式的序列号。
     ///
-    /// This takes a Candidate as input, which can be used to amortize the
-    /// cost of preparing a path for matching.
+    /// 这个方法接受 Candidate 作为输入，可以用于摊销准备路径匹配的成本。
     pub fn matches_candidate(&self, path: &Candidate<'_>) -> Vec<usize> {
         let mut into = vec![];
         if self.is_empty() {
@@ -349,12 +309,10 @@ impl GlobSet {
         into
     }
 
-    /// Adds the sequence number of every glob pattern that matches the given
-    /// path to the vec given.
+    /// 将与给定路径匹配的每个 glob 模式的序列号添加到提供的 Vec 中。
     ///
-    /// `into` is cleared before matching begins, and contains the set of
-    /// sequence numbers (in ascending order) after matching ends. If no globs
-    /// were matched, then `into` will be empty.
+    /// 在匹配开始之前，`into` 将被清空，并在匹配结束后包含一组序列号（按升序排列）。
+    /// 如果没有匹配的 glob，则 `into` 将为空。
     pub fn matches_into<P: AsRef<Path>>(
         &self,
         path: P,
@@ -363,15 +321,12 @@ impl GlobSet {
         self.matches_candidate_into(&Candidate::new(path.as_ref()), into);
     }
 
-    /// Adds the sequence number of every glob pattern that matches the given
-    /// path to the vec given.
+    /// 将与给定路径匹配的每个 glob 模式的序列号添加到提供的 Vec 中。
     ///
-    /// `into` is cleared before matching begins, and contains the set of
-    /// sequence numbers (in ascending order) after matching ends. If no globs
-    /// were matched, then `into` will be empty.
+    /// 在匹配开始之前，`into` 将被清空，并在匹配结束后包含一组序列号（按升序排列）。
+    /// 如果没有匹配的 glob，则 `into` 将为空。
     ///
-    /// This takes a Candidate as input, which can be used to amortize the
-    /// cost of preparing a path for matching.
+    /// 这个方法接受 Candidate 作为输入，可以用于摊销准备路径匹配的成本。
     pub fn matches_candidate_into(
         &self,
         path: &Candidate<'_>,
@@ -457,47 +412,44 @@ impl GlobSet {
 }
 
 impl Default for GlobSet {
-    /// Create a default empty GlobSet.
+    /// 创建一个默认的空 GlobSet。
     fn default() -> Self {
         GlobSet::empty()
     }
 }
 
-/// GlobSetBuilder builds a group of patterns that can be used to
-/// simultaneously match a file path.
+/// GlobSetBuilder 用于构建一组可以同时匹配文件路径的模式。
 #[derive(Clone, Debug)]
 pub struct GlobSetBuilder {
     pats: Vec<Glob>,
 }
 
 impl GlobSetBuilder {
-    /// Create a new GlobSetBuilder. A GlobSetBuilder can be used to add new
-    /// patterns. Once all patterns have been added, `build` should be called
-    /// to produce a `GlobSet`, which can then be used for matching.
+    /// 创建一个新的 GlobSetBuilder。GlobSetBuilder 可用于添加新的模式。
+    /// 一旦所有模式都被添加，应该调用 `build` 来生成一个 `GlobSet`，
+    /// 然后可以用于匹配。
     pub fn new() -> GlobSetBuilder {
         GlobSetBuilder { pats: vec![] }
     }
 
-    /// Builds a new matcher from all of the glob patterns added so far.
+    /// 从到目前为止添加的所有 glob 模式构建一个新的匹配器。
     ///
-    /// Once a matcher is built, no new patterns can be added to it.
+    /// 一旦构建了匹配器，就不能再向其中添加新的模式。
     pub fn build(&self) -> Result<GlobSet, Error> {
         GlobSet::new(&self.pats)
     }
 
-    /// Add a new pattern to this set.
+    /// 将一个新的模式添加到这个集合中。
     pub fn add(&mut self, pat: Glob) -> &mut GlobSetBuilder {
         self.pats.push(pat);
         self
     }
 }
-
-/// A candidate path for matching.
+/// 用于匹配的候选路径。
 ///
-/// All glob matching in this crate operates on `Candidate` values.
-/// Constructing candidates has a very small cost associated with it, so
-/// callers may find it beneficial to amortize that cost when matching a single
-/// path against multiple globs or sets of globs.
+/// 该库中的所有 glob 匹配都基于 `Candidate` 值进行。
+/// 构建候选项的成本非常小，因此在将单个路径与多个 glob 或 glob 集合进行匹配时，
+/// 调用者可能会发现将成本分摊会更有益。
 #[derive(Clone)]
 pub struct Candidate<'a> {
     path: Cow<'a, [u8]>,
@@ -516,7 +468,7 @@ impl<'a> std::fmt::Debug for Candidate<'a> {
 }
 
 impl<'a> Candidate<'a> {
-    /// Create a new candidate for matching from the given path.
+    /// 从给定路径创建一个新的用于匹配的候选项。
     pub fn new<P: AsRef<Path> + ?Sized>(path: &'a P) -> Candidate<'a> {
         let path = normalize_path(Vec::from_path_lossy(path.as_ref()));
         let basename = file_name(&path).unwrap_or(Cow::Borrowed(B("")));
@@ -611,7 +563,6 @@ impl LiteralStrategy {
         }
     }
 }
-
 #[derive(Clone, Debug)]
 struct BasenameLiteralStrategy(BTreeMap<Vec<u8>, Vec<usize>>);
 
@@ -880,16 +831,14 @@ impl RequiredExtensionStrategyBuilder {
     }
 }
 
-/// Escape meta-characters within the given glob pattern.
+/// 转义给定的 glob 模式中的特殊字符。
 ///
-/// The escaping works by surrounding meta-characters with brackets. For
-/// example, `*` becomes `[*]`.
+/// 转义通过在特殊字符周围加上方括号来实现。例如，`*` 变成了 `[*]`。
 pub fn escape(s: &str) -> String {
     let mut escaped = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            // note that ! does not need escaping because it is only special
-            // inside brackets
+            // 注意，! 不需要转义，因为它只在方括号内部是特殊字符
             '?' | '*' | '[' | ']' => {
                 escaped.push('[');
                 escaped.push(c);
