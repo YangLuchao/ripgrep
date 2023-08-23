@@ -207,7 +207,7 @@ impl SearchResult {
     }
 }
 
-/// The pattern matcher used by a search worker.
+/// 搜索工作者使用的模式匹配器。
 #[derive(Clone, Debug)]
 pub enum PatternMatcher {
     RustRegex(RustRegexMatcher),

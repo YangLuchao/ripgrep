@@ -4,7 +4,7 @@ use std::path::Path;
 use grep::printer::{ColorSpecs, PrinterPath};
 use termcolor::WriteColor;
 
-/// A configuration for describing how paths should be written.
+/// 描述如何写入路径的配置。
 #[derive(Clone, Debug)]
 struct Config {
     colors: ColorSpecs,
@@ -22,28 +22,26 @@ impl Default for Config {
     }
 }
 
-/// A builder for constructing things to search over.
+/// 用于构建要搜索的内容的构建器。
 #[derive(Clone, Debug)]
 pub struct PathPrinterBuilder {
     config: Config,
 }
 
 impl PathPrinterBuilder {
-    /// Return a new subject builder with a default configuration.
+    /// 使用默认配置返回一个新的主题构建器。
     pub fn new() -> PathPrinterBuilder {
         PathPrinterBuilder { config: Config::default() }
     }
 
-    /// Create a new path printer with the current configuration that writes
-    /// paths to the given writer.
+    /// 使用当前配置创建一个新的路径打印机，将路径写入给定的写入器。
     pub fn build<W: WriteColor>(&self, wtr: W) -> PathPrinter<W> {
         PathPrinter { config: self.config.clone(), wtr }
     }
 
-    /// Set the color specification for this printer.
+    /// 设置此打印机的颜色规范。
     ///
-    /// Currently, only the `path` component of the given specification is
-    /// used.
+    /// 目前，仅使用给定规范的 `path` 组件。
     pub fn color_specs(
         &mut self,
         specs: ColorSpecs,
@@ -52,30 +50,28 @@ impl PathPrinterBuilder {
         self
     }
 
-    /// A path separator.
+    /// 路径分隔符。
     ///
-    /// When provided, the path's default separator will be replaced with
-    /// the given separator.
+    /// 当提供时，将使用给定分隔符替换路径的默认分隔符。
     ///
-    /// This is not set by default, and the system's default path separator
-    /// will be used.
+    /// 默认情况下，不设置此项，将使用系统的默认路径分隔符。
     pub fn separator(&mut self, sep: Option<u8>) -> &mut PathPrinterBuilder {
         self.config.separator = sep;
         self
     }
 
-    /// A path terminator.
+    /// 路径终止符。
     ///
-    /// When printing a path, it will be by terminated by the given byte.
+    /// 在打印路径时，将由给定的字节终止。
     ///
-    /// This is set to `\n` by default.
+    /// 默认情况下，设置为 `\n`。
     pub fn terminator(&mut self, terminator: u8) -> &mut PathPrinterBuilder {
         self.config.terminator = terminator;
         self
     }
 }
 
-/// A printer for emitting paths to a writer, with optional color support.
+/// 用于向写入器发出路径的打印机，支持可选的颜色。
 #[derive(Debug)]
 pub struct PathPrinter<W> {
     config: Config,
@@ -83,7 +79,7 @@ pub struct PathPrinter<W> {
 }
 
 impl<W: WriteColor> PathPrinter<W> {
-    /// Write the given path to the underlying writer.
+    /// 将给定的路径写入底层写入器。
     pub fn write_path(&mut self, path: &Path) -> io::Result<()> {
         let ppath = PrinterPath::with_separator(path, self.config.separator);
         if !self.wtr.supports_color() {

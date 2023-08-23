@@ -44,33 +44,27 @@ use crate::search::{
 use crate::subject::{Subject, SubjectBuilder};
 use crate::Result;
 
-/// The command that ripgrep should execute based on the command line
-/// configuration.
+/// ripgrep根据命令行配置执行的命令。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Command {
-    /// Search using exactly one thread.
+    /// 只使用一个线程进行搜索。
     Search,
-    /// Search using possibly many threads.
+    /// 可能使用多个线程进行搜索。
     SearchParallel,
-    /// The command line parameters suggest that a search should occur, but
-    /// ripgrep knows that a match can never be found (e.g., no given patterns
-    /// or --max-count=0).
+    /// 命令行参数建议应该进行搜索，但是 ripgrep知道永远找不到匹配(例如，没有给定的模式或——max-count=0)。
     SearchNever,
-    /// Show the files that would be searched, but don't actually search them,
-    /// and use exactly one thread.
+    /// 显示要搜索的文件，但不实际搜索它们，并只使用一个线程。
     Files,
-    /// Show the files that would be searched, but don't actually search them,
-    /// and perform directory traversal using possibly many threads.
+    /// 显示要搜索的文件，但不实际搜索它们，并使用可能多个线程执行目录遍历。
     FilesParallel,
-    /// List all file type definitions configured, including the default file
-    /// types and any additional file types added to the command line.
+    /// 列出配置的所有文件类型定义，包括默认文件类型和添加到命令行中的任何其他文件类型。
     Types,
-    /// Print the version of PCRE2 in use.
+    /// 打印正在使用的PCRE2版本。
     PCRE2Version,
 }
 
 impl Command {
-    /// Returns true if and only if this command requires executing a search.
+    /// 当且仅当此命令需要执行搜索时返回true.
     fn is_search(&self) -> bool {
         use self::Command::*;
 
@@ -83,59 +77,48 @@ impl Command {
     }
 }
 
-/// The primary configuration object used throughout ripgrep. It provides a
-/// high-level convenient interface to the provided command line arguments.
+/// 在ripgrep中使用的主配置对象。它为所提供的命令行参数提供了一个高级方便的接口。
 ///
-/// An `Args` object is cheap to clone and can be used from multiple threads
-/// simultaneously.
+/// ' Args '对象克隆起来很便宜，并且可以在多个线程同时使用。
 #[derive(Clone, Debug)]
 pub struct Args(Arc<ArgsImp>);
 
 #[derive(Clone, Debug)]
 struct ArgsImp {
-    /// Mid-to-low level routines for extracting CLI arguments.
+    /// 用于提取CLI参数的中低级例程。
     matches: ArgMatches,
-    /// The command we want to execute.
+    /// 我们要执行的命令。
     command: Command,
-    /// The number of threads to use. This is based in part on available
-    /// threads, in part on the number of threads requested and in part on the
-    /// command we're running.
+    /// 要使用的线程数。这部分是基于可用的线程，部分是基于请求的线程数，部分是基于我们正在运行的命令。
     threads: usize,
-    /// A matcher built from the patterns.
+    ///从模式构建的匹配器。
     ///
-    /// It's important that this is only built once, since building this goes
-    /// through regex compilation and various types of analyses. That is, if
-    /// you need many of these (one per thread, for example), it is better to
-    /// build it once and then clone it.
+    /// 重要的是只构建一次，因为构建它需要通过regex编译和各种类型的分析。也就是说，如果您需要很多这些(例如，每个线程一个)，最好构建一次，然后克隆它。
     matcher: PatternMatcher,
-    /// The paths provided at the command line. This is guaranteed to be
-    /// non-empty. (If no paths are provided, then a default path is created.)
+    /// 在命令行提供的路径。这保证是非空的。（如果没有提供路径，则创建一个默认路径。）
     paths: Vec<PathBuf>,
-    /// Returns true if and only if `paths` had to be populated with a single
-    /// default path.
+    /// 当且仅当需要使用单个默认路径填充 `paths` 时，返回 `true`。
     using_default_path: bool,
 }
 
 impl Args {
-    /// Parse the command line arguments for this process.
+    /// 解析此进程的命令行参数。
     ///
-    /// If a CLI usage error occurred, then exit the process and print a usage
-    /// or error message. Similarly, if the user requested the version of
-    /// ripgrep, then print the version and exit.
+    /// 如果发生 CLI 使用错误，那么退出进程并打印使用说明或错误消息。
+    /// 同样，如果用户请求 ripgrep 的版本，那么打印版本信息并退出。
     ///
-    /// Also, initialize a global logger.
+    /// 此外，初始化全局日志记录器。
     pub fn parse() -> Result<Args> {
-        // We parse the args given on CLI. This does not include args from
-        // the config. We use the CLI args as an initial configuration while
-        // trying to parse config files. If a config file exists and has
-        // arguments, then we re-parse argv, otherwise we just use the matches
-        // we have here.
-        let early_matches = ArgMatches::new(clap_matches(env::args_os())?);
+        // 我们解析 CLI 上给出的参数。这不包括来自配置的参数。
+        // 我们使用 CLI 参数作为初始配置，同时尝试解析配置文件。
+        // 如果配置文件存在并包含参数，则重新解析 argv，否则我们只是使用这里的匹配项。
+        let early_matches: ArgMatches =
+            ArgMatches::new(clap_matches(env::args_os())?);
         set_messages(!early_matches.is_present("no-messages"));
         set_ignore_messages(!early_matches.is_present("no-ignore-messages"));
 
         if let Err(err) = Logger::init() {
-            return Err(format!("failed to initialize logger: {}", err).into());
+            return Err(format!("无法初始化日志记录器：{}", err).into());
         }
         if early_matches.is_present("trace") {
             log::set_max_level(log::LevelFilter::Trace);
@@ -145,10 +128,9 @@ impl Args {
             log::set_max_level(log::LevelFilter::Warn);
         }
 
-        let matches = early_matches.reconfigure()?;
-        // The logging level may have changed if we brought in additional
-        // arguments from a configuration file, so recheck it and set the log
-        // level as appropriate.
+        // 运行 clap 并返回匹配的结果，如果存在配置文件则使用配置文件
+        let matches: ArgMatches = early_matches.reconfigure()?;
+        // 如果我们从配置文件中引入了额外的参数，日志级别可能已经发生变化，因此重新检查并根据需要设置日志级别。
         if matches.is_present("trace") {
             log::set_max_level(log::LevelFilter::Trace);
         } else if matches.is_present("debug") {
@@ -373,8 +355,7 @@ impl Args {
     }
 }
 
-/// `ArgMatches` wraps `clap::ArgMatches` and provides semantic meaning to
-/// the parsed arguments.
+/// ' ArgMatches '封装了' clap::ArgMatches '，并为解析后的参数提供了语义含义。
 #[derive(Clone, Debug)]
 struct ArgMatches(clap::ArgMatches<'static>);
 
@@ -491,64 +472,57 @@ enum EncodingMode {
 }
 
 impl ArgMatches {
-    /// Create an ArgMatches from clap's parse result.
+    /// 从clap的解析结果创建ArgMatches。
     fn new(clap_matches: clap::ArgMatches<'static>) -> ArgMatches {
         ArgMatches(clap_matches)
     }
 
-    /// Run clap and return the matches using a config file if present. If clap
-    /// determines a problem with the user provided arguments (or if --help or
-    /// --version are given), then an error/usage/version will be printed and
-    /// the process will exit.
+    /// 运行 clap 并返回匹配的结果，如果存在配置文件则使用配置文件。如果 clap
+    /// 发现用户提供的参数存在问题（或者给出了 --help 或 --version），则会打印错误、用法或版本信息，
+    /// 然后进程将退出。
     ///
-    /// If there are no additional arguments from the environment (e.g., a
-    /// config file), then the given matches are returned as is.
+    /// 如果没有来自环境的附加参数（例如，配置文件），则给定的匹配将原样返回。
     fn reconfigure(self) -> Result<ArgMatches> {
-        // If the end user says no config, then respect it.
+        // 如果最终用户选择不使用配置文件，则尊重其选择。
         if self.is_present("no-config") {
-            log::debug!(
-                "not reading config files because --no-config is present"
-            );
+            log::debug!("因为存在 --no-config，不读取配置文件");
             return Ok(self);
         }
-        // If the user wants ripgrep to use a config file, then parse args
-        // from that first.
-        let mut args = config::args();
+        // 如果用户希望 ripgrep 使用配置文件，则首先从中解析参数。
+        let mut args: Vec<OsString> = config::args();
         if args.is_empty() {
             return Ok(self);
         }
-        let mut cliargs = env::args_os();
+        let mut cliargs: env::ArgsOs = env::args_os();
         if let Some(bin) = cliargs.next() {
             args.insert(0, bin);
         }
         args.extend(cliargs);
-        log::debug!("final argv: {:?}", args);
+        log::debug!("最终的 argv: {:?}", args);
         Ok(ArgMatches(clap_matches(args)?))
     }
 
-    /// Convert the result of parsing CLI arguments into ripgrep's higher level
-    /// configuration structure.
+    /// 将解析 CLI 参数的结果转换为 ripgrep 的高级配置结构。
     fn to_args(self) -> Result<Args> {
-        // We compute these once since they could be large.
-        let patterns = self.patterns()?;
-        let matcher = self.matcher(&patterns)?;
-        let mut paths = self.paths();
-        let using_default_path = if paths.is_empty() {
+        // 因为这些可能会很大，所以我们只计算一次。
+        let patterns: Vec<String> = self.patterns()?;
+        let matcher: PatternMatcher = self.matcher(&patterns)?;
+        let mut paths: Vec<PathBuf> = self.paths();
+        let using_default_path: bool = if paths.is_empty() {
             paths.push(self.path_default());
             true
         } else {
             false
         };
-        // Now figure out the number of threads we'll use and which
-        // command will run.
-        let is_one_search = self.is_one_search(&paths);
-        let threads = if is_one_search { 1 } else { self.threads()? };
+        // 现在确定我们将使用的线程数和要运行的命令。
+        let is_one_search: bool = self.is_one_search(&paths);
+        let threads: usize = if is_one_search { 1 } else { self.threads()? };
         if threads == 1 {
-            log::debug!("running in single threaded mode");
+            log::debug!("运行在单线程模式");
         } else {
-            log::debug!("running with {threads} threads for parallelism");
+            log::debug!("运行使用 {threads} 个线程以实现并行");
         }
-        let command = if self.is_present("pcre2-version") {
+        let command: Command = if self.is_present("pcre2-version") {
             Command::PCRE2Version
         } else if self.is_present("type-list") {
             Command::Types
@@ -1772,12 +1746,10 @@ fn sort_by_option<T: Ord>(
     }
 }
 
-/// Returns a clap matches object if the given arguments parse successfully.
+/// 如果给定的参数成功解析，则返回一个 clap 的匹配对象。
 ///
-/// Otherwise, if an error occurred, then it is returned unless the error
-/// corresponds to a `--help` or `--version` request. In which case, the
-/// corresponding output is printed and the current process is exited
-/// successfully.
+/// 否则，如果发生错误，除非错误对应于 `--help` 或 `--version` 请求，否则将返回错误。
+/// 在这种情况下，将打印相应的输出，并成功退出当前进程。
 fn clap_matches<I, T>(args: I) -> Result<clap::ArgMatches<'static>>
 where
     I: IntoIterator<Item = T>,
@@ -1790,12 +1762,10 @@ where
     if err.use_stderr() {
         return Err(err.into());
     }
-    // Explicitly ignore any error returned by write!. The most likely error
-    // at this point is a broken pipe error, in which case, we want to ignore
-    // it and exit quietly.
+    // 显式地忽略 write! 返回的任何错误。
+    // 在这一点上，最可能的错误是损坏的管道错误，在这种情况下，我们希望忽略它并静默退出。
     //
-    // (This is the point of this helper function. clap's functionality for
-    // doing this will panic on a broken pipe error.)
+    //（这就是此辅助函数的目的。clap 用于执行此操作的功能会在损坏的管道错误时 panic。）
     let _ = write!(io::stdout(), "{}", err);
     process::exit(0);
 }

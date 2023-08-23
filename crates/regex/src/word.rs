@@ -17,25 +17,21 @@ use crate::{config::ConfiguredHIR, error::Error, matcher::RegexCaptures};
 type PoolFn =
     Box<dyn Fn() -> Captures + Send + Sync + UnwindSafe + RefUnwindSafe>;
 
-/// A matcher for implementing "word match" semantics.
+/// 用于实现 "单词匹配" 语义的匹配器。
 #[derive(Debug)]
 pub(crate) struct WordMatcher {
-    /// The regex which is roughly `(?:^|\W)(<original pattern>)(?:$|\W)`.
+    /// 大致为 `(?:^|\W)(<原始模式>)(?:$|\W)` 的正则表达式。
     regex: Regex,
-    /// The HIR that produced the regex above. We don't keep the HIR for the
-    /// `original` regex.
+    /// 生成上述正则表达式的 HIR。我们不保留原始 `original` 正则表达式的 HIR。
     ///
-    /// We put this in an `Arc` because by the time it gets here, it won't
-    /// change. And because cloning and dropping an `Hir` is somewhat expensive
-    /// due to its deep recursive representation.
+    /// 我们将其放在一个 `Arc` 中，因为在到达这里时，它不会改变。
+    /// 并且由于 `Hir` 具有深层递归表示，克隆和删除 `Hir` 的开销相对较大。
     chir: Arc<ConfiguredHIR>,
-    /// The original regex supplied by the user, which we use in a fast path
-    /// to try and detect matches before deferring to slower engines.
+    /// 用户提供的原始正则表达式，在快速路径中使用，尝试在转向较慢的引擎之前检测匹配。
     original: Regex,
-    /// A map from capture group name to capture group index.
+    /// 从捕获组名称到捕获组索引的映射。
     names: HashMap<String, usize>,
-    /// A thread-safe pool of reusable buffers for finding the match offset of
-    /// the inner group.
+    /// 用于在内部组内查找匹配偏移量的可重用缓冲区的线程安全池。
     caps: Arc<Pool<Captures, PoolFn>>,
 }
 

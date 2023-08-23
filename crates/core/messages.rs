@@ -4,15 +4,14 @@ static MESSAGES: AtomicBool = AtomicBool::new(false);
 static IGNORE_MESSAGES: AtomicBool = AtomicBool::new(false);
 static ERRORED: AtomicBool = AtomicBool::new(false);
 
-/// Like eprintln, but locks STDOUT to prevent interleaving lines.
+/// 类似于 eprintln，但锁定 STDOUT 以防止行交错。
 #[macro_export]
 macro_rules! eprintln_locked {
     ($($tt:tt)*) => {{
         {
-            // This is a bit of an abstraction violation because we explicitly
-            // lock STDOUT before printing to STDERR. This avoids interleaving
-            // lines within ripgrep because `search_parallel` uses `termcolor`,
-            // which accesses the same STDOUT lock when writing lines.
+            // 这有点违反了抽象，因为在打印到 STDERR 之前，我们显式地锁定了 STDOUT。
+            // 这避免了在 ripgrep 中插入行，因为 `search_parallel` 使用 `termcolor`，
+            // 当写入行时会访问相同的 STDOUT 锁。
             let stdout = std::io::stdout();
             let _handle = stdout.lock();
             eprintln!($($tt)*);
@@ -20,7 +19,7 @@ macro_rules! eprintln_locked {
     }}
 }
 
-/// Emit a non-fatal error message, unless messages were disabled.
+/// 发出非致命错误消息，除非禁用了消息。
 #[macro_export]
 macro_rules! message {
     ($($tt:tt)*) => {
@@ -30,8 +29,7 @@ macro_rules! message {
     }
 }
 
-/// Like message, but sets ripgrep's "errored" flag, which controls the exit
-/// status.
+/// 类似于 message，但设置了 ripgrep 的 "errored" 标志，该标志控制退出状态。
 #[macro_export]
 macro_rules! err_message {
     ($($tt:tt)*) => {
@@ -40,8 +38,7 @@ macro_rules! err_message {
     }
 }
 
-/// Emit a non-fatal ignore-related error message (like a parse error), unless
-/// ignore-messages were disabled.
+/// 发出与忽略相关的非致命错误消息（如解析错误），除非禁用了 ignore-messages。
 #[macro_export]
 macro_rules! ignore_message {
     ($($tt:tt)*) => {
@@ -51,40 +48,39 @@ macro_rules! ignore_message {
     }
 }
 
-/// Returns true if and only if messages should be shown.
+/// 仅当消息需要显示时返回 true。
 pub fn messages() -> bool {
     MESSAGES.load(Ordering::SeqCst)
 }
 
-/// Set whether messages should be shown or not.
+/// 设置是否应显示消息。
 ///
-/// By default, they are not shown.
+/// 默认情况下，它们不会被显示。
 pub fn set_messages(yes: bool) {
     MESSAGES.store(yes, Ordering::SeqCst)
 }
 
-/// Returns true if and only if "ignore" related messages should be shown.
+/// 仅当需要显示与“忽略”相关的消息时返回 true。
 pub fn ignore_messages() -> bool {
     IGNORE_MESSAGES.load(Ordering::SeqCst)
 }
 
-/// Set whether "ignore" related messages should be shown or not.
+/// 设置是否应显示与“忽略”相关的消息。
 ///
-/// By default, they are not shown.
+/// 默认情况下，它们不会被显示。
 ///
-/// Note that this is overridden if `messages` is disabled. Namely, if
-/// `messages` is disabled, then "ignore" messages are never shown, regardless
-/// of this setting.
+/// 请注意，如果禁用了 `messages`，则此设置将被覆盖。换句话说，如果禁用了 `messages`，
+/// 则不会显示“忽略”消息，无论此设置如何。
 pub fn set_ignore_messages(yes: bool) {
     IGNORE_MESSAGES.store(yes, Ordering::SeqCst)
 }
 
-/// Returns true if and only if ripgrep came across a non-fatal error.
+/// 仅当 ripgrep 遇到非致命错误时返回 true。
 pub fn errored() -> bool {
     ERRORED.load(Ordering::SeqCst)
 }
 
-/// Indicate that ripgrep has come across a non-fatal error.
+/// 表明 ripgrep 遇到了非致命错误。
 pub fn set_errored() {
     ERRORED.store(true, Ordering::SeqCst);
 }

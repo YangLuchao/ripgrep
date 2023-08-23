@@ -12,15 +12,9 @@ use crate::{
     strip::strip_from_match,
 };
 
-/// Config represents the configuration of a regex matcher in this crate.
-/// The configuration is itself a rough combination of the knobs found in
-/// the `regex` crate itself, along with additional `grep-matcher` specific
-/// options.
+/// Config表示此crate中正则表达式匹配器的配置。配置本身是' regex ' crate本身的一个粗略组合，以及额外的' grep-matcher '特定的选项。
 ///
-/// The configuration can be used to build a "configured" HIR expression. A
-/// configured HIR expression is an HIR expression that is aware of the
-/// configuration which generated it, and provides transformation on that HIR
-/// such that the configuration is preserved.
+/// 该配置可用于构建“已配置”的HIR表达式。一个配置的HIR表达式是一个HIR表达式，它知道生成它的配置，并在HIR 上提供转换，这样配置就被保留了。
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
     pub(crate) case_insensitive: bool,
@@ -141,17 +135,12 @@ impl Config {
     }
 }
 
-/// A "configured" HIR expression, which is aware of the configuration which
-/// produced this HIR.
+/// 一个“配置好的”HIR表达式，它知道是哪个配置产生了这个HIR。
 ///
-/// Since the configuration is tracked, values with this type can be
-/// transformed into other HIR expressions (or regular expressions) in a way
-/// that preserves the configuration. For example, the `fast_line_regex`
-/// method will apply literal extraction to the inner HIR and use that to build
-/// a new regex that matches the extracted literals in a way that is
-/// consistent with the configuration that produced this HIR. For example, the
-/// size limits set on the configured HIR will be propagated out to any
-/// subsequently constructed HIR or regular expression.
+/// 由于跟踪配置，这种类型的值可以以保留配置的方式转换为其他HIR表达式(或正则表达式)。
+/// 例如，' fast_line_regex ' 方法将对内部HIR应用文字提取，
+/// 并使用它来构建一个新的regex，该regex以与生成该HIR的配置一致的方式匹配提取的文字。
+/// 例如，在配置的HIR上设置的大小限制将被传播到任何随后构造的HIR或正则表达式。
 #[derive(Clone, Debug)]
 pub(crate) struct ConfiguredHIR {
     config: Config,

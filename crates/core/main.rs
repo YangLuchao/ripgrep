@@ -68,7 +68,7 @@ fn main() {
 fn try_main(args: Args) -> Result<()> {
     use args::Command::*;
 
-    let matched = match args.command() {
+    let matched: bool = match args.command() {
         Search => search(&args),
         SearchParallel => search_parallel(&args),
         SearchNever => Ok(false),

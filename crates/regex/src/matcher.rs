@@ -351,13 +351,12 @@ impl RegexMatcherBuilder {
     }
 }
 
-/// An implementation of the `Matcher` trait using Rust's standard regex
-/// library.
+/// 使用Rust的标准regex 库实现' Matcher '特性。
 #[derive(Clone, Debug)]
 pub struct RegexMatcher {
-    /// The configuration specified by the caller.
+    /// 调用方指定的配置。
     config: Config,
-    /// The underlying matcher implementation.
+    /// 底层匹配器实现。
     matcher: RegexMatcherImpl,
     /// A regex that never reports false negatives but may report false
     /// positives that is believed to be capable of being matched more quickly
@@ -392,16 +391,14 @@ impl RegexMatcher {
     }
 }
 
-/// An encapsulation of the type of matcher we use in `RegexMatcher`.
+/// 我们在' RegexMatcher '中使用的匹配器类型的封装。
 #[derive(Clone, Debug)]
 enum RegexMatcherImpl {
-    /// The standard matcher used for all regular expressions.
+    /// 用于所有正则表达式的标准匹配器。
     Standard(StandardMatcher),
-    /// A matcher that only matches at word boundaries. This transforms the
-    /// regex to `(^|\W)(...)($|\W)` instead of the more intuitive `\b(...)\b`.
-    /// Because of this, the WordMatcher provides its own implementation of
-    /// `Matcher` to encapsulate its use of capture groups to make them
-    /// invisible to the caller.
+    /// 仅在单词边界处匹配的匹配器。这将正则表达式转换为 `(^|\W)(...)($|\W)`，
+    /// 而不是更直观的 `\b(...)\b`。由于这个原因，WordMatcher 提供了自己的 `Matcher`
+    /// 实现，以封装其对捕获组的使用，使它们对调用者不可见。
     Word(WordMatcher),
 }
 
@@ -679,17 +676,14 @@ impl Matcher for RegexMatcher {
     }
 }
 
-/// The implementation of the standard regex matcher.
+/// 标准正则表达式匹配器的实现。
 #[derive(Clone, Debug)]
 struct StandardMatcher {
-    /// The regular expression compiled from the pattern provided by the
-    /// caller.
+    /// 从调用方提供的模式编译的正则表达式。
     regex: Regex,
-    /// The HIR that produced this regex.
+    /// 生成这个正则表达式的HIR。
     ///
-    /// We put this in an `Arc` because by the time it gets here, it won't
-    /// change. And because cloning and dropping an `Hir` is somewhat expensive
-    /// due to its deep recursive representation.
+    /// 我们把它放在一个“Arc”中，因为当它到达这里时，它不会改变。因为克隆和删除' Hir '有点昂贵由于它的深度递归表示。
     chir: Arc<ConfiguredHIR>,
 }
 

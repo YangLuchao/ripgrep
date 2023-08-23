@@ -1,13 +1,11 @@
-// This module defines the set of command line arguments that ripgrep supports,
-// including some light validation.
+// 此模块定义了 ripgrep 支持的一组命令行参数，包括一些轻量级验证。
 //
-// This module is purposely written in a bare-bones way, since it is included
-// in ripgrep's build.rs file as a way to generate a man page and completion
-// files for common shells.
+// 此模块有意以简明的方式编写，因为它包含在 ripgrep 的 build.rs 文件中，
+// 用于生成通用 shell 的 man 页面和自动完成文件。
 //
-// The only other place that ripgrep deals with clap is in src/args.rs, which
-// is where we read clap's configuration from the end user's arguments and turn
-// it into a ripgrep-specific configuration type that is not coupled with clap.
+// ripgrep 处理 clap 的唯一其他地方是 src/args.rs，
+// 在那里我们从最终用户的参数中读取 clap 的配置，并将其转换为 ripgrep 特定的配置类型，
+// 该类型与 clap 无关联。
 
 use clap::{self, crate_authors, crate_version, App, AppSettings};
 use lazy_static::lazy_static;
@@ -45,17 +43,16 @@ ARGS:
 OPTIONS:
 {unified}";
 
-/// Build a clap application parameterized by usage strings.
+/// 构建一个根据用法字符串参数化的 clap 应用程序。
 pub fn app() -> App<'static, 'static> {
-    // We need to specify our version in a static because we've painted clap
-    // into a corner. We've told it that every string we give it will be
-    // 'static, but we need to build the version string dynamically. We can
-    // fake the 'static lifetime with lazy_static.
+    // 我们需要在静态变量中指定版本，因为我们已经将 clap 限定在一个角落里。
+    // 我们告诉它，我们提供给它的每个字符串都将是 'static，但我们需要动态地构建版本字符串。
+    // 我们可以通过 lazy_static 来模拟 'static 生命周期。
     lazy_static! {
         static ref LONG_VERSION: String = long_version(None, true);
     }
 
-    let mut app = App::new("ripgrep")
+    let mut app: App<'_, '_> = App::new("ripgrep")
         .author(crate_authors!())
         .version(crate_version!())
         .long_version(LONG_VERSION.as_str())
@@ -65,7 +62,7 @@ pub fn app() -> App<'static, 'static> {
         .setting(AppSettings::AllArgsOverrideSelf)
         .usage(USAGE)
         .template(TEMPLATE)
-        .help_message("Prints help information. Use --help for more details.");
+        .help_message("打印帮助信息。使用 --help 以获取更多详细信息。");
     for arg in all_args_and_flags() {
         app = app.arg(arg.claparg);
     }
@@ -156,45 +153,33 @@ fn runtime_cpu_features() -> Vec<&'static str> {
 /// string literals.
 type Arg = clap::Arg<'static, 'static>;
 
-/// RGArg is a light wrapper around a clap::Arg and also contains some metadata
-/// about the underlying Arg so that it can be inspected for other purposes
-/// (e.g., hopefully generating a man page).
+/// RGArg 是对 clap::Arg 的轻量封装，还包含了关于底层 Arg 的一些元数据，以便可以进行其他用途的检查
+/// （例如，希望生成一个手册页）。
 ///
-/// Note that this type is purposely overly constrained to ripgrep's particular
-/// use of clap.
+/// 请注意，这种类型故意过于限制于 ripgrep 对 clap 的特定使用。
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct RGArg {
-    /// The underlying clap argument.
+    /// 底层的 clap 参数。
     claparg: Arg,
-    /// The name of this argument. This is always present and is the name
-    /// used in the code to find the value of an argument at runtime.
+    /// 此参数的名称。始终存在，并且是在运行时查找参数值的代码中使用的名称。
     pub name: &'static str,
-    /// A short documentation string describing this argument. This string
-    /// should fit on a single line and be a complete sentence.
+    /// 简短的文档字符串，描述此参数。此字符串应适合一行，并且是一个完整的句子。
     ///
-    /// This is shown in the `-h` output.
+    /// 这会显示在 `-h` 输出中。
     pub doc_short: &'static str,
-    /// A longer documentation string describing this argument. This usually
-    /// starts with the contents of `doc_short`. This is also usually many
-    /// lines, potentially paragraphs, and may contain examples and additional
-    /// prose.
+    /// 更长的文档字符串，描述此参数。通常以 `doc_short` 的内容开头。通常有很多行，可能有段落，并且可以包含示例和附加的散文。
     ///
-    /// This is shown in the `--help` output.
+    /// 这会显示在 `--help` 输出中。
     pub doc_long: &'static str,
-    /// Whether this flag is hidden or not.
+    /// 此标志是否是隐藏的。
     ///
-    /// This is typically used for uncommon flags that only serve to override
-    /// other flags. For example, --no-ignore is a prominent flag that disables
-    /// ripgrep's gitignore functionality, but --ignore re-enables it. Since
-    /// gitignore support is enabled by default, use of the --ignore flag is
-    /// somewhat niche and relegated to special cases when users make use of
-    /// configuration files to set defaults.
+    /// 这通常用于不常见的标志，这些标志只用于覆盖其他标志。例如，--no-ignore 是一个显著的标志，用于禁用 ripgrep 的 gitignore 功能，
+    /// 但是 --ignore 重新启用它。由于 gitignore 支持默认启用，使用 --ignore 标志有点小众，主要用于用户使用配置文件设置默认值的特殊情况。
     ///
-    /// Generally, these flags should be documented in the documentation for
-    /// the flag they override.
+    /// 通常，应该在覆盖的标志的文档中记录这些标志。
     pub hidden: bool,
-    /// The type of this argument.
+    /// 此参数的类型。
     pub kind: RGArgKind,
 }
 
@@ -538,17 +523,15 @@ macro_rules! long {
     };
 }
 
-/// Generate a sequence of all positional and flag arguments.
+/// 生成所有位置参数和标志参数的序列。
 pub fn all_args_and_flags() -> Vec<RGArg> {
     let mut args = vec![];
-    // The positional arguments must be defined first and in order.
+    // 位置参数必须首先按顺序定义。
     arg_pattern(&mut args);
     arg_path(&mut args);
-    // Flags can be defined in any order, but we do it alphabetically. Note
-    // that each function may define multiple flags. For example,
-    // `flag_encoding` defines `--encoding` and `--no-encoding`. Most `--no`
-    // flags are hidden and merely mentioned in the docs of the corresponding
-    // "positive" flag.
+    // 标志参数可以以任何顺序定义，但我们按字母顺序进行。请注意，每个函数可能会定义多个标志参数。
+    // 例如，`flag_encoding` 定义 `--encoding` 和 `--no-encoding`。大多数 `--no` 标志在文档中被隐藏，
+    // 仅在相应的“正向”标志的文档中提到。
     flag_after_context(&mut args);
     flag_auto_hybrid_regex(&mut args);
     flag_before_context(&mut args);

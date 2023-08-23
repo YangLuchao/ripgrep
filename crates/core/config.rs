@@ -1,6 +1,4 @@
-// This module provides routines for reading ripgrep config "rc" files. The
-// primary output of these routines is a sequence of arguments, where each
-// argument corresponds precisely to one shell argument.
+// 该模块提供了读取 ripgrep 配置文件 "rc" 的功能。这些例程的主要输出是一系列参数，其中每个参数精确地对应一个 shell 参数。
 
 use std::env;
 use std::error::Error;
@@ -14,7 +12,7 @@ use log;
 
 use crate::Result;
 
-/// Return a sequence of arguments derived from ripgrep rc configuration files.
+/// 从 ripgrep 配置文件派生一系列参数。
 pub fn args() -> Vec<OsString> {
     let config_path = match env::var_os("RIPGREP_CONFIG_PATH") {
         None => return vec![],
@@ -29,7 +27,7 @@ pub fn args() -> Vec<OsString> {
         Ok((args, errs)) => (args, errs),
         Err(err) => {
             message!(
-                "failed to read the file specified in RIPGREP_CONFIG_PATH: {}",
+                "无法读取 RIPGREP_CONFIG_PATH 中指定的文件：{}",
                 err
             );
             return vec![];
@@ -41,21 +39,18 @@ pub fn args() -> Vec<OsString> {
         }
     }
     log::debug!(
-        "{}: arguments loaded from config file: {:?}",
+        "{}: 从配置文件加载的参数: {:?}",
         config_path.display(),
         args
     );
     args
 }
 
-/// Parse a single ripgrep rc file from the given path.
+/// 从给定路径解析单个 ripgrep 配置文件。
 ///
-/// On success, this returns a set of shell arguments, in order, that should
-/// be pre-pended to the arguments given to ripgrep at the command line.
+/// 成功时，返回一组 shell 参数，按顺序添加到 ripgrep 命令行的参数之前。
 ///
-/// If the file could not be read, then an error is returned. If there was
-/// a problem parsing one or more lines in the file, then errors are returned
-/// for each line in addition to successfully parsed arguments.
+/// 如果无法读取文件，则返回错误。如果在解析文件中的一个或多个行时出现问题，则会为每行返回错误，除了成功解析的参数之外。
 fn parse<P: AsRef<Path>>(
     path: P,
 ) -> Result<(Vec<OsString>, Vec<Box<dyn Error>>)> {
@@ -66,17 +61,13 @@ fn parse<P: AsRef<Path>>(
     }
 }
 
-/// Parse a single ripgrep rc file from the given reader.
+/// 从给定的读取器解析单个 ripgrep 配置文件。
 ///
-/// Callers should not provided a buffered reader, as this routine will use its
-/// own buffer internally.
+/// 调用者不应提供缓冲读取器，因为此例程将在内部使用其自己的缓冲区。
 ///
-/// On success, this returns a set of shell arguments, in order, that should
-/// be pre-pended to the arguments given to ripgrep at the command line.
+/// 成功时，返回一组 shell 参数，按顺序添加到 ripgrep 命令行的参数之前。
 ///
-/// If the reader could not be read, then an error is returned. If there was a
-/// problem parsing one or more lines, then errors are returned for each line
-/// in addition to successfully parsed arguments.
+/// 如果无法读取读取器，则返回错误。如果在解析一个或多个行时出现问题，则为每行返回错误，除了成功解析的参数之外。
 fn parse_reader<R: io::Read>(
     rdr: R,
 ) -> Result<(Vec<OsString>, Vec<Box<dyn Error>>)> {
@@ -112,7 +103,7 @@ mod tests {
     fn basic() {
         let (args, errs) = parse_reader(
             &b"\
-# Test
+# 测试
 --context=0
    --smart-case
 -u
@@ -129,7 +120,7 @@ mod tests {
         assert_eq!(args, vec!["--context=0", "--smart-case", "-u", "--foo",]);
     }
 
-    // We test that we can handle invalid UTF-8 on Unix-like systems.
+    // 我们测试能否处理在类 Unix 系统上的无效的 UTF-8。
     #[test]
     #[cfg(unix)]
     fn error() {
@@ -154,7 +145,7 @@ baz
         );
     }
 
-    // ... but test that invalid UTF-8 fails on Windows.
+    // ... 但测试无效的 UTF-8 在 Windows 上失败。
     #[test]
     #[cfg(not(unix))]
     fn error() {

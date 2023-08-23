@@ -118,6 +118,7 @@ walkdir = "2"
 # 指定了名为 simd-accel 的自定义特性，并将其映射到 grep/simd-accel
 simd-accel = ["grep/simd-accel"]
 # 指定了名为 pcre2 的自定义特性，并将其映射到 grep/pcre2
+# pcre是正则库，用指定的代替默认的
 pcre2 = ["grep/pcre2"]
 
 # 发布配置
