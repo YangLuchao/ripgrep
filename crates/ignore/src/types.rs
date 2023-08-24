@@ -1,18 +1,14 @@
 /*!
-The types module provides a way of associating globs on file names to file
-types.
+types 模块提供了一种将文件名的通配符关联到文件类型的方法。
 
-This can be used to match specific types of files. For example, among
-the default file types provided, the Rust file type is defined to be `*.rs`
-with name `rust`. Similarly, the C file type is defined to be `*.{c,h}` with
-name `c`.
+这可以用于匹配特定类型的文件。例如，在默认提供的文件类型中，Rust 文件类型被定义为 `*.rs`，名称为 `rust`。
+类似地，C 文件类型被定义为 `*.{c,h}`，名称为 `c`。
 
-Note that the set of default types may change over time.
+请注意，默认类型的集合可能会随时间而改变。
 
-# Example
+# 示例
 
-This shows how to create and use a simple file type matcher using the default
-file types defined in this crate.
+这展示了如何使用此 crate 中定义的默认文件类型创建和使用简单的文件类型匹配器。
 
 ```
 use ignore::types::TypesBuilder;
@@ -26,11 +22,9 @@ assert!(matcher.matched("foo.rs", false).is_whitelist());
 assert!(matcher.matched("foo.c", false).is_ignore());
 ```
 
-# Example: negation
+# 示例：否定
 
-This is like the previous example, but shows how negating a file type works.
-That is, this will let us match file paths that *don't* correspond to a
-particular file type.
+这与前一个示例类似，但显示了如何否定文件类型。也就是说，这将允许我们匹配与特定文件类型*不对应*的文件路径。
 
 ```
 use ignore::types::TypesBuilder;
@@ -44,10 +38,9 @@ assert!(matcher.matched("foo.rs", false).is_none());
 assert!(matcher.matched("foo.c", false).is_ignore());
 ```
 
-# Example: custom file type definitions
+# 示例：自定义文件类型定义
 
-This shows how to extend this library default file type definitions with
-your own.
+这展示了如何通过自己的定义扩展此库的默认文件类型定义。
 
 ```
 use ignore::types::TypesBuilder;
@@ -55,19 +48,19 @@ use ignore::types::TypesBuilder;
 let mut builder = TypesBuilder::new();
 builder.add_defaults();
 builder.add("foo", "*.foo");
-// Another way of adding a file type definition.
-// This is useful when accepting input from an end user.
+// 添加文件类型定义的另一种方法。
+// 当从最终用户那里接受输入时，这很有用。
 builder.add_def("bar:*.bar");
-// Note: we only select `foo`, not `bar`.
+// 注意：我们只选择了 `foo`，没有选择 `bar`。
 builder.select("foo");
 let matcher = builder.build().unwrap();
 
 assert!(matcher.matched("x.foo", false).is_whitelist());
-// This is ignored because we only selected the `foo` file type.
+// 这会被忽略，因为我们只选择了 `foo` 文件类型。
 assert!(matcher.matched("x.bar", false).is_ignore());
 ```
 
-We can also add file type definitions based on other definitions.
+我们还可以基于其他定义添加文件类型定义。
 
 ```
 use ignore::types::TypesBuilder;
@@ -96,31 +89,26 @@ use thread_local::ThreadLocal;
 use crate::default_types::DEFAULT_TYPES;
 use crate::pathutil::file_name;
 use crate::{Error, Match};
-
-/// Glob represents a single glob in a set of file type definitions.
+/// `Glob` 表示文件类型定义集合中的单个通配符。
 ///
-/// There may be more than one glob for a particular file type.
+/// 对于特定的文件类型可能会有多个通配符。
 ///
-/// This is used to report information about the highest precedent glob
-/// that matched.
+/// 该结构用于报告匹配的最高优先级通配符的相关信息。
 ///
-/// Note that not all matches necessarily correspond to a specific glob.
-/// For example, if there are one or more selections and a file path doesn't
-/// match any of those selections, then the file path is considered to be
-/// ignored.
+/// 需要注意的是，并非所有的匹配都必然对应于特定的通配符。
+/// 例如，如果存在一个或多个选择，并且文件路径不匹配这些选择中的任何一个，那么文件路径会被视为被忽略。
 ///
-/// The lifetime `'a` refers to the lifetime of the underlying file type
-/// definition, which corresponds to the lifetime of the file type matcher.
+/// 生命周期 `'a` 指的是底层文件类型定义的生命周期，与文件类型匹配器的生命周期相对应。
 #[derive(Clone, Debug)]
 pub struct Glob<'a>(GlobInner<'a>);
 
 #[derive(Clone, Debug)]
 enum GlobInner<'a> {
-    /// No glob matched, but the file path should still be ignored.
+    /// 没有匹配的通配符，但文件路径仍然应被忽略。
     UnmatchedIgnore,
-    /// A glob matched.
+    /// 有一个匹配的通配符。
     Matched {
-        /// The file type definition which provided the glob.
+        /// 提供匹配的文件类型定义。
         def: &'a FileTypeDef,
     },
 }
@@ -130,9 +118,7 @@ impl<'a> Glob<'a> {
         Glob(GlobInner::UnmatchedIgnore)
     }
 
-    /// Return the file type definition that matched, if one exists. A file type
-    /// definition always exists when a specific definition matches a file
-    /// path.
+    /// 返回匹配的文件类型定义，如果存在的话。当特定定义匹配文件路径时，总是存在一个文件类型定义。
     pub fn file_type_def(&self) -> Option<&FileTypeDef> {
         match self {
             Glob(GlobInner::UnmatchedIgnore) => None,
@@ -141,11 +127,9 @@ impl<'a> Glob<'a> {
     }
 }
 
-/// A single file type definition.
+/// 单个文件类型定义。
 ///
-/// File type definitions can be retrieved in aggregate from a file type
-/// matcher. File type definitions are also reported when its responsible
-/// for a match.
+/// 文件类型定义可以从文件类型匹配器中汇总获得。文件类型定义也会在其负责的匹配时报告。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FileTypeDef {
     name: String,
@@ -153,38 +137,37 @@ pub struct FileTypeDef {
 }
 
 impl FileTypeDef {
-    /// Return the name of this file type.
+    /// 返回此文件类型的名称。
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Return the globs used to recognize this file type.
+    /// 返回用于识别此文件类型的通配符。
     pub fn globs(&self) -> &[String] {
         &self.globs
     }
 }
 
-/// Types is a file type matcher.
+/// `Types` 是一个文件类型匹配器。
 #[derive(Clone, Debug)]
 pub struct Types {
-    /// All of the file type definitions, sorted lexicographically by name.
+    /// 所有的文件类型定义，按名称按字典序排序。
     defs: Vec<FileTypeDef>,
-    /// All of the selections made by the user.
+    /// 用户进行的所有选择。
     selections: Vec<Selection<FileTypeDef>>,
-    /// Whether there is at least one Selection::Select in our selections.
-    /// When this is true, a Match::None is converted to Match::Ignore.
+    /// 我们的选择中是否至少有一个 Selection::Select。
+    /// 当为 true 时，Match::None 转换为 Match::Ignore。
     has_selected: bool,
-    /// A mapping from glob index in the set to two indices. The first is an
-    /// index into `selections` and the second is an index into the
-    /// corresponding file type definition's list of globs.
+    /// 从集合中的通配符索引到两个索引的映射。
+    /// 第一个索引是 `selections` 中的索引，第二个索引是对应的文件类型定义的通配符列表中的索引。
     glob_to_selection: Vec<(usize, usize)>,
-    /// The set of all glob selections, used for actual matching.
+    /// 所有通配符选择的集合，用于实际匹配。
     set: GlobSet,
-    /// Temporary storage for globs that match.
+    /// 匹配的临时存储。
     matches: Arc<ThreadLocal<RefCell<Vec<usize>>>>,
 }
 
-/// Indicates the type of a selection for a particular file type.
+/// 指示特定文件类型的选择类型。
 #[derive(Clone, Debug)]
 enum Selection<T> {
     Select(String, T),
@@ -224,10 +207,8 @@ impl<T> Selection<T> {
         }
     }
 }
-
 impl Types {
-    /// Creates a new file type matcher that never matches any path and
-    /// contains no file type definitions.
+    /// 创建一个新的文件类型匹配器，该匹配器不会匹配任何路径，并且不包含任何文件类型定义。
     pub fn empty() -> Types {
         Types {
             defs: vec![],
@@ -239,41 +220,39 @@ impl Types {
         }
     }
 
-    /// Returns true if and only if this matcher has zero selections.
+    /// 当且仅当此匹配器没有任何选择时返回 true。
     pub fn is_empty(&self) -> bool {
         self.selections.is_empty()
     }
 
-    /// Returns the number of selections used in this matcher.
+    /// 返回此匹配器中使用的选择数量。
     pub fn len(&self) -> usize {
         self.selections.len()
     }
 
-    /// Return the set of current file type definitions.
+    /// 返回当前文件类型定义的集合。
     ///
-    /// Definitions and globs are sorted.
+    /// 定义和通配符已按顺序排序。
     pub fn definitions(&self) -> &[FileTypeDef] {
         &self.defs
     }
 
-    /// Returns a match for the given path against this file type matcher.
+    /// 返回给定路径相对于此文件类型匹配器的匹配情况。
     ///
-    /// The path is considered whitelisted if it matches a selected file type.
-    /// The path is considered ignored if it matches a negated file type.
-    /// If at least one file type is selected and `path` doesn't match, then
-    /// the path is also considered ignored.
+    /// 如果路径与所选文件类型匹配，则被视为白名单。
+    /// 如果路径与否定文件类型匹配，则被视为被忽略。
+    /// 如果至少选择了一个文件类型并且 `path` 不匹配，则路径也被视为被忽略。
     pub fn matched<'a, P: AsRef<Path>>(
         &'a self,
         path: P,
         is_dir: bool,
     ) -> Match<Glob<'a>> {
-        // File types don't apply to directories, and we can't do anything
-        // if our glob set is empty.
+        // 文件类型不适用于目录，并且如果我们的通配符集为空，则无法执行任何操作。
         if is_dir || self.set.is_empty() {
             return Match::None;
         }
-        // We only want to match against the file name, so extract it.
-        // If one doesn't exist, then we can't match it.
+        // 我们只想匹配文件名，因此提取它。
+        // 如果不存在文件名，则无法匹配它。
         let name = match file_name(path.as_ref()) {
             Some(name) => name,
             None if self.has_selected => {
@@ -285,7 +264,7 @@ impl Types {
         };
         let mut matches = self.matches.get_or_default().borrow_mut();
         self.set.matches_into(name, &mut *matches);
-        // The highest precedent match is the last one.
+        // 最高优先级的匹配是最后一个。
         if let Some(&i) = matches.last() {
             let (isel, _) = self.glob_to_selection[i];
             let sel = &self.selections[isel];
@@ -304,25 +283,22 @@ impl Types {
     }
 }
 
-/// TypesBuilder builds a type matcher from a set of file type definitions and
-/// a set of file type selections.
+/// `TypesBuilder` 从一组文件类型定义和一组文件类型选择中构建文件类型匹配器。
 pub struct TypesBuilder {
     types: HashMap<String, FileTypeDef>,
     selections: Vec<Selection<()>>,
 }
 
 impl TypesBuilder {
-    /// Create a new builder for a file type matcher.
+    /// 创建一个新的文件类型匹配器的构建器。
     ///
-    /// The builder contains *no* type definitions to start with. A set
-    /// of default type definitions can be added with `add_defaults`, and
-    /// additional type definitions can be added with `select` and `negate`.
+    /// 构建器最初不包含任何类型定义。
+    /// 可以使用 `add_defaults` 添加一组默认类型定义，并使用 `select` 和 `negate` 添加其他类型定义。
     pub fn new() -> TypesBuilder {
         TypesBuilder { types: HashMap::new(), selections: vec![] }
     }
 
-    /// Build the current set of file type definitions *and* selections into
-    /// a file type matcher.
+    /// 将当前一组文件类型定义 *以及* 选择构建为文件类型匹配器。
     pub fn build(&self) -> Result<Types, Error> {
         let defs = self.definitions();
         let has_selected = self.selections.iter().any(|s| !s.is_negated());
@@ -365,9 +341,9 @@ impl TypesBuilder {
         })
     }
 
-    /// Return the set of current file type definitions.
+    /// 返回当前文件类型定义的集合。
     ///
-    /// Definitions and globs are sorted.
+    /// 定义和通配符已排序。
     pub fn definitions(&self) -> Vec<FileTypeDef> {
         let mut defs = vec![];
         for def in self.types.values() {
@@ -379,9 +355,9 @@ impl TypesBuilder {
         defs
     }
 
-    /// Select the file type given by `name`.
+    /// 选择由 `name` 给出的文件类型。
     ///
-    /// If `name` is `all`, then all file types currently defined are selected.
+    /// 如果 `name` 是 `all`，则选择所有当前已定义的文件类型。
     pub fn select(&mut self, name: &str) -> &mut TypesBuilder {
         if name == "all" {
             for name in self.types.keys() {
@@ -393,9 +369,9 @@ impl TypesBuilder {
         self
     }
 
-    /// Ignore the file type given by `name`.
+    /// 忽略由 `name` 给出的文件类型。
     ///
-    /// If `name` is `all`, then all file types currently defined are negated.
+    /// 如果 `name` 是 `all`，则否定所有当前已定义的文件类型。
     pub fn negate(&mut self, name: &str) -> &mut TypesBuilder {
         if name == "all" {
             for name in self.types.keys() {
@@ -407,17 +383,15 @@ impl TypesBuilder {
         self
     }
 
-    /// Clear any file type definitions for the type name given.
+    /// 清除给定类型名称的任何文件类型定义。
     pub fn clear(&mut self, name: &str) -> &mut TypesBuilder {
         self.types.remove(name);
         self
     }
 
-    /// Add a new file type definition. `name` can be arbitrary and `pat`
-    /// should be a glob recognizing file paths belonging to the `name` type.
+    /// 添加新的文件类型定义。`name` 可以是任意的，`glob` 应该是一个识别属于 `name` 类型的文件路径的通配符。
     ///
-    /// If `name` is `all` or otherwise contains any character that is not a
-    /// Unicode letter or number, then an error is returned.
+    /// 如果 `name` 是 `all`，或者包含任何不是 Unicode 字母或数字的字符，则会返回错误。
     pub fn add(&mut self, name: &str, glob: &str) -> Result<(), Error> {
         lazy_static::lazy_static! {
             static ref RE: Regex = Regex::new(r"^[\pL\pN]+$").unwrap();
@@ -437,15 +411,11 @@ impl TypesBuilder {
         Ok(())
     }
 
-    /// Add a new file type definition specified in string form. There are two
-    /// valid formats:
-    /// 1. `{name}:{glob}`.  This defines a 'root' definition that associates the
-    ///     given name with the given glob.
-    /// 2. `{name}:include:{comma-separated list of already defined names}.
-    ///     This defines an 'include' definition that associates the given name
-    ///     with the definitions of the given existing types.
-    /// Names may not include any characters that are not
-    /// Unicode letters or numbers.
+    /// 以字符串形式添加新的文件类型定义。有两种有效格式：
+    /// 1. `{name}:{glob}`。这定义了一个“根”定义，将给定的名称与给定的通配符关联起来。
+    /// 2. `{name}:include:{逗号分隔的已定义名称列表}`。
+    ///    这定义了一个“包含”定义，将给定的名称与给定现有类型的定义相关联。
+    /// 名称不得包含任何不是 Unicode 字母或数字的字符。
     pub fn add_def(&mut self, def: &str) -> Result<(), Error> {
         let parts: Vec<&str> = def.split(':').collect();
         match parts.len() {
@@ -467,8 +437,7 @@ impl TypesBuilder {
                     return Err(Error::InvalidDefinition);
                 }
                 let types = types_string.split(',');
-                // Check ahead of time to ensure that all types specified are
-                // present and fail fast if not.
+                // 提前检查以确保所有指定的类型都存在，如果不存在，则提前失败。
                 if types.clone().any(|t| !self.types.contains_key(t)) {
                     return Err(Error::InvalidDefinition);
                 }
@@ -485,7 +454,7 @@ impl TypesBuilder {
         }
     }
 
-    /// Add a set of default file type definitions.
+    /// 添加一组默认文件类型定义。
     pub fn add_defaults(&mut self) -> &mut TypesBuilder {
         static MSG: &'static str = "adding a default type should never fail";
         for &(names, exts) in DEFAULT_TYPES {

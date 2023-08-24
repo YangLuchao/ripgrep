@@ -20,34 +20,32 @@ use crate::util::{
     find_iter_at_in_context, trim_ascii_prefix, trim_line_terminator,
     PrinterPath, Replacer, Sunk,
 };
-
-/// The configuration for the standard printer.
+/// 标准打印机的配置。
 ///
-/// This is manipulated by the StandardBuilder and then referenced by the
-/// actual implementation. Once a printer is build, the configuration is frozen
-/// and cannot changed.
+/// 这个结构由`StandardBuilder`进行操作，然后由实际的实现进行引用。
+/// 一旦构建了打印机，配置就被冻结，不能再更改。
 #[derive(Debug, Clone)]
 struct Config {
-    colors: ColorSpecs,
-    stats: bool,
-    heading: bool,
-    path: bool,
-    only_matching: bool,
-    per_match: bool,
-    per_match_one_line: bool,
-    replacement: Arc<Option<Vec<u8>>>,
-    max_columns: Option<u64>,
-    max_columns_preview: bool,
-    max_matches: Option<u64>,
-    column: bool,
-    byte_offset: bool,
-    trim_ascii: bool,
-    separator_search: Arc<Option<Vec<u8>>>,
-    separator_context: Arc<Option<Vec<u8>>>,
-    separator_field_match: Arc<Vec<u8>>,
-    separator_field_context: Arc<Vec<u8>>,
-    separator_path: Option<u8>,
-    path_terminator: Option<u8>,
+    colors: ColorSpecs,                      // 颜色规范配置
+    stats: bool,                             // 统计信息
+    heading: bool,                           // 标题行
+    path: bool,                              // 路径显示
+    only_matching: bool,                     // 仅显示匹配内容
+    per_match: bool,                         // 每次匹配
+    per_match_one_line: bool,                // 每次匹配一行
+    replacement: Arc<Option<Vec<u8>>>,       // 替换内容
+    max_columns: Option<u64>,                // 最大列数
+    max_columns_preview: bool,               // 最大列数预览
+    max_matches: Option<u64>,                // 最大匹配数
+    column: bool,                            // 列显示
+    byte_offset: bool,                       // 字节偏移
+    trim_ascii: bool,                        // 裁剪 ASCII
+    separator_search: Arc<Option<Vec<u8>>>,  // 搜索分隔符
+    separator_context: Arc<Option<Vec<u8>>>, // 上下文分隔符
+    separator_field_match: Arc<Vec<u8>>,     // 匹配字段分隔符
+    separator_field_context: Arc<Vec<u8>>,   // 上下文字段分隔符
+    separator_path: Option<u8>,              // 路径分隔符
+    path_terminator: Option<u8>,             // 路径终止符
 }
 
 impl Default for Config {
@@ -77,47 +75,34 @@ impl Default for Config {
     }
 }
 
-/// A builder for the "standard" grep-like printer.
+/// "标准"类似于grep的打印机的构建器。
 ///
-/// The builder permits configuring how the printer behaves. Configurable
-/// behavior includes, but is not limited to, limiting the number of matches,
-/// tweaking separators, executing pattern replacements, recording statistics
-/// and setting colors.
+/// 构建器允许配置打印机的行为。可配置的行为包括但不限于限制匹配数、调整分隔符、执行模式替换、记录统计信息和设置颜色。
 ///
-/// Some configuration options, such as the display of line numbers or
-/// contextual lines, are drawn directly from the
-/// `grep_searcher::Searcher`'s configuration.
+/// 某些配置选项，例如行号或上下文行的显示，直接从`grep_searcher::Searcher`的配置中获取。
 ///
-/// Once a `Standard` printer is built, its configuration cannot be changed.
+/// 一旦构建了`Standard`打印机，其配置就不能再更改。
 #[derive(Clone, Debug)]
 pub struct StandardBuilder {
-    config: Config,
+    config: Config, // 配置
 }
 
 impl StandardBuilder {
-    /// Return a new builder for configuring the standard printer.
+    /// 返回一个新的构建器，用于配置标准打印机。
     pub fn new() -> StandardBuilder {
         StandardBuilder { config: Config::default() }
     }
 
-    /// Build a printer using any implementation of `termcolor::WriteColor`.
+    /// 使用任何`termcolor::WriteColor`的实现构建一个打印机。
     ///
-    /// The implementation of `WriteColor` used here controls whether colors
-    /// are used or not when colors have been configured using the
-    /// `color_specs` method.
+    /// 此处使用的`WriteColor`实现控制在使用`color_specs`方法配置颜色时是否使用颜色。
     ///
-    /// For maximum portability, callers should generally use either
-    /// `termcolor::StandardStream` or `termcolor::BufferedStandardStream`
-    /// where appropriate, which will automatically enable colors on Windows
-    /// when possible.
+    /// 为了最大程度的可移植性，调用者通常应在适当的情况下使用`termcolor::StandardStream`或`termcolor::BufferedStandardStream`，
+    /// 在Windows上自动启用颜色。
     ///
-    /// However, callers may also provide an arbitrary writer using the
-    /// `termcolor::Ansi` or `termcolor::NoColor` wrappers, which always enable
-    /// colors via ANSI escapes or always disable colors, respectively.
+    /// 然而，调用者还可以使用`termcolor::Ansi`或`termcolor::NoColor`包装器提供任意的写入器，它们分别始终通过ANSI转义启用颜色或始终禁用颜色。
     ///
-    /// As a convenience, callers may use `build_no_color` to automatically
-    /// select the `termcolor::NoColor` wrapper to avoid needing to import
-    /// from `termcolor` explicitly.
+    /// 作为方便起见，调用者可以使用`build_no_color`来自动选择`termcolor::NoColor`包装器，以避免需要显式从`termcolor`导入。
     pub fn build<W: WriteColor>(&self, wtr: W) -> Standard<W> {
         Standard {
             config: self.config.clone(),
@@ -126,11 +111,9 @@ impl StandardBuilder {
         }
     }
 
-    /// Build a printer from any implementation of `io::Write` and never emit
-    /// any colors, regardless of the user color specification settings.
+    /// 从任何`io::Write`的实现构建一个打印机，并永远不会发出任何颜色，无论用户的颜色规范设置如何。
     ///
-    /// This is a convenience routine for
-    /// `StandardBuilder::build(termcolor::NoColor::new(wtr))`.
+    /// 这是一个方便的例程，用于`StandardBuilder::build(termcolor::NoColor::new(wtr))`。
     pub fn build_no_color<W: io::Write>(
         &self,
         wtr: W,
@@ -138,132 +121,98 @@ impl StandardBuilder {
         self.build(NoColor::new(wtr))
     }
 
-    /// Set the user color specifications to use for coloring in this printer.
+    /// 设置用于在此打印机中着色的用户颜色规范。
     ///
-    /// A [`UserColorSpec`](struct.UserColorSpec.html) can be constructed from
-    /// a string in accordance with the color specification format. See the
-    /// `UserColorSpec` type documentation for more details on the format.
-    /// A [`ColorSpecs`](struct.ColorSpecs.html) can then be generated from
-    /// zero or more `UserColorSpec`s.
+    /// [`UserColorSpec`](struct.UserColorSpec.html)可以根据颜色规范格式的字符串构建。
+    /// 有关格式的详细信息，请参阅`UserColorSpec`类型的文档。
+    /// 然后可以从零个或多个`UserColorSpec`生成[`ColorSpecs`](struct.ColorSpecs.html)。
     ///
-    /// Regardless of the color specifications provided here, whether color
-    /// is actually used or not is determined by the implementation of
-    /// `WriteColor` provided to `build`. For example, if `termcolor::NoColor`
-    /// is provided to `build`, then no color will ever be printed regardless
-    /// of the color specifications provided here.
+    /// 无论此处提供了哪些颜色规范，是否实际使用颜色取决于提供给`build`的`WriteColor`实现。
+    /// 例如，如果将`termcolor::NoColor`提供给`build`，则无论此处提供的颜色规范如何，都不会打印颜色。
     ///
-    /// This completely overrides any previous color specifications. This does
-    /// not add to any previously provided color specifications on this
-    /// builder.
+    /// 这将完全覆盖先前的颜色规范。这不会添加到此构建器上先前提供的任何颜色规范。
     pub fn color_specs(&mut self, specs: ColorSpecs) -> &mut StandardBuilder {
         self.config.colors = specs;
         self
     }
 
-    /// Enable the gathering of various aggregate statistics.
+    /// 启用对各种聚合统计信息的收集。
     ///
-    /// When this is enabled (it's disabled by default), statistics will be
-    /// gathered for all uses of `Standard` printer returned by `build`,
-    /// including but not limited to, the total number of matches, the total
-    /// number of bytes searched and the total number of bytes printed.
+    /// 当启用此选项时（默认情况下禁用），将为`build`返回的所有`Standard`打印机的使用收集统计信息，
+    /// 包括但不限于总匹配数、总搜索字节数和总打印字节数。
     ///
-    /// Aggregate statistics can be accessed via the sink's
-    /// [`StandardSink::stats`](struct.StandardSink.html#method.stats)
-    /// method.
+    /// 聚合统计信息可以通过sink的[`StandardSink::stats`](struct.StandardSink.html#method.stats)方法访问。
     ///
-    /// When this is enabled, this printer may need to do extra work in order
-    /// to compute certain statistics, which could cause the search to take
-    /// longer.
+    /// 启用此选项时，为了计算某些统计信息，此打印机可能需要额外的工作，这可能会导致搜索时间更长。
     ///
-    /// For a complete description of available statistics, see
-    /// [`Stats`](struct.Stats.html).
+    /// 有关可用统计信息的完整说明，请参阅[`Stats`](struct.Stats.html)。
     pub fn stats(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.stats = yes;
         self
     }
 
-    /// Enable the use of "headings" in the printer.
+    /// 启用在打印机中使用“标题”。
     ///
-    /// When this is enabled, and if a file path has been given to the printer,
-    /// then the file path will be printed once on its own line before showing
-    /// any matches. If the heading is not the first thing emitted by the
-    /// printer, then a line terminator is printed before the heading.
+    /// 启用此选项时，如果向打印机提供了文件路径，则文件路径将在显示任何匹配项之前单独打印在自己的行上。
+    /// 如果标题不是打印机发出的第一件事，则在标题之前打印行终止符。
     ///
-    /// By default, this option is disabled. When disabled, the printer will
-    /// not show any heading and will instead print the file path (if one is
-    /// given) on the same line as each matching (or context) line.
+    /// 默认情况下，此选项被禁用。禁用时，打印机不会显示任何标题，而是将文件路径（如果有的话）打印在与每个匹配（或上下文）行相同的行上。
     pub fn heading(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.heading = yes;
         self
     }
 
-    /// When enabled, if a path was given to the printer, then it is shown in
-    /// the output (either as a heading or as a prefix to each matching line).
-    /// When disabled, then no paths are ever included in the output even when
-    /// a path is provided to the printer.
+    /// 启用时，如果向打印机提供了路径，则路径将显示在输出中（要么作为标题，要么作为每个匹配行的前缀）。
+    /// 禁用时，即使向打印机提供了路径，输出中也永远不会包含路径。
     ///
-    /// This is enabled by default.
+    /// 默认情况下启用此选项。
     pub fn path(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.path = yes;
         self
     }
 
-    /// Only print the specific matches instead of the entire line containing
-    /// each match. Each match is printed on its own line. When multi line
-    /// search is enabled, then matches spanning multiple lines are printed
-    /// such that only the matching portions of each line are shown.
+    /// 仅打印特定匹配项，而不是包含每个匹配项的整行。
+    /// 每个匹配项都在自己的行上打印。当启用多行搜索时，跨越多行的匹配项会被打印，以便仅显示每行匹配部分。
     pub fn only_matching(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.only_matching = yes;
         self
     }
 
-    /// Print at least one line for every match.
+    /// 为每个匹配项打印至少一行。
     ///
-    /// This is similar to the `only_matching` option, except the entire line
-    /// is printed for each match. This is typically useful in conjunction with
-    /// the `column` option, which will show the starting column number for
-    /// every match on every line.
+    /// 这类似于`only_matching`选项，不同之处在于每个匹配项都打印整行。这通常与`column`选项一起使用，
+    /// 后者将在每行匹配的起始列号显示出来。
     ///
-    /// When multi-line mode is enabled, each match is printed, including every
-    /// line in the match. As with single line matches, if a line contains
-    /// multiple matches (even if only partially), then that line is printed
-    /// once for each match it participates in, assuming it's the first line in
-    /// that match. In multi-line mode, column numbers only indicate the start
-    /// of a match. Subsequent lines in a multi-line match always have a column
-    /// number of `1`.
+    /// 当启用多行模式时，每个匹配项都会被打印，包括匹配中的每行。与单行匹配一样，如果一行包含多个匹配项（即使只是部分匹配），
+    /// 那么该行会参与每次匹配的打印，假设它是该匹配中的第一行。在多行模式下，列号仅指示匹配的起始位置。
+    /// 多行匹配中的后续行始终具有列号`1`。
     ///
-    /// When a match contains multiple lines, enabling `per_match_one_line`
-    /// will cause only the first line each in match to be printed.
+    /// 当匹配包含多行时，启用`per_match_one_line`将导致仅打印匹配中的每个第一行。
     pub fn per_match(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.per_match = yes;
         self
     }
 
-    /// Print at most one line per match when `per_match` is enabled.
+    /// 当启用`per_match`时，每个匹配项最多打印一行。
     ///
-    /// By default, every line in each match found is printed when `per_match`
-    /// is enabled. However, this is sometimes undesirable, e.g., when you
-    /// only ever want one line per match.
+    /// 默认情况下，启用`per_match`时，将打印找到的每行中的每行。然而，有时这是不可取的，例如，
+    /// 当您只想要每个匹配项的一行时。
     ///
-    /// This is only applicable when multi-line matching is enabled, since
-    /// otherwise, matches are guaranteed to span one line.
+    /// 这仅适用于启用多行匹配，因为否则，匹配保证仅跨足够一行。
     ///
-    /// This is disabled by default.
+    /// 默认情况下禁用此选项。
     pub fn per_match_one_line(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.per_match_one_line = yes;
         self
     }
 
-    /// Set the bytes that will be used to replace each occurrence of a match
-    /// found.
+    /// 设置将用于替换找到的每个匹配项的字节。
     ///
-    /// The replacement bytes given may include references to capturing groups,
-    /// which may either be in index form (e.g., `$2`) or can reference named
-    /// capturing groups if present in the original pattern (e.g., `$foo`).
+    /// 给定的替换字节可能包含对捕获组的引用，捕获组可以是索引形式（例如，`$2`），
+    /// 也可以引用原始模式中存在的命名捕获组（例如，`$foo`）。
     ///
-    /// For documentation on the full format, please see the `Capture` trait's
-    /// `interpolate` method in the
-    /// [grep-printer](https://docs.rs/grep-printer) crate.
+    /// 有关完整格式的文档，请参阅`Capture`特征的
+    /// [grep-printer](https://docs.rs/grep-printer) crate中的`interpolate`方法。
     pub fn replacement(
         &mut self,
         replacement: Option<Vec<u8>>,
@@ -272,92 +221,74 @@ impl StandardBuilder {
         self
     }
 
-    /// Set the maximum number of columns allowed for each line printed. A
-    /// single column is heuristically defined as a single byte.
+    /// 设置每行打印的最大列数。单个列根据字节定义。
     ///
-    /// If a line is found which exceeds this maximum, then it is replaced
-    /// with a message indicating that the line has been omitted.
+    /// 如果发现的行超过此最大值，则会用指示省略了行的消息替换它。
     ///
-    /// The default is to not specify a limit, in which each matching or
-    /// contextual line is printed regardless of how long it is.
+    /// 默认情况下，不指定限制，这意味着无论有多长，每个匹配或上下文行都会被打印出来。
     pub fn max_columns(&mut self, limit: Option<u64>) -> &mut StandardBuilder {
         self.config.max_columns = limit;
         self
     }
 
-    /// When enabled, if a line is found to be over the configured maximum
-    /// column limit (measured in terms of bytes), then a preview of the long
-    /// line will be printed instead.
+    /// 当启用时，如果行发现超过配置的最大列限制（以字节为单位），则会打印长行的预览。
     ///
-    /// The preview will correspond to the first `N` *grapheme clusters* of
-    /// the line, where `N` is the limit configured by `max_columns`.
+    /// 预览将对应于行的前`N`个*图形簇*，其中`N`是由`max_columns`配置的限制。
     ///
-    /// If no limit is set, then enabling this has no effect.
+    /// 如果未设置限制，则启用此选项不会产生任何效果。
     ///
-    /// This is disabled by default.
+    /// 默认情况下禁用此选项。
     pub fn max_columns_preview(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.max_columns_preview = yes;
         self
     }
 
-    /// Set the maximum amount of matching lines that are printed.
+    /// 设置要打印的最大匹配行数。
     ///
-    /// If multi line search is enabled and a match spans multiple lines, then
-    /// that match is counted exactly once for the purposes of enforcing this
-    /// limit, regardless of how many lines it spans.
+    /// 如果启用多行搜索且匹配跨越多行，则无论其跨足够多少行，该匹配仅计数一次以强制执行此限制。
     pub fn max_matches(&mut self, limit: Option<u64>) -> &mut StandardBuilder {
         self.config.max_matches = limit;
         self
     }
-
-    /// Print the column number of the first match in a line.
+    /// 打印行中第一个匹配项的列号。
     ///
-    /// This option is convenient for use with `per_match` which will print a
-    /// line for every match along with the starting offset for that match.
+    /// 此选项适用于与`per_match`一起使用，后者将为每个匹配项打印一行以及该匹配项的起始偏移量。
     ///
-    /// Column numbers are computed in terms of bytes from the start of the
-    /// line being printed.
+    /// 列号以从正在打印的行的开头的字节计算。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项被禁用。
     pub fn column(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.column = yes;
         self
     }
 
-    /// Print the absolute byte offset of the beginning of each line printed.
+    /// 打印每行打印的开始处的绝对字节偏移量。
     ///
-    /// The absolute byte offset starts from the beginning of each search and
-    /// is zero based.
+    /// 绝对字节偏移从每次搜索的开始开始，以零为基础。
     ///
-    /// If the `only_matching` option is set, then this will print the absolute
-    /// byte offset of the beginning of each match.
+    /// 如果设置了`only_matching`选项，则会打印每个匹配项开始处的绝对字节偏移量。
     pub fn byte_offset(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.byte_offset = yes;
         self
     }
 
-    /// When enabled, all lines will have prefix ASCII whitespace trimmed
-    /// before being written.
+    /// 启用时，在写入之前，所有行都将删除前缀ASCII空格。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项被禁用。
     pub fn trim_ascii(&mut self, yes: bool) -> &mut StandardBuilder {
         self.config.trim_ascii = yes;
         self
     }
 
-    /// Set the separator used between sets of search results.
+    /// 设置在搜索结果集之间使用的分隔符。
     ///
-    /// When this is set, then it will be printed on its own line immediately
-    /// before the results for a single search if and only if a previous search
-    /// had already printed results. In effect, this permits showing a divider
-    /// between sets of search results that does not appear at the beginning
-    /// or end of all search results.
+    /// 当设置了此分隔符时，仅在前一个搜索已经打印了结果的情况下，
+    /// 才会在单个搜索的结果之前立即打印在自己的行上。
+    /// 实际上，这允许在搜索结果集之间显示一个分隔符，该分隔符不会出现在所有搜索结果的开头或结尾。
     ///
-    /// To reproduce the classic grep format, this is typically set to `--`
-    /// (the same as the context separator) if and only if contextual lines
-    /// have been requested, but disabled otherwise.
+    /// 为了复制经典grep格式，通常将其设置为`--`（与上下文分隔符相同），当且仅当请求上下文行时，才会这样做，否则禁用。
     ///
-    /// By default, this is disabled.
+    /// 默认情况下，此选项被禁用。
     pub fn separator_search(
         &mut self,
         sep: Option<Vec<u8>>,
@@ -366,15 +297,14 @@ impl StandardBuilder {
         self
     }
 
-    /// Set the separator used between discontiguous runs of search context,
-    /// but only when the searcher is configured to report contextual lines.
+    /// 设置在不连续的搜索上下文运行之间使用的分隔符，
+    /// 但仅当搜索器配置为报告上下文行时。
     ///
-    /// The separator is always printed on its own line, even if it's empty.
+    /// 无论是否为空，分隔符始终会单独打印在自己的行上。
     ///
-    /// If no separator is set, then nothing is printed when a context break
-    /// occurs.
+    /// 如果未设置分隔符，则在发生上下文中断时不会打印任何内容。
     ///
-    /// By default, this is set to `--`.
+    /// 默认情况下，将其设置为`--`。
     pub fn separator_context(
         &mut self,
         sep: Option<Vec<u8>>,
@@ -383,14 +313,12 @@ impl StandardBuilder {
         self
     }
 
-    /// Set the separator used between fields emitted for matching lines.
+    /// 设置用于匹配行中发射字段之间的分隔符。
     ///
-    /// For example, when the searcher has line numbers enabled, this printer
-    /// will print the line number before each matching line. The bytes given
-    /// here will be written after the line number but before the matching
-    /// line.
+    /// 例如，当搜索器启用行号时，此打印机将在每个匹配行之前打印行号。
+    /// 这里给出的字节将在行号之后但匹配行之前写入。
     ///
-    /// By default, this is set to `:`.
+    /// 默认情况下，将其设置为`:`。
     pub fn separator_field_match(
         &mut self,
         sep: Vec<u8>,
@@ -399,14 +327,12 @@ impl StandardBuilder {
         self
     }
 
-    /// Set the separator used between fields emitted for context lines.
+    /// 设置用于上下文行中发射字段之间的分隔符。
     ///
-    /// For example, when the searcher has line numbers enabled, this printer
-    /// will print the line number before each context line. The bytes given
-    /// here will be written after the line number but before the context
-    /// line.
+    /// 例如，当搜索器启用行号时，此打印机将在每个上下文行之前打印行号。
+    /// 这里给出的字节将在行号之后但上下文行之前写入。
     ///
-    /// By default, this is set to `-`.
+    /// 默认情况下，将其设置为`-`。
     pub fn separator_field_context(
         &mut self,
         sep: Vec<u8>,
@@ -415,32 +341,23 @@ impl StandardBuilder {
         self
     }
 
-    /// Set the path separator used when printing file paths.
+    /// 设置在打印文件路径时使用的路径分隔符。
     ///
-    /// When a printer is configured with a file path, and when a match is
-    /// found, that file path will be printed (either as a heading or as a
-    /// prefix to each matching or contextual line, depending on other
-    /// configuration settings). Typically, printing is done by emitting the
-    /// file path as is. However, this setting provides the ability to use a
-    /// different path separator from what the current environment has
-    /// configured.
+    /// 当打印机配置了文件路径，并且当找到匹配项时，该文件路径将被打印（根据其他配置设置，将其作为标题或作为每个匹配项或上下文行的前缀）。
+    /// 通常，通过发出文件路径来完成打印。但是，此设置提供了使用与当前环境不同的路径分隔符的能力。
     ///
-    /// A typical use for this option is to permit cygwin users on Windows to
-    /// set the path separator to `/` instead of using the system default of
-    /// `\`.
+    /// 此选项的典型用途是允许Windows上的cygwin用户将路径分隔符设置为`/`，而不是使用系统默认值`\`。
     pub fn separator_path(&mut self, sep: Option<u8>) -> &mut StandardBuilder {
         self.config.separator_path = sep;
         self
     }
 
-    /// Set the path terminator used.
+    /// 设置路径终止符。
     ///
-    /// The path terminator is a byte that is printed after every file path
-    /// emitted by this printer.
+    /// 路径终止符是在此打印机发出的每个文件路径之后打印的字节。
     ///
-    /// If no path terminator is set (the default), then paths are terminated
-    /// by either new lines (for when `heading` is enabled) or the match or
-    /// context field separators (e.g., `:` or `-`).
+    /// 如果未设置路径终止符（默认情况下），则路径将由换行符终止（对于启用`heading`时），
+    /// 或者由匹配项或上下文字段分隔符终止（例如，`:`或`-`）。
     pub fn path_terminator(
         &mut self,
         terminator: Option<u8>,
@@ -449,20 +366,13 @@ impl StandardBuilder {
         self
     }
 }
-
-/// The standard printer, which implements grep-like formatting, including
-/// color support.
+/// 标准打印机，实现类似grep的格式化，包括颜色支持。
 ///
-/// A default printer can be created with either of the `Standard::new` or
-/// `Standard::new_no_color` constructors. However, there are a considerable
-/// number of options that configure this printer's output. Those options can
-/// be configured using [`StandardBuilder`](struct.StandardBuilder.html).
+/// 可以使用`Standard::new`或`Standard::new_no_color`构造函数之一创建默认打印机。
+/// 然而，有许多选项可以配置此打印机的输出。这些选项可以使用[`StandardBuilder`](struct.StandardBuilder.html)进行配置。
 ///
-/// This type is generic over `W`, which represents any implementation
-/// of the `termcolor::WriteColor` trait. If colors are not desired,
-/// then the `new_no_color` constructor can be used, or, alternatively,
-/// the `termcolor::NoColor` adapter can be used to wrap any `io::Write`
-/// implementation without enabling any colors.
+/// 此类型是针对`W`进行泛型化，其中`W`表示`termcolor::WriteColor` trait的任何实现。
+/// 如果不需要颜色，则可以使用`new_no_color`构造函数，或者可以使用`termcolor::NoColor`适配器来包装任何`io::Write`实现，而不启用任何颜色。
 #[derive(Debug)]
 pub struct Standard<W> {
     config: Config,
@@ -471,34 +381,28 @@ pub struct Standard<W> {
 }
 
 impl<W: WriteColor> Standard<W> {
-    /// Return a standard printer with a default configuration that writes
-    /// matches to the given writer.
+    /// 返回一个具有默认配置的标准打印机，将匹配项写入给定的写入器。
     ///
-    /// The writer should be an implementation of `termcolor::WriteColor`
-    /// and not just a bare implementation of `io::Write`. To use a normal
-    /// `io::Write` implementation (simultaneously sacrificing colors), use
-    /// the `new_no_color` constructor.
+    /// 写入器应该是`termcolor::WriteColor` trait的实现，而不仅仅是`io::Write`的裸实现。
+    /// 要使用正常的`io::Write`实现（同时牺牲颜色），可以使用`new_no_color`构造函数。
     pub fn new(wtr: W) -> Standard<W> {
         StandardBuilder::new().build(wtr)
     }
 }
 
 impl<W: io::Write> Standard<NoColor<W>> {
-    /// Return a standard printer with a default configuration that writes
-    /// matches to the given writer.
+    /// 返回一个具有默认配置的标准打印机，将匹配项写入给定的写入器。
     ///
-    /// The writer can be any implementation of `io::Write`. With this
-    /// constructor, the printer will never emit colors.
+    /// 写入器可以是`io::Write`的任何实现。使用此构造函数，打印机将永远不会发出颜色。
     pub fn new_no_color(wtr: W) -> Standard<NoColor<W>> {
         StandardBuilder::new().build_no_color(wtr)
     }
 }
 
 impl<W: WriteColor> Standard<W> {
-    /// Return an implementation of `Sink` for the standard printer.
+    /// 返回标准打印机的`Sink`实现。
     ///
-    /// This does not associate the printer with a file path, which means this
-    /// implementation will never print a file path along with the matches.
+    /// 这不会将打印机与文件路径关联，这意味着此实现永远不会随匹配项一起打印文件路径。
     pub fn sink<'s, M: Matcher>(
         &'s mut self,
         matcher: M,
@@ -519,10 +423,9 @@ impl<W: WriteColor> Standard<W> {
         }
     }
 
-    /// Return an implementation of `Sink` associated with a file path.
+    /// 返回与文件路径关联的`Sink`实现。
     ///
-    /// When the printer is associated with a path, then it may, depending on
-    /// its configuration, print the path along with the matches found.
+    /// 当打印机与路径关联时，根据其配置，它可能会打印路径以及找到的匹配项。
     pub fn sink_with_path<'p, 's, M, P>(
         &'s mut self,
         matcher: M,
@@ -555,75 +458,59 @@ impl<W: WriteColor> Standard<W> {
         }
     }
 
-    /// Returns true if and only if the configuration of the printer requires
-    /// us to find each individual match in the lines reported by the searcher.
+    /// 当且仅当打印机的配置要求我们在搜索器报告的行中找到每个单独的匹配项时，返回true。
     ///
-    /// We care about this distinction because finding each individual match
-    /// costs more, so we only do it when we need to.
+    /// 我们关心这种区别，因为找到每个单独的匹配项的成本更高，因此仅在需要时才执行此操作。
     fn needs_match_granularity(&self) -> bool {
         let supports_color = self.wtr.borrow().supports_color();
         let match_colored = !self.config.colors.matched().is_none();
 
-        // Coloring requires identifying each individual match.
+        // 上色需要识别每个单独的匹配项。
         (supports_color && match_colored)
-        // The column feature requires finding the position of the first match.
+        // 列特性需要找到第一个匹配项的位置。
         || self.config.column
-        // Requires finding each match for performing replacement.
+        // 需要找到每个匹配项以执行替换。
         || self.config.replacement.is_some()
-        // Emitting a line for each match requires finding each match.
+        // 每个匹配项发出一行需要找到每个匹配项。
         || self.config.per_match
-        // Emitting only the match requires finding each match.
+        // 仅匹配项需要找到每个匹配项。
         || self.config.only_matching
-        // Computing certain statistics requires finding each match.
+        // 计算某些统计信息需要找到每个匹配项。
         || self.config.stats
     }
 }
 
 impl<W> Standard<W> {
-    /// Returns true if and only if this printer has written at least one byte
-    /// to the underlying writer during any of the previous searches.
+    /// 当且仅当此打印机在先前的任何搜索期间已将至少一个字节写入基础写入器时，返回true。
     pub fn has_written(&self) -> bool {
         self.wtr.borrow().total_count() > 0
     }
 
-    /// Return a mutable reference to the underlying writer.
+    /// 返回基础写入器的可变引用。
     pub fn get_mut(&mut self) -> &mut W {
         self.wtr.get_mut().get_mut()
     }
 
-    /// Consume this printer and return back ownership of the underlying
-    /// writer.
+    /// 消耗此打印机并返回基础写入器的所有权。
     pub fn into_inner(self) -> W {
         self.wtr.into_inner().into_inner()
     }
 }
-
-/// An implementation of `Sink` associated with a matcher and an optional file
-/// path for the standard printer.
+/// 与标准打印机关联的匹配器和可选文件路径的`Sink`实现。
 ///
-/// A `Sink` can be created via the
-/// [`Standard::sink`](struct.Standard.html#method.sink)
-/// or
-/// [`Standard::sink_with_path`](struct.Standard.html#method.sink_with_path)
-/// methods, depending on whether you want to include a file path in the
-/// printer's output.
+/// 可以通过[`Standard::sink`](struct.Standard.html#method.sink)或
+/// [`Standard::sink_with_path`](struct.Standard.html#method.sink_with_path)方法创建`Sink`，
+/// 具体取决于是否要在打印机的输出中包含文件路径。
 ///
-/// Building a `StandardSink` is cheap, and callers should create a new one
-/// for each thing that is searched. After a search has completed, callers may
-/// query this sink for information such as whether a match occurred or whether
-/// binary data was found (and if so, the offset at which it occurred).
+/// 构建`StandardSink`是廉价的，调用者应该为每个搜索创建一个新的`Sink`。
+/// 在搜索完成后，调用者可以查询此`Sink`以获取诸如是否发生匹配或是否找到二进制数据（如果是，则其偏移量）的信息。
 ///
-/// This type is generic over a few type parameters:
+/// 此类型在几个类型参数上是泛型的：
 ///
-/// * `'p` refers to the lifetime of the file path, if one is provided. When
-///   no file path is given, then this is `'static`.
-/// * `'s` refers to the lifetime of the
-///   [`Standard`](struct.Standard.html)
-///   printer that this type borrows.
-/// * `M` refers to the type of matcher used by
-///   `grep_searcher::Searcher` that is reporting results to this sink.
-/// * `W` refers to the underlying writer that this printer is writing its
-///   output to.
+/// * `'p` 指的是文件路径的生命周期，如果提供了文件路径。当未提供文件路径时，这是`'static`。
+/// * `'s` 指的是此类型借用的[`Standard`](struct.Standard.html)打印机的生命周期。
+/// * `M` 指的是由`grep_searcher::Searcher`使用的匹配器类型，该匹配器将结果报告给此`Sink`。
+/// * `W` 指的是将打印机的输出写入的底层写入器。
 #[derive(Debug)]
 pub struct StandardSink<'p, 's, M: Matcher, W> {
     matcher: M,
@@ -639,52 +526,39 @@ pub struct StandardSink<'p, 's, M: Matcher, W> {
 }
 
 impl<'p, 's, M: Matcher, W: WriteColor> StandardSink<'p, 's, M, W> {
-    /// Returns true if and only if this printer received a match in the
-    /// previous search.
+    /// 当且仅当此打印机在先前的搜索中接收到匹配时，返回true。
     ///
-    /// This is unaffected by the result of searches before the previous
-    /// search on this sink.
+    /// 这不受此`Sink`之前的搜索结果的影响。
     pub fn has_match(&self) -> bool {
         self.match_count > 0
     }
 
-    /// Return the total number of matches reported to this sink.
+    /// 返回向此`Sink`报告的总匹配次数。
     ///
-    /// This corresponds to the number of times `Sink::matched` is called
-    /// on the previous search.
+    /// 这对应于在先前的搜索上调用`Sink::matched`的次数。
     ///
-    /// This is unaffected by the result of searches before the previous
-    /// search on this sink.
+    /// 这不受此`Sink`之前的搜索结果的影响。
     pub fn match_count(&self) -> u64 {
         self.match_count
     }
 
-    /// If binary data was found in the previous search, this returns the
-    /// offset at which the binary data was first detected.
+    /// 如果在先前的搜索中找到了二进制数据，则返回发现二进制数据的偏移量。
     ///
-    /// The offset returned is an absolute offset relative to the entire
-    /// set of bytes searched.
+    /// 返回的偏移量是相对于搜索的所有字节的绝对偏移量。
     ///
-    /// This is unaffected by the result of searches before the previous
-    /// search. e.g., If the search prior to the previous search found binary
-    /// data but the previous search found no binary data, then this will
-    /// return `None`.
+    /// 这不受此`Sink`之前的搜索结果的影响。例如，如果先前的搜索在之前的搜索中找到了二进制数据，但先前的搜索未找到二进制数据，则返回`None`。
     pub fn binary_byte_offset(&self) -> Option<u64> {
         self.binary_byte_offset
     }
 
-    /// Return a reference to the stats produced by the printer for all
-    /// searches executed on this sink.
+    /// 返回对由打印机为此`Sink`执行的所有搜索生成的统计信息的引用。
     ///
-    /// This only returns stats if they were requested via the
-    /// [`StandardBuilder`](struct.StandardBuilder.html)
-    /// configuration.
+    /// 仅当通过[`StandardBuilder`](struct.StandardBuilder.html)配置请求了统计信息时，才会返回统计信息。
     pub fn stats(&self) -> Option<&Stats> {
         self.stats.as_ref()
     }
 
-    /// Execute the matcher over the given bytes and record the match
-    /// locations if the current configuration demands match granularity.
+    /// 执行匹配器在给定字节上，并在当前配置需要匹配粒度时记录匹配位置。
     fn record_matches(
         &mut self,
         searcher: &Searcher,
@@ -695,13 +569,9 @@ impl<'p, 's, M: Matcher, W: WriteColor> StandardSink<'p, 's, M, W> {
         if !self.needs_match_granularity {
             return Ok(());
         }
-        // If printing requires knowing the location of each individual match,
-        // then compute and stored those right now for use later. While this
-        // adds an extra copy for storing the matches, we do amortize the
-        // allocation for it and this greatly simplifies the printing logic to
-        // the extent that it's easy to ensure that we never do more than
-        // one search to find the matches (well, for replacements, we do one
-        // additional search to perform the actual replacement).
+        // 如果打印需要知道每个单独的匹配项的位置，则立即计算并存储这些位置以备后用。
+        // 虽然这会为存储匹配项添加额外的复制，但我们会将其分摊到分配中，
+        // 并且这极大地简化了打印逻辑，以至于我们永远不会超过一个搜索来查找匹配项（对于替换，我们还需要额外的搜索来执行实际替换）。
         let matches = &mut self.standard.matches;
         find_iter_at_in_context(
             searcher,
@@ -714,7 +584,7 @@ impl<'p, 's, M: Matcher, W: WriteColor> StandardSink<'p, 's, M, W> {
                 true
             },
         )?;
-        // Don't report empty matches appearing at the end of the bytes.
+        // 不要报告出现在字节末尾的空匹配项。
         if !matches.is_empty()
             && matches.last().unwrap().is_empty()
             && matches.last().unwrap().start() >= range.end
@@ -724,10 +594,9 @@ impl<'p, 's, M: Matcher, W: WriteColor> StandardSink<'p, 's, M, W> {
         Ok(())
     }
 
-    /// If the configuration specifies a replacement, then this executes the
-    /// replacement, lazily allocating memory if necessary.
+    /// 如果配置指定了替换，则执行替换，如果必要，延迟分配内存。
     ///
-    /// To access the result of a replacement, use `replacer.replacement()`.
+    /// 要访问替换的结果，请使用`replacer.replacement()`。
     fn replace(
         &mut self,
         searcher: &Searcher,
@@ -751,11 +620,10 @@ impl<'p, 's, M: Matcher, W: WriteColor> StandardSink<'p, 's, M, W> {
         Ok(())
     }
 
-    /// Returns true if this printer should quit.
+    /// 返回true，如果此打印机应该退出。
     ///
-    /// This implements the logic for handling quitting after seeing a certain
-    /// amount of matches. In most cases, the logic is simple, but we must
-    /// permit all "after" contextual lines to print after reaching the limit.
+    /// 这实现了在看到一定数量的匹配项后退出的逻辑。
+    /// 在大多数情况下，逻辑是简单的，但我们必须允许所有“after”上下文行在达到限制后打印。
     fn should_quit(&self) -> bool {
         let limit = match self.standard.config.max_matches {
             None => return false,
@@ -767,8 +635,8 @@ impl<'p, 's, M: Matcher, W: WriteColor> StandardSink<'p, 's, M, W> {
         self.after_context_remaining == 0
     }
 
-    /// Returns whether the current match count exceeds the configured limit.
-    /// If there is no limit, then this always returns false.
+    /// 返回当前匹配计数是否超过了配置的限制。
+    /// 如果没有限制，则始终返回false。
     fn match_more_than_limit(&self) -> bool {
         let limit = match self.standard.config.max_matches {
             None => return false,
@@ -777,23 +645,22 @@ impl<'p, 's, M: Matcher, W: WriteColor> StandardSink<'p, 's, M, W> {
         self.match_count > limit
     }
 }
-
 impl<'p, 's, M: Matcher, W: WriteColor> Sink for StandardSink<'p, 's, M, W> {
+    // 定义错误类型为io::Error
     type Error = io::Error;
 
+    // 当匹配项被找到时调用的方法
     fn matched(
         &mut self,
         searcher: &Searcher,
         mat: &SinkMatch<'_>,
     ) -> Result<bool, io::Error> {
+        // 增加匹配计数
         self.match_count += 1;
-        // When we've exceeded our match count, then the remaining context
-        // lines should not be reset, but instead, decremented. This avoids a
-        // bug where we display more matches than a configured limit. The main
-        // idea here is that 'matched' might be called again while printing
-        // an after-context line. In that case, we should treat this as a
-        // contextual line rather than a matching line for the purposes of
-        // termination.
+        // 当超过匹配计数时，剩余的上下文行不应该被重置，而应该递减。
+        // 这避免了显示比配置的限制更多的匹配项的错误。
+        // 主要思想是'matched'可能在打印上下文行时再次被调用。
+        // 在这种情况下，我们应该将其视为上下文行，而不是打印目的终止的匹配行。
         if self.match_more_than_limit() {
             self.after_context_remaining =
                 self.after_context_remaining.saturating_sub(1);
@@ -801,27 +668,33 @@ impl<'p, 's, M: Matcher, W: WriteColor> Sink for StandardSink<'p, 's, M, W> {
             self.after_context_remaining = searcher.after_context() as u64;
         }
 
+        // 记录匹配项的位置
         self.record_matches(
             searcher,
             mat.buffer(),
             mat.bytes_range_in_buffer(),
         )?;
+        // 执行替换
         self.replace(searcher, mat.buffer(), mat.bytes_range_in_buffer())?;
 
+        // 如果启用了统计信息
         if let Some(ref mut stats) = self.stats {
             stats.add_matches(self.standard.matches.len() as u64);
             stats.add_matched_lines(mat.lines().count() as u64);
         }
+        // 处理二进制数据
         if searcher.binary_detection().convert_byte().is_some() {
             if self.binary_byte_offset.is_some() {
                 return Ok(false);
             }
         }
 
+        // 调用StandardImpl中的方法，处理匹配项的打印
         StandardImpl::from_match(searcher, self, mat).sink()?;
         Ok(!self.should_quit())
     }
 
+    // 当上下文行被找到时调用的方法
     fn context(
         &mut self,
         searcher: &Searcher,
@@ -830,32 +703,39 @@ impl<'p, 's, M: Matcher, W: WriteColor> Sink for StandardSink<'p, 's, M, W> {
         self.standard.matches.clear();
         self.replacer.clear();
 
+        // 处理上下文行，根据种类递减剩余的上下文行
         if ctx.kind() == &SinkContextKind::After {
             self.after_context_remaining =
                 self.after_context_remaining.saturating_sub(1);
         }
+        // 如果反转匹配，记录上下文行中的匹配位置
         if searcher.invert_match() {
             self.record_matches(searcher, ctx.bytes(), 0..ctx.bytes().len())?;
             self.replace(searcher, ctx.bytes(), 0..ctx.bytes().len())?;
         }
+        // 处理二进制数据
         if searcher.binary_detection().convert_byte().is_some() {
             if self.binary_byte_offset.is_some() {
                 return Ok(false);
             }
         }
 
+        // 调用StandardImpl中的方法，处理上下文行的打印
         StandardImpl::from_context(searcher, self, ctx).sink()?;
         Ok(!self.should_quit())
     }
 
+    // 当上下文分隔发生时调用的方法
     fn context_break(
         &mut self,
         searcher: &Searcher,
     ) -> Result<bool, io::Error> {
+        // 调用StandardImpl中的方法，写上下文分隔符
         StandardImpl::new(searcher, self).write_context_separator()?;
         Ok(true)
     }
 
+    // 当发现二进制数据时调用的方法
     fn binary_data(
         &mut self,
         _searcher: &Searcher,
@@ -865,26 +745,32 @@ impl<'p, 's, M: Matcher, W: WriteColor> Sink for StandardSink<'p, 's, M, W> {
         Ok(true)
     }
 
+    // 当开始新的搜索时调用的方法
     fn begin(&mut self, _searcher: &Searcher) -> Result<bool, io::Error> {
+        // 重置计数器，初始化状态
         self.standard.wtr.borrow_mut().reset_count();
         self.start_time = Instant::now();
         self.match_count = 0;
         self.after_context_remaining = 0;
         self.binary_byte_offset = None;
+        // 如果配置的最大匹配数为0，则返回false
         if self.standard.config.max_matches == Some(0) {
             return Ok(false);
         }
         Ok(true)
     }
 
+    // 当搜索结束时调用的方法
     fn finish(
         &mut self,
         searcher: &Searcher,
         finish: &SinkFinish,
     ) -> Result<(), io::Error> {
+        // 如果有二进制数据的偏移量，则写入相应的消息
         if let Some(offset) = self.binary_byte_offset {
             StandardImpl::new(searcher, self).write_binary_message(offset)?;
         }
+        // 如果启用了统计信息
         if let Some(stats) = self.stats.as_mut() {
             stats.add_elapsed(self.start_time.elapsed());
             stats.add_searches(1);
@@ -898,22 +784,20 @@ impl<'p, 's, M: Matcher, W: WriteColor> Sink for StandardSink<'p, 's, M, W> {
     }
 }
 
-/// The actual implementation of the standard printer. This couples together
-/// the searcher, the sink implementation and information about the match.
+/// 标准打印机的实际实现。将搜索器、`Sink`实现以及匹配信息连接在一起。
 ///
-/// A StandardImpl is initialized every time a match or a contextual line is
-/// reported.
+/// 每次报告匹配项或上下文行时都会初始化一个StandardImpl。
 #[derive(Debug)]
 struct StandardImpl<'a, M: Matcher, W> {
     searcher: &'a Searcher,
     sink: &'a StandardSink<'a, 'a, M, W>,
     sunk: Sunk<'a>,
-    /// Set to true if and only if we are writing a match with color.
+    /// 如果且仅如果我们正在以彩色打印匹配项，则设置为true。
     in_color_match: Cell<bool>,
 }
 
 impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
-    /// Bundle self with a searcher and return the core implementation of Sink.
+    /// 将自身与搜索器捆绑在一起，并返回Sink的核心实现。
     fn new(
         searcher: &'a Searcher,
         sink: &'a StandardSink<'_, '_, M, W>,
@@ -926,8 +810,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         }
     }
 
-    /// Bundle self with a searcher and return the core implementation of Sink
-    /// for use with handling matching lines.
+    /// 将自身与搜索器捆绑在一起，并返回用于处理匹配行的Sink的核心实现。
     fn from_match(
         searcher: &'a Searcher,
         sink: &'a StandardSink<'_, '_, M, W>,
@@ -941,8 +824,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         StandardImpl { sunk: sunk, ..StandardImpl::new(searcher, sink) }
     }
 
-    /// Bundle self with a searcher and return the core implementation of Sink
-    /// for use with handling contextual lines.
+    /// 将自身与搜索器捆绑在一起，并返回用于处理上下文行的Sink的核心实现。
     fn from_context(
         searcher: &'a Searcher,
         sink: &'a StandardSink<'_, '_, M, W>,
@@ -956,6 +838,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         StandardImpl { sunk: sunk, ..StandardImpl::new(searcher, sink) }
     }
 
+    /// 执行打印操作，根据配置进行不同类型的打印。
     fn sink(&self) -> io::Result<()> {
         self.write_search_prelude()?;
         if self.sunk.matches().is_empty() {
@@ -973,12 +856,8 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         }
     }
 
-    /// Print matches (limited to one line) quickly by avoiding the detection
-    /// of each individual match in the lines reported in the given
-    /// `SinkMatch`.
-    ///
-    /// This should only be used when the configuration does not demand match
-    /// granularity and the searcher is not in multi line mode.
+    /// 快速打印匹配项（限制为一行），通过避免在给定的SinkMatch中的行中检测每个单独的匹配项。
+    /// 只有在配置不要求匹配粒度且搜索器不在多行模式下时才应使用此方法。
     fn sink_fast(&self) -> io::Result<()> {
         debug_assert!(self.sunk.matches().is_empty());
         debug_assert!(!self.multi_line() || self.is_context());
@@ -991,18 +870,13 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         self.write_line(self.sunk.bytes())
     }
 
-    /// Print matches (possibly spanning more than one line) quickly by
-    /// avoiding the detection of each individual match in the lines reported
-    /// in the given `SinkMatch`.
-    ///
-    /// This should only be used when the configuration does not demand match
-    /// granularity. This may be used when the searcher is in multi line mode.
+    /// 通过避免在给定的SinkMatch中的行中检测每个单独的匹配项，快速打印匹配项（可能跨越多行）。
+    /// 只有在配置不要求匹配粒度且搜索器在多行模式下时才应使用此方法。
     fn sink_fast_multi_line(&self) -> io::Result<()> {
         debug_assert!(self.sunk.matches().is_empty());
-        // This isn't actually a required invariant for using this method,
-        // but if we wind up here and multi line mode is disabled, then we
-        // should still treat it as a bug since we should be using matched_fast
-        // instead.
+        // 实际上，这不是使用此方法的必需不变式，
+        // 但是如果我们进入此处并且禁用了多行模式，
+        // 则仍应视为错误，因为我们应该使用matched_fast而不是此方法。
         debug_assert!(self.multi_line());
 
         let line_term = self.searcher.line_terminator().as_byte();
@@ -1020,8 +894,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         Ok(())
     }
 
-    /// Print a matching line where the configuration of the printer requires
-    /// finding each individual match (e.g., for coloring).
+    /// 根据打印机的配置，打印匹配行，需要查找每个单独的匹配项（例如，用于着色）。
     fn sink_slow(&self) -> io::Result<()> {
         debug_assert!(!self.sunk.matches().is_empty());
         debug_assert!(!self.multi_line() || self.is_context());
@@ -1057,6 +930,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         Ok(())
     }
 
+    /// 根据打印机的配置，慢速打印匹配行（可能跨越多行）。
     fn sink_slow_multi_line(&self) -> io::Result<()> {
         debug_assert!(!self.sunk.matches().is_empty());
         debug_assert!(self.multi_line());
@@ -1091,6 +965,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         Ok(())
     }
 
+    /// 根据打印机的配置，以only_matching模式慢速打印跨越多行的匹配行。
     fn sink_slow_multi_line_only_matching(&self) -> io::Result<()> {
         let line_term = self.searcher.line_terminator().as_byte();
         let spec = self.config().colors.matched();
@@ -1141,56 +1016,71 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         }
         Ok(())
     }
-
+    /// 在多个匹配项每行一行地慢速打印匹配行。
     fn sink_slow_multi_per_match(&self) -> io::Result<()> {
         let line_term = self.searcher.line_terminator().as_byte();
         let spec = self.config().colors.matched();
         let bytes = self.sunk.bytes();
+
+        // 遍历每个匹配项
         for &m in self.sunk.matches() {
             let mut count = 0;
             let mut stepper = LineStep::new(line_term, 0, bytes.len());
+
+            // 遍历每一行
             while let Some((start, end)) = stepper.next(bytes) {
                 let mut line = Match::new(start, end);
+
+                // 如果行的起始大于等于匹配项的结束，退出循环
                 if line.start() >= m.end() {
                     break;
-                } else if line.end() <= m.start() {
+                }
+                // 如果行的结束小于等于匹配项的起始，增加计数继续下一行
+                else if line.end() <= m.start() {
                     count += 1;
                     continue;
                 }
+                // 写入匹配行的开头
                 self.write_prelude(
                     self.sunk.absolute_byte_offset() + line.start() as u64,
                     self.sunk.line_number().map(|n| n + count),
                     Some(m.start().saturating_sub(line.start()) as u64 + 1),
                 )?;
                 count += 1;
+
+                // 如果行超过最大列数，调用写入行超过最大列数的函数
                 if self.exceeds_max_columns(&bytes[line]) {
                     self.write_exceeded_line(bytes, line, &[m], &mut 0)?;
                     continue;
                 }
+
+                // 去除行末尾的换行符和空格前缀
                 self.trim_line_terminator(bytes, &mut line);
                 self.trim_ascii_prefix(bytes, &mut line);
 
+                // 遍历行中的每个字符
                 while !line.is_empty() {
+                    // 如果匹配项的结束在行的起始之前，直接写入行的内容
                     if m.end() <= line.start() {
                         self.write(&bytes[line])?;
                         line = line.with_start(line.end());
-                    } else if line.start() < m.start() {
+                    }
+                    // 如果行的起始在匹配项的起始之前，写入起始到匹配项起始之间的部分
+                    else if line.start() < m.start() {
                         let upto = cmp::min(line.end(), m.start());
                         self.write(&bytes[line.with_end(upto)])?;
                         line = line.with_start(upto);
-                    } else {
+                    }
+                    // 如果行的起始在匹配项的起始之后，在行中写入匹配项范围内的内容
+                    else {
                         let upto = cmp::min(line.end(), m.end());
                         self.write_spec(spec, &bytes[line.with_end(upto)])?;
                         line = line.with_start(upto);
                     }
                 }
+                // 写入行结束符
                 self.write_line_term()?;
-                // It turns out that vimgrep really only wants one line per
-                // match, even when a match spans multiple lines. So when
-                // that option is enabled, we just quit after printing the
-                // first line.
-                //
-                // See: https://github.com/BurntSushi/ripgrep/issues/1866
+                // 当配置为每个匹配项一行时，打印第一行后就退出循环
                 if self.config().per_match_one_line {
                     break;
                 }
@@ -1199,9 +1089,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         Ok(())
     }
 
-    /// Write the beginning part of a matching line. This (may) include things
-    /// like the file path, line number among others, depending on the
-    /// configuration and the parameters given.
+    /// 写入匹配行的开头部分，根据配置和参数可能包括文件路径、行号等。
     #[inline(always)]
     fn write_prelude(
         &self,
@@ -1211,25 +1099,31 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
     ) -> io::Result<()> {
         let sep = self.separator_field();
 
+        // 如果不需要标题，写入文件路径字段
         if !self.config().heading {
             self.write_path_field(sep)?;
         }
+        // 如果有行号，写入行号字段
         if let Some(n) = line_number {
             self.write_line_number(n, sep)?;
         }
+        // 如果有列号，且配置允许显示列号，写入列号字段
         if let Some(n) = column {
             if self.config().column {
                 self.write_column_number(n, sep)?;
             }
         }
+        // 如果配置要求显示字节偏移，写入字节偏移字段
         if self.config().byte_offset {
             self.write_byte_offset(absolute_byte_offset, sep)?;
         }
         Ok(())
     }
 
+    /// 写入一行文本。
     #[inline(always)]
     fn write_line(&self, line: &[u8]) -> io::Result<()> {
+        // 如果超过了最大列数，调用写入超过最大列数的函数
         if self.exceeds_max_columns(line) {
             let range = Match::new(0, line.len());
             self.write_exceeded_line(
@@ -1239,7 +1133,9 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
                 &mut 0,
             )?;
         } else {
+            // 写入去除空格前缀后的行内容
             self.write_trim(line)?;
+            // 如果行没有换行符，写入行结束符
             if !self.has_line_terminator(line) {
                 self.write_line_term()?;
             }
@@ -1268,12 +1164,9 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         }
     }
 
-    /// Write the `line` portion of `bytes`, with appropriate coloring for
-    /// each `match`, starting at `match_index`.
+    /// 写入带有适当颜色的`bytes`部分，针对每个`match`在`bytes`中的匹配，从`match_index`开始。
     ///
-    /// This accounts for trimming any whitespace prefix and will *never* print
-    /// a line terminator. If a match exceeds the range specified by `line`,
-    /// then only the part of the match within `line` (if any) is printed.
+    /// 这会处理去除前导空格，并且*永远不会*打印行结束符。如果匹配项超过了`line`所指定的范围，那么只会打印`line`内的匹配部分（如果有的话）。
     fn write_colored_matches(
         &self,
         bytes: &[u8],
@@ -1281,18 +1174,25 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         matches: &[Match],
         match_index: &mut usize,
     ) -> io::Result<()> {
+        // 去除行末尾的换行符和空格前缀
         self.trim_line_terminator(bytes, &mut line);
         self.trim_ascii_prefix(bytes, &mut line);
+
+        // 如果没有匹配项，直接写入行内容
         if matches.is_empty() {
             self.write(&bytes[line])?;
             return Ok(());
         }
+
+        // 遍历行中的每个字符
         while !line.is_empty() {
+            // 如果当前匹配项已经在行的起始之前，切换到下一个匹配项
             if matches[*match_index].end() <= line.start() {
                 if *match_index + 1 < matches.len() {
                     *match_index += 1;
                     continue;
                 } else {
+                    // 结束颜色匹配，写入剩余行内容
                     self.end_color_match()?;
                     self.write(&bytes[line])?;
                     break;
@@ -1300,22 +1200,27 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
             }
 
             let m = matches[*match_index];
+            // 如果行的起始在当前匹配项之前，写入行的内容并结束颜色匹配
             if line.start() < m.start() {
                 let upto = cmp::min(line.end(), m.start());
                 self.end_color_match()?;
                 self.write(&bytes[line.with_end(upto)])?;
                 line = line.with_start(upto);
-            } else {
+            }
+            // 如果行的起始在当前匹配项之后，写入匹配项范围内的内容并开始颜色匹配
+            else {
                 let upto = cmp::min(line.end(), m.end());
                 self.start_color_match()?;
                 self.write(&bytes[line.with_end(upto)])?;
                 line = line.with_start(upto);
             }
         }
+        // 结束颜色匹配
         self.end_color_match()?;
         Ok(())
     }
 
+    /// 写入超过最大列数的行的内容，从`bytes`中的`line`开始，使用`matches`中的匹配项，从`match_index`开始。
     fn write_exceeded_line(
         &self,
         bytes: &[u8],
@@ -1323,6 +1228,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         matches: &[Match],
         match_index: &mut usize,
     ) -> io::Result<()> {
+        // 如果配置为最大列数预览，仅打印指定最大列数内的内容
         if self.config().max_columns_preview {
             let original = line;
             let end = bytes[line]
@@ -1333,21 +1239,27 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
                 .unwrap_or(0)
                 + line.start();
             line = line.with_end(end);
+
+            // 写入指定列数内的内容并调整匹配项
             self.write_colored_matches(bytes, line, matches, match_index)?;
 
             if matches.is_empty() {
-                self.write(b" [... omitted end of long line]")?;
+                self.write(
+                    b" [... Omit the content at the end of the long line]",
+                )?;
             } else {
+                // 计算剩余匹配项数量并写入省略信息
                 let remaining = matches
                     .iter()
                     .filter(|m| {
                         m.start() >= line.end() && m.start() < original.end()
                     })
                     .count();
-                let tense = if remaining == 1 { "match" } else { "matches" };
+                let tense =
+                    if remaining == 1 { "匹配" } else { "匹配项" };
                 write!(
                     self.wtr().borrow_mut(),
-                    " [... {} more {}]",
+                    " [... 还有{}个{}]",
                     remaining,
                     tense,
                 )?;
@@ -1357,35 +1269,35 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         }
         if self.sunk.original_matches().is_empty() {
             if self.is_context() {
-                self.write(b"[Omitted long context line]")?;
+                self.write(b"[Long context lines are omitted]")?;
             } else {
-                self.write(b"[Omitted long matching line]")?;
+                self.write(b"[Omit long matching lines]")?;
             }
         } else {
             if self.config().only_matching {
                 if self.is_context() {
-                    self.write(b"[Omitted long context line]")?;
+                    self.write(b"[Long context lines are omitted]")?;
                 } else {
-                    self.write(b"[Omitted long matching line]")?;
+                    self.write(b"[Omit long matching lines]")?;
                 }
             } else {
+                // 写入省略信息
                 write!(
                     self.wtr().borrow_mut(),
-                    "[Omitted long line with {} matches]",
+                    "[省略行，带有{}个匹配项]",
                     self.sunk.original_matches().len(),
                 )?;
             }
         }
+        // 写入行结束符
         self.write_line_term()?;
         Ok(())
     }
-
-    /// If this printer has a file path associated with it, then this will
-    /// write that path to the underlying writer followed by a line terminator.
-    /// (If a path terminator is set, then that is used instead of the line
-    /// terminator.)
+    /// 如果此打印机与文件路径关联，那么将写入该路径到底层写入器，然后跟随行终止符。
+    /// （如果设置了路径终止符，则使用该终止符代替行终止符。）
     fn write_path_line(&self) -> io::Result<()> {
         if let Some(path) = self.path() {
+            // 写入文件路径，使用路径颜色，并根据配置写入终止符
             self.write_spec(self.config().colors.path(), path.as_bytes())?;
             if let Some(term) = self.config().path_terminator {
                 self.write(&[term])?;
@@ -1396,12 +1308,11 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         Ok(())
     }
 
-    /// If this printer has a file path associated with it, then this will
-    /// write that path to the underlying writer followed by the given field
-    /// separator. (If a path terminator is set, then that is used instead of
-    /// the field separator.)
+    /// 如果此打印机与文件路径关联，那么将写入该路径到底层写入器，然后跟随给定的字段分隔符。
+    /// （如果设置了路径终止符，则使用该终止符代替字段分隔符。）
     fn write_path_field(&self, field_separator: &[u8]) -> io::Result<()> {
         if let Some(path) = self.path() {
+            // 写入文件路径，使用路径颜色，并根据配置写入终止符或字段分隔符
             self.write_spec(self.config().colors.path(), path.as_bytes())?;
             if let Some(term) = self.config().path_terminator {
                 self.write(&[term])?;
@@ -1412,11 +1323,15 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         Ok(())
     }
 
+    /// 写入搜索开头的内容。
     fn write_search_prelude(&self) -> io::Result<()> {
+        // 检查是否已经写入了当前搜索的内容
         let this_search_written = self.wtr().borrow().count() > 0;
         if this_search_written {
             return Ok(());
         }
+
+        // 如果以前有写入过内容，根据配置写入分隔符
         if let Some(ref sep) = *self.config().separator_search {
             let ever_written = self.wtr().borrow().total_count() > 0;
             if ever_written {
@@ -1424,13 +1339,17 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
                 self.write_line_term()?;
             }
         }
+
+        // 如果配置允许标题，写入文件路径行
         if self.config().heading {
             self.write_path_line()?;
         }
         Ok(())
     }
 
+    /// 写入二进制文件警告消息。
     fn write_binary_message(&self, offset: u64) -> io::Result<()> {
+        // 如果没有匹配项，不需要写入警告消息
         if self.sink.match_count == 0 {
             return Ok(());
         }
@@ -1438,144 +1357,170 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         let bin = self.searcher.binary_detection();
         if let Some(byte) = bin.quit_byte() {
             if let Some(path) = self.path() {
+                // 写入文件路径，使用路径颜色，然后写入分隔符
                 self.write_spec(self.config().colors.path(), path.as_bytes())?;
                 self.write(b": ")?;
             }
+            // 格式化二进制文件警告消息，写入底层写入器
             let remainder = format!(
-                "WARNING: stopped searching binary file after match \
-                 (found {:?} byte around offset {})\n",
-                [byte].as_bstr(),
-                offset,
-            );
+            "警告：在匹配后停止搜索二进制文件（在偏移 {} 附近找到字节 {:?}）\n",
+            offset,
+            [byte].as_bstr(),
+        );
             self.write(remainder.as_bytes())?;
         } else if let Some(byte) = bin.convert_byte() {
             if let Some(path) = self.path() {
+                // 写入文件路径，使用路径颜色，然后写入分隔符
                 self.write_spec(self.config().colors.path(), path.as_bytes())?;
                 self.write(b": ")?;
             }
+            // 格式化二进制文件匹配消息，写入底层写入器
             let remainder = format!(
-                "binary file matches (found {:?} byte around offset {})\n",
-                [byte].as_bstr(),
+                "二进制文件匹配（在偏移 {} 附近找到字节 {:?}）\n",
                 offset,
+                [byte].as_bstr(),
             );
             self.write(remainder.as_bytes())?;
         }
         Ok(())
     }
 
+    /// 写入上下文分隔符。
     fn write_context_separator(&self) -> io::Result<()> {
         if let Some(ref sep) = *self.config().separator_context {
+            // 根据配置写入上下文分隔符并写入行终止符
             self.write(sep)?;
             self.write_line_term()?;
         }
         Ok(())
     }
 
+    /// 写入行号。
     fn write_line_number(
         &self,
         line_number: u64,
         field_separator: &[u8],
     ) -> io::Result<()> {
         let n = line_number.to_string();
+        // 写入行号，使用行号颜色，并写入字段分隔符
         self.write_spec(self.config().colors.line(), n.as_bytes())?;
         self.write(field_separator)?;
         Ok(())
     }
 
+    /// 写入列号。
     fn write_column_number(
         &self,
         column_number: u64,
         field_separator: &[u8],
     ) -> io::Result<()> {
         let n = column_number.to_string();
+        // 写入列号，使用列号颜色，并写入字段分隔符
         self.write_spec(self.config().colors.column(), n.as_bytes())?;
         self.write(field_separator)?;
         Ok(())
     }
 
+    /// 写入字节偏移量。
     fn write_byte_offset(
         &self,
         offset: u64,
         field_separator: &[u8],
     ) -> io::Result<()> {
         let n = offset.to_string();
+        // 写入字节偏移量，使用列号颜色，并写入字段分隔符
         self.write_spec(self.config().colors.column(), n.as_bytes())?;
         self.write(field_separator)?;
         Ok(())
     }
 
+    /// 写入行终止符。
     fn write_line_term(&self) -> io::Result<()> {
         self.write(self.searcher.line_terminator().as_bytes())
     }
 
+    /// 根据颜色规范写入指定内容。
     fn write_spec(&self, spec: &ColorSpec, buf: &[u8]) -> io::Result<()> {
         let mut wtr = self.wtr().borrow_mut();
+        // 设置颜色并写入内容，然后重置颜色
         wtr.set_color(spec)?;
         wtr.write_all(buf)?;
         wtr.reset()?;
         Ok(())
     }
 
+    /// 开始颜色匹配。
     fn start_color_match(&self) -> io::Result<()> {
+        // 如果已经在颜色匹配中，直接返回
         if self.in_color_match.get() {
             return Ok(());
         }
+        // 设置匹配颜色，并标记为颜色匹配中
         self.wtr().borrow_mut().set_color(self.config().colors.matched())?;
         self.in_color_match.set(true);
         Ok(())
     }
 
+    /// 结束颜色匹配。
     fn end_color_match(&self) -> io::Result<()> {
+        // 如果不在颜色匹配中，直接返回
         if !self.in_color_match.get() {
             return Ok(());
         }
+        // 重置颜色，并标记为颜色匹配结束
         self.wtr().borrow_mut().reset()?;
         self.in_color_match.set(false);
         Ok(())
     }
 
+    /// 写入修剪后的内容。
     fn write_trim(&self, buf: &[u8]) -> io::Result<()> {
+        // 如果不需要修剪，直接写入内容
         if !self.config().trim_ascii {
             return self.write(buf);
         }
+        // 修剪内容并写入
         let mut range = Match::new(0, buf.len());
         self.trim_ascii_prefix(buf, &mut range);
         self.write(&buf[range])
     }
 
+    /// 写入内容。
     fn write(&self, buf: &[u8]) -> io::Result<()> {
         self.wtr().borrow_mut().write_all(buf)
     }
 
+    /// 修剪行终止符，更新行范围。
     fn trim_line_terminator(&self, buf: &[u8], line: &mut Match) {
         trim_line_terminator(&self.searcher, buf, line);
     }
 
+    /// 检查内容是否包含行终止符。
     fn has_line_terminator(&self, buf: &[u8]) -> bool {
         self.searcher.line_terminator().is_suffix(buf)
     }
 
+    /// 检查是否为上下文模式。
     fn is_context(&self) -> bool {
         self.sunk.context_kind().is_some()
     }
 
-    /// Return the underlying configuration for this printer.
+    /// 返回与此打印机关联的基础配置。
     fn config(&self) -> &'a Config {
         &self.sink.standard.config
     }
 
-    /// Return the underlying writer that we are printing to.
+    /// 返回正在写入的基础写入器。
     fn wtr(&self) -> &'a RefCell<CounterWriter<W>> {
         &self.sink.standard.wtr
     }
 
-    /// Return the path associated with this printer, if one exists.
+    /// 返回与此打印机关联的路径（如果存在）。
     fn path(&self) -> Option<&'a PrinterPath<'a>> {
         self.sink.path.as_ref()
     }
 
-    /// Return the appropriate field separator based on whether we are emitting
-    /// matching or contextual lines.
+    /// 根据匹配或上下文行返回相应的字段分隔符。
     fn separator_field(&self) -> &[u8] {
         if self.is_context() {
             &self.config().separator_field_context
@@ -1584,28 +1529,22 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
         }
     }
 
-    /// Returns true if and only if the given line exceeds the maximum number
-    /// of columns set. If no maximum is set, then this always returns false.
+    /// 检查给定行是否超过了设置的最大列数。
     fn exceeds_max_columns(&self, line: &[u8]) -> bool {
         self.config().max_columns.map_or(false, |m| line.len() as u64 > m)
     }
 
-    /// Returns true if and only if the searcher may report matches over
-    /// multiple lines.
+    /// 检查搜索器是否可能报告跨多行的匹配。
     ///
-    /// Note that this doesn't just return whether the searcher is in multi
-    /// line mode, but also checks if the matter can match over multiple lines.
-    /// If it can't, then we don't need multi line handling, even if the
-    /// searcher has multi line mode enabled.
+    /// 注意，这不仅检查搜索器是否在多行模式中，还检查匹配器是否可以跨多行匹配。
+    /// 即使搜索器启用了多行模式，如果匹配器无法跨多行匹配，我们也不需要多行处理。
     fn multi_line(&self) -> bool {
         self.searcher.multi_line_with_matcher(&self.sink.matcher)
     }
 
-    /// Trim prefix ASCII spaces from the given slice and return the
-    /// corresponding range.
+    /// 修剪内容中前缀的 ASCII 空格，并更新对应的范围。
     ///
-    /// This stops trimming a prefix as soon as it sees non-whitespace or a
-    /// line terminator.
+    /// 只要看到非空白字符或行终止符，就会停止修剪前缀。
     fn trim_ascii_prefix(&self, slice: &[u8], range: &mut Match) {
         if !self.config().trim_ascii {
             return;

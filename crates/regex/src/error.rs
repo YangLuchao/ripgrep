@@ -1,22 +1,22 @@
-/// An error that can occur in this crate.
+/// 在这个crate中可能发生的错误。
 ///
-/// Generally, this error corresponds to problems building a regular
-/// expression, whether it's in parsing, compilation or a problem with
-/// guaranteeing a configured optimization.
+/// 通常，这个错误对应于构建正则表达式时出现的问题，无论是在解析、编译还是配置优化方面出现的问题。
 #[derive(Clone, Debug)]
 pub struct Error {
     kind: ErrorKind,
 }
 
 impl Error {
+    /// 创建一个具有给定错误种类的新错误实例。
     pub(crate) fn new(kind: ErrorKind) -> Error {
         Error { kind }
     }
 
+    /// 将`regex_automata::meta::BuildError`转换为错误。
     pub(crate) fn regex(err: regex_automata::meta::BuildError) -> Error {
         if let Some(size_limit) = err.size_limit() {
             let kind = ErrorKind::Regex(format!(
-                "compiled regex exceeds size limit of {size_limit}",
+                "编译的正则表达式超过了大小限制 {size_limit}",
             ));
             Error { kind }
         } else if let Some(ref err) = err.syntax_error() {
@@ -26,43 +26,39 @@ impl Error {
         }
     }
 
+    /// 将通用的错误转换为错误。
     pub(crate) fn generic<E: std::error::Error>(err: E) -> Error {
         Error { kind: ErrorKind::Regex(err.to_string()) }
     }
 
+    /// 将任意类型的消息转换为错误。
     pub(crate) fn any<E: ToString>(msg: E) -> Error {
         Error { kind: ErrorKind::Regex(msg.to_string()) }
     }
 
-    /// Return the kind of this error.
+    /// 返回此错误的种类。
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }
 }
 
-/// The kind of an error that can occur.
+/// 可能发生的错误种类。
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// An error that occurred as a result of parsing a regular expression.
-    /// This can be a syntax error or an error that results from attempting to
-    /// compile a regular expression that is too big.
+    /// 解析正则表达式时出现的错误。这可以是语法错误，也可以是尝试编译过大的正则表达式而导致的错误。
     ///
-    /// The string here is the underlying error converted to a string.
+    /// 这里的字符串是底层错误转换为字符串的结果。
     Regex(String),
-    /// An error that occurs when a building a regex that isn't permitted to
-    /// match a line terminator. In general, building the regex will do its
-    /// best to make matching a line terminator impossible (e.g., by removing
-    /// `\n` from the `\s` character class), but if the regex contains a
-    /// `\n` literal, then there is no reasonable choice that can be made and
-    /// therefore an error is reported.
+    /// 构建不允许匹配行终止符的正则表达式时出现的错误。
+    /// 通常情况下，构建正则表达式会尽最大努力使匹配行终止符变得不可能（例如，通过从`\s`字符类中删除`\n`），
+    /// 但是如果正则表达式包含`\n`文字，则无法做出合理的选择，因此会报告错误。
     ///
-    /// The string is the literal sequence found in the regex that is not
-    /// allowed.
+    /// 字符串是在正则表达式中找到的不允许的字面序列。
     NotAllowed(String),
-    /// This error occurs when a non-ASCII line terminator was provided.
+    /// 当提供了非ASCII行终止符时出现的错误。
     ///
-    /// The invalid byte is included in this error.
+    /// 无效的字节包含在此错误中。
     InvalidLineTerminator(u8),
 }
 
@@ -75,12 +71,12 @@ impl std::fmt::Display for Error {
         match self.kind {
             ErrorKind::Regex(ref s) => write!(f, "{}", s),
             ErrorKind::NotAllowed(ref lit) => {
-                write!(f, "the literal {:?} is not allowed in a regex", lit)
+                write!(f, "在正则表达式中不允许使用字面值 {:?} ", lit)
             }
             ErrorKind::InvalidLineTerminator(byte) => {
                 write!(
                     f,
-                    "line terminators must be ASCII, but {} is not",
+                    "行终止符必须是ASCII字符，但 {} 不是",
                     [byte].as_bstr()
                 )
             }

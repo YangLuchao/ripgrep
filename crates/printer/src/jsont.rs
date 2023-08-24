@@ -1,11 +1,3 @@
-// This module defines the types we use for JSON serialization. We specifically
-// omit deserialization, partially because there isn't a clear use case for
-// them at this time, but also because deserialization will complicate things.
-// Namely, the types below are designed in a way that permits JSON
-// serialization with little or no allocation. Allocation is often quite
-// convenient for deserialization however, so these types would become a bit
-// more complex.
-
 use std::borrow::Cow;
 use std::path::Path;
 use std::str;
@@ -15,6 +7,7 @@ use serde::{Serialize, Serializer};
 
 use crate::stats::Stats;
 
+// 枚举：消息类型，用于JSON序列化
 #[derive(Serialize)]
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "snake_case")]
@@ -25,12 +18,14 @@ pub enum Message<'a> {
     Context(Context<'a>),
 }
 
+// 结构体：开始消息
 #[derive(Serialize)]
 pub struct Begin<'a> {
     #[serde(serialize_with = "ser_path")]
     pub path: Option<&'a Path>,
 }
 
+// 结构体：结束消息
 #[derive(Serialize)]
 pub struct End<'a> {
     #[serde(serialize_with = "ser_path")]
@@ -39,6 +34,7 @@ pub struct End<'a> {
     pub stats: Stats,
 }
 
+// 结构体：匹配消息
 #[derive(Serialize)]
 pub struct Match<'a> {
     #[serde(serialize_with = "ser_path")]
@@ -50,6 +46,7 @@ pub struct Match<'a> {
     pub submatches: &'a [SubMatch<'a>],
 }
 
+// 结构体：上下文消息
 #[derive(Serialize)]
 pub struct Context<'a> {
     #[serde(serialize_with = "ser_path")]
@@ -61,6 +58,7 @@ pub struct Context<'a> {
     pub submatches: &'a [SubMatch<'a>],
 }
 
+// 结构体：子匹配项
 #[derive(Serialize)]
 pub struct SubMatch<'a> {
     #[serde(rename = "match")]
@@ -70,13 +68,7 @@ pub struct SubMatch<'a> {
     pub end: usize,
 }
 
-/// Data represents things that look like strings, but may actually not be
-/// valid UTF-8. To handle this, `Data` is serialized as an object with one
-/// of two keys: `text` (for valid UTF-8) or `bytes` (for invalid UTF-8).
-///
-/// The happy path is valid UTF-8, which streams right through as-is, since
-/// it is natively supported by JSON. When invalid UTF-8 is found, then it is
-/// represented as arbitrary bytes and base64 encoded.
+// 枚举：数据表示类似字符串的内容，可能不是有效的UTF-8
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 enum Data<'a> {
@@ -109,15 +101,15 @@ impl<'a> Data<'a> {
 
     #[cfg(not(unix))]
     fn from_path(path: &Path) -> Data {
-        // Using lossy conversion means some paths won't round trip precisely,
-        // but it's not clear what we should actually do. Serde rejects
-        // non-UTF-8 paths, and OsStr's are serialized as a sequence of UTF-16
-        // code units on Windows. Neither seem appropriate for this use case,
-        // so we do the easy thing for now.
+        // 使用lossy转换意味着某些路径可能无法精确地往返，
+        // 但目前不清楚我们实际上应该做什么。
+        // Serde 拒绝非UTF-8路径，而在Windows上，OsStr序列化为UTF-16代码单元序列。
+        // 对于这种情况，都不合适，所以暂时简化处理。
         Data::Text { text: path.to_string_lossy() }
     }
 }
 
+// 将字节数组转换为Base64编码
 fn to_base64<T, S>(bytes: T, ser: S) -> Result<S::Ok, S::Error>
 where
     T: AsRef<[u8]>,
@@ -126,6 +118,7 @@ where
     ser.serialize_str(&base64::encode(&bytes))
 }
 
+// 序列化字节数组
 fn ser_bytes<T, S>(bytes: T, ser: S) -> Result<S::Ok, S::Error>
 where
     T: AsRef<[u8]>,
@@ -134,6 +127,7 @@ where
     Data::from_bytes(bytes.as_ref()).serialize(ser)
 }
 
+// 序列化路径
 fn ser_path<P, S>(path: &Option<P>, ser: S) -> Result<S::Ok, S::Error>
 where
     P: AsRef<Path>,

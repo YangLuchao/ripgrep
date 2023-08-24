@@ -3,14 +3,11 @@ use std::fmt;
 use std::str::FromStr;
 
 use termcolor::{Color, ColorSpec, ParseColorError};
-
-/// Returns a default set of color specifications.
+/// 返回默认的颜色规范集合。
 ///
-/// This may change over time, but the color choices are meant to be fairly
-/// conservative that work across terminal themes.
+/// 这可能会随时间而变化，但颜色选择旨在保持相对保守，适用于各种终端主题。
 ///
-/// Additional color specifications can be added to the list returned. More
-/// recently added specifications override previously added specifications.
+/// 可以将其他颜色规范添加到返回的列表中。最近添加的规范将覆盖先前添加的规范。
 pub fn default_color_specs() -> Vec<UserColorSpec> {
     vec![
         #[cfg(unix)]
@@ -23,29 +20,29 @@ pub fn default_color_specs() -> Vec<UserColorSpec> {
     ]
 }
 
-/// An error that can occur when parsing color specifications.
+/// 解析颜色规范时可能出现的错误。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ColorError {
-    /// This occurs when an unrecognized output type is used.
+    /// 使用了未识别的输出类型时发生。
     UnrecognizedOutType(String),
-    /// This occurs when an unrecognized spec type is used.
+    /// 使用了未识别的规范类型时发生。
     UnrecognizedSpecType(String),
-    /// This occurs when an unrecognized color name is used.
+    /// 使用了未识别的颜色名称时发生。
     UnrecognizedColor(String, String),
-    /// This occurs when an unrecognized style attribute is used.
+    /// 使用了未识别的样式属性时发生。
     UnrecognizedStyle(String),
-    /// This occurs when the format of a color specification is invalid.
+    /// 颜色规范的格式无效时发生。
     InvalidFormat(String),
 }
 
 impl error::Error for ColorError {
     fn description(&self) -> &str {
         match *self {
-            ColorError::UnrecognizedOutType(_) => "unrecognized output type",
-            ColorError::UnrecognizedSpecType(_) => "unrecognized spec type",
-            ColorError::UnrecognizedColor(_, _) => "unrecognized color name",
-            ColorError::UnrecognizedStyle(_) => "unrecognized style attribute",
-            ColorError::InvalidFormat(_) => "invalid color spec",
+            ColorError::UnrecognizedOutType(_) => "未识别的输出类型",
+            ColorError::UnrecognizedSpecType(_) => "未识别的规范类型",
+            ColorError::UnrecognizedColor(_, _) => "未识别的颜色名称",
+            ColorError::UnrecognizedStyle(_) => "未识别的样式属性",
+            ColorError::InvalidFormat(_) => "颜色规范格式无效",
         }
     }
 }
@@ -64,40 +61,38 @@ impl fmt::Display for ColorError {
         match *self {
             ColorError::UnrecognizedOutType(ref name) => write!(
                 f,
-                "unrecognized output type '{}'. Choose from: \
-                     path, line, column, match.",
+                "未识别的输出类型'{}'。可选择的类型有：\
+                     path、line、column、match。",
                 name,
             ),
             ColorError::UnrecognizedSpecType(ref name) => write!(
                 f,
-                "unrecognized spec type '{}'. Choose from: \
-                     fg, bg, style, none.",
+                "未识别的规范类型'{}'。可选择的类型有：\
+                     fg、bg、style、none。",
                 name,
             ),
             ColorError::UnrecognizedColor(_, ref msg) => write!(f, "{}", msg),
             ColorError::UnrecognizedStyle(ref name) => write!(
                 f,
-                "unrecognized style attribute '{}'. Choose from: \
-                     nobold, bold, nointense, intense, nounderline, \
-                     underline.",
+                "未识别的样式属性'{}'。可选择的属性有：\
+                     nobold、bold、nointense、intense、nounderline、\
+                     underline。",
                 name,
             ),
             ColorError::InvalidFormat(ref original) => write!(
                 f,
-                "invalid color spec format: '{}'. Valid format \
-                     is '(path|line|column|match):(fg|bg|style):(value)'.",
+                "无效的颜色规范格式：'{}'。有效的格式为\
+                     '(path|line|column|match):(fg|bg|style):(value)'。",
                 original,
             ),
         }
     }
 }
 
-/// A merged set of color specifications.
+/// 合并的颜色规范集合。
 ///
-/// This set of color specifications represents the various color types that
-/// are supported by the printers in this crate. A set of color specifications
-/// can be created from a sequence of
-/// [`UserColorSpec`s](struct.UserColorSpec.html).
+/// 这组颜色规范表示此库中的打印机支持的各种颜色类型。可以从一系列
+/// [`UserColorSpec`s](struct.UserColorSpec.html) 创建一组颜色规范。
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ColorSpecs {
     path: ColorSpec,
@@ -106,45 +101,37 @@ pub struct ColorSpecs {
     matched: ColorSpec,
 }
 
-/// A single color specification provided by the user.
+/// 用户提供的单个颜色规范。
 ///
-/// ## Format
+/// ## 格式
 ///
-/// The format of a `Spec` is a triple: `{type}:{attribute}:{value}`. Each
-/// component is defined as follows:
+/// `UserColorSpec` 的格式是三元组：`{type}:{attribute}:{value}`。每个组件的定义如下：
 ///
-/// * `{type}` can be one of `path`, `line`, `column` or `match`.
-/// * `{attribute}` can be one of `fg`, `bg` or `style`. `{attribute}` may also
-///   be the special value `none`, in which case, `{value}` can be omitted.
-/// * `{value}` is either a color name (for `fg`/`bg`) or a style instruction.
+/// * `{type}` 可以是 `path`、`line`、`column` 或 `match` 中的一个。
+/// * `{attribute}` 可以是 `fg`、`bg` 或 `style` 中的一个。`{attribute}` 也可以是特殊值 `none`，
+///   在这种情况下，可以省略 `{value}`。
+/// * `{value}` 在 `{attribute}` 是 `fg` 或 `bg` 时应为颜色，或者在 `{attribute}` 是 `style` 时应为样式指令。
+///   当 `{attribute}` 是 `none` 时，必须省略 `{value}`。
 ///
-/// `{type}` controls which part of the output should be styled.
+/// `{type}` 控制着在标准打印机中颜色应用的部分，例如文件路径还是行号等。
 ///
-/// When `{attribute}` is `none`, then this should cause any existing style
-/// settings to be cleared for the specified `type`.
+/// 当 `{attribute}` 为 `none` 时，这应该会清除指定 `type` 的任何现有样式设置。
 ///
-/// `{value}` should be a color when `{attribute}` is `fg` or `bg`, or it
-/// should be a style instruction when `{attribute}` is `style`. When
-/// `{attribute}` is `none`, `{value}` must be omitted.
+/// 当 `{attribute}` 为 `fg` 或 `bg` 时，`{value}` 应为颜色；当 `{attribute}` 为 `style` 时，`{value}` 应为样式指令。
+/// 当 `{attribute}` 为 `none` 时，必须省略 `{value}`。
 ///
-/// Valid colors are `black`, `blue`, `green`, `red`, `cyan`, `magenta`,
-/// `yellow`, `white`. Extended colors can also be specified, and are formatted
-/// as `x` (for 256-bit colors) or `x,x,x` (for 24-bit true color), where
-/// `x` is a number between 0 and 255 inclusive. `x` may be given as a normal
-/// decimal number of a hexadecimal number, where the latter is prefixed by
-/// `0x`.
+/// 有效的颜色包括 `black`、`blue`、`green`、`red`、`cyan`、`magenta`、`yellow`、`white`。
+/// 也可以指定扩展颜色，格式为 `x`（256 位颜色）或 `x,x,x`（24 位真彩色），其中 `x` 是介于 0 到 255 之间的数字，包含两端。
+/// `x` 可以以普通十进制数或以 `0x` 为前缀的十六进制数给出。
 ///
-/// Valid style instructions are `nobold`, `bold`, `intense`, `nointense`,
-/// `underline`, `nounderline`.
+/// 有效的样式指令包括 `nobold`、`bold`、`intense`、`nointense`、`underline`、`nounderline`。
 ///
-/// ## Example
+/// ## 示例
 ///
-/// The standard way to build a `UserColorSpec` is to parse it from a string.
-/// Once multiple `UserColorSpec`s have been constructed, they can be provided
-/// to the standard printer where they will automatically be applied to the
-/// output.
+/// 构建 `UserColorSpec` 的标准方式是从字符串解析它。一旦构建了多个 `UserColorSpec`，它们可以提供给标准打印机，
+/// 在那里它们将自动应用于输出。
 ///
-/// A `UserColorSpec` can also be converted to a `termcolor::ColorSpec`:
+/// `UserColorSpec` 也可以转换为 `termcolor::ColorSpec`：
 ///
 /// ```rust
 /// # fn main() {
@@ -168,18 +155,15 @@ pub struct UserColorSpec {
 }
 
 impl UserColorSpec {
-    /// Convert this user provided color specification to a specification that
-    /// can be used with `termcolor`. This drops the type of this specification
-    /// (where the type indicates where the color is applied in the standard
-    /// printer, e.g., to the file path or the line numbers, etc.).
+    /// 将此用户提供的颜色规范转换为可用于 `termcolor` 的规范。这将丢弃此规范的类型
+    /// （其中类型指示颜色在标准打印机中应用的位置，例如文件路径或行号等）。
     pub fn to_color_spec(&self) -> ColorSpec {
         let mut spec = ColorSpec::default();
         self.value.merge_into(&mut spec);
         spec
     }
 }
-
-/// The actual value given by the specification.
+/// 规范指定的实际值。
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum SpecValue {
     None,
@@ -188,7 +172,7 @@ enum SpecValue {
     Style(Style),
 }
 
-/// The set of configurable portions of ripgrep's output.
+/// 可配置部分的集合，用于 ripgrep 的输出。
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum OutType {
     Path,
@@ -197,7 +181,7 @@ enum OutType {
     Match,
 }
 
-/// The specification type.
+/// 规范类型。
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum SpecType {
     Fg,
@@ -206,7 +190,7 @@ enum SpecType {
     None,
 }
 
-/// The set of available styles for use in the terminal.
+/// 终端中可用的样式集合。
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Style {
     Bold,
@@ -218,8 +202,7 @@ enum Style {
 }
 
 impl ColorSpecs {
-    /// Create color specifications from a list of user supplied
-    /// specifications.
+    /// 从用户提供的规范列表创建颜色规范。
     pub fn new(specs: &[UserColorSpec]) -> ColorSpecs {
         let mut merged = ColorSpecs::default();
         for spec in specs {
@@ -233,45 +216,44 @@ impl ColorSpecs {
         merged
     }
 
-    /// Create a default set of specifications that have color.
+    /// 创建一个带有颜色的默认规范集。
     ///
-    /// This is distinct from `ColorSpecs`'s `Default` implementation in that
-    /// this provides a set of default color choices, where as the `Default`
-    /// implementation provides no color choices.
+    /// 这与 `ColorSpecs` 的 `Default` 实现不同，因为它提供了一组默认的颜色选择，而 `Default`
+    /// 实现则不提供任何颜色选择。
     pub fn default_with_color() -> ColorSpecs {
         ColorSpecs::new(&default_color_specs())
     }
 
-    /// Return the color specification for coloring file paths.
+    /// 返回用于着色文件路径的颜色规范。
     pub fn path(&self) -> &ColorSpec {
         &self.path
     }
 
-    /// Return the color specification for coloring line numbers.
+    /// 返回用于着色行号的颜色规范。
     pub fn line(&self) -> &ColorSpec {
         &self.line
     }
 
-    /// Return the color specification for coloring column numbers.
+    /// 返回用于着色列号的颜色规范。
     pub fn column(&self) -> &ColorSpec {
         &self.column
     }
 
-    /// Return the color specification for coloring matched text.
+    /// 返回用于着色匹配文本的颜色规范。
     pub fn matched(&self) -> &ColorSpec {
         &self.matched
     }
 }
 
 impl UserColorSpec {
-    /// Merge this spec into the given color specification.
+    /// 将此规范合并到给定的颜色规范中。
     fn merge_into(&self, cspec: &mut ColorSpec) {
         self.value.merge_into(cspec);
     }
 }
 
 impl SpecValue {
-    /// Merge this spec value into the given color specification.
+    /// 将此规范值合并到给定的颜色规范中。
     fn merge_into(&self, cspec: &mut ColorSpec) {
         match *self {
             SpecValue::None => cspec.clear(),

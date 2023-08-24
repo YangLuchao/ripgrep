@@ -1,20 +1,18 @@
 use regex_syntax::ast::{self, Ast};
 
-/// The results of analyzing AST of a regular expression (e.g., for supporting
-/// smart case).
+/// 用于分析正则表达式的AST结果（例如，用于支持智能大小写）。
 #[derive(Clone, Debug)]
 pub(crate) struct AstAnalysis {
-    /// True if and only if a literal uppercase character occurs in the regex.
+    /// 当且仅当正则表达式中出现大写字母时为true。
     any_uppercase: bool,
-    /// True if and only if the regex contains any literal at all.
+    /// 当且仅当正则表达式包含任何字面值时为true。
     any_literal: bool,
 }
 
 impl AstAnalysis {
-    /// Returns a `AstAnalysis` value by doing analysis on the AST of `pattern`.
+    /// 通过对“pattern”的AST进行分析，返回一个`AstAnalysis`值。
     ///
-    /// If `pattern` is not a valid regular expression, then `None` is
-    /// returned.
+    /// 如果“pattern”不是有效的正则表达式，则返回`None`。
     #[cfg(test)]
     pub(crate) fn from_pattern(pattern: &str) -> Option<AstAnalysis> {
         regex_syntax::ast::parse::Parser::new()
@@ -23,32 +21,28 @@ impl AstAnalysis {
             .ok()
     }
 
-    /// Perform an AST analysis given the AST.
+    /// 在给定AST的基础上执行AST分析。
     pub(crate) fn from_ast(ast: &Ast) -> AstAnalysis {
         let mut analysis = AstAnalysis::new();
         analysis.from_ast_impl(ast);
         analysis
     }
 
-    /// Returns true if and only if a literal uppercase character occurs in
-    /// the pattern.
+    /// 当且仅当模式中存在大写字母的字面值时返回true。
     ///
-    /// For example, a pattern like `\pL` contains no uppercase literals,
-    /// even though `L` is uppercase and the `\pL` class contains uppercase
-    /// characters.
+    /// 例如，像`\pL`这样的模式不包含大写字母字面值，即使`L`是大写字母，`\pL`类包含大写字母。
     pub(crate) fn any_uppercase(&self) -> bool {
         self.any_uppercase
     }
 
-    /// Returns true if and only if the regex contains any literal at all.
+    /// 当且仅当正则表达式包含任何字面值时返回true。
     ///
-    /// For example, a pattern like `\pL` reports `false`, but a pattern like
-    /// `\pLfoo` reports `true`.
+    /// 例如，像`\pL`这样的模式报告为`false`，但是像`\pLfoo`这样的模式报告为`true`。
     pub(crate) fn any_literal(&self) -> bool {
         self.any_literal
     }
 
-    /// Creates a new `AstAnalysis` value with an initial configuration.
+    /// 创建一个具有初始配置的新的`AstAnalysis`值。
     fn new() -> AstAnalysis {
         AstAnalysis { any_uppercase: false, any_literal: false }
     }
@@ -136,8 +130,7 @@ impl AstAnalysis {
         self.any_uppercase = self.any_uppercase || ast.c.is_uppercase();
     }
 
-    /// Returns true if and only if the attributes can never change no matter
-    /// what other AST it might see.
+    /// 当且仅当属性无论看到什么其他AST都永远不会改变时返回true。
     fn done(&self) -> bool {
         self.any_uppercase && self.any_literal
     }

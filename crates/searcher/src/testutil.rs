@@ -9,14 +9,11 @@ use regex::bytes::{Regex, RegexBuilder};
 
 use crate::searcher::{BinaryDetection, Searcher, SearcherBuilder};
 use crate::sink::{Sink, SinkContext, SinkFinish, SinkMatch};
-
-/// A simple regex matcher.
+/// 一个简单的正则表达式匹配器。
 ///
-/// This supports setting the matcher's line terminator configuration directly,
-/// which we use for testing purposes. That is, the caller explicitly
-/// determines whether the line terminator optimization is enabled. (In reality
-/// this optimization is detected automatically by inspecting and possibly
-/// modifying the regex itself.)
+/// 这支持直接设置匹配器的行终止符配置，我们用于测试目的。
+/// 也就是说，调用者明确确定是否启用行终止符优化。
+/// （实际上，此优化是通过检查并可能修改正则表达式自身来自动检测的。）
 #[derive(Clone, Debug)]
 pub struct RegexMatcher {
     regex: Regex,
@@ -25,10 +22,10 @@ pub struct RegexMatcher {
 }
 
 impl RegexMatcher {
-    /// Create a new regex matcher.
+    /// 创建一个新的正则表达式匹配器。
     pub fn new(pattern: &str) -> RegexMatcher {
         let regex = RegexBuilder::new(pattern)
-            .multi_line(true) // permits ^ and $ to match at \n boundaries
+            .multi_line(true) // 允许 ^ 和 $ 在 \n 边界处匹配
             .build()
             .unwrap();
         RegexMatcher {
@@ -38,9 +35,9 @@ impl RegexMatcher {
         }
     }
 
-    /// Forcefully set the line terminator of this matcher.
+    /// 强制设置此匹配器的行终止符。
     ///
-    /// By default, this matcher has no line terminator set.
+    /// 默认情况下，此匹配器未设置行终止符。
     pub fn set_line_term(
         &mut self,
         line_term: Option<LineTerminator>,
@@ -49,9 +46,9 @@ impl RegexMatcher {
         self
     }
 
-    /// Whether to return every line as a candidate or not.
+    /// 是否将每一行都作为候选项返回。
     ///
-    /// This forces searchers to handle the case of reporting a false positive.
+    /// 这会强制搜索器处理报告假阳性的情况。
     pub fn every_line_is_candidate(&mut self, yes: bool) -> &mut RegexMatcher {
         self.every_line_is_candidate = yes;
         self
@@ -90,8 +87,7 @@ impl Matcher for RegexMatcher {
             if haystack.is_empty() {
                 return Ok(None);
             }
-            // Make it interesting and return the last byte in the current
-            // line.
+            // 使其变得有趣，并返回当前行中的最后一个字节。
             let i = haystack
                 .find_byte(self.line_term.unwrap().as_byte())
                 .map(|i| i)
@@ -103,21 +99,19 @@ impl Matcher for RegexMatcher {
     }
 }
 
-/// An implementation of Sink that prints all available information.
+/// 一个实现了 Sink 的实现，打印所有可用信息。
 ///
-/// This is useful for tests because it lets us easily confirm whether data
-/// is being passed to Sink correctly.
+/// 这对于测试非常有用，因为它可以让我们轻松地确认是否正确地将数据传递给 Sink。
 #[derive(Clone, Debug)]
 pub struct KitchenSink(Vec<u8>);
 
 impl KitchenSink {
-    /// Create a new implementation of Sink that includes everything in the
-    /// kitchen.
+    /// 创建一个包含“厨房中所有内容”的 Sink 实现的新实例。
     pub fn new() -> KitchenSink {
         KitchenSink(vec![])
     }
 
-    /// Return the data written to this sink.
+    /// 返回写入此 Sink 的数据。
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }
@@ -187,17 +181,12 @@ impl Sink for KitchenSink {
     }
 }
 
-/// A type for expressing tests on a searcher.
+/// 用于对搜索器进行测试的类型。
 ///
-/// The searcher code has a lot of different code paths, mostly for the
-/// purposes of optimizing a bunch of different use cases. The intent of the
-/// searcher is to pick the best code path based on the configuration, which
-/// means there is no obviously direct way to ask that a specific code path
-/// be exercised. Thus, the purpose of this tester is to explicitly check as
-/// many code paths that make sense.
+/// 搜索器代码具有许多不同的代码路径，主要用于优化各种不同的用例。搜索器的意图是根据配置选择最佳的代码路径，
+/// 这意味着没有明显的直接方法来要求执行特定的代码路径。因此，这个测试器的目的是显式地检查尽可能多的有意义的代码路径。
 ///
-/// The tester works by assuming you want to test all pertinent code paths.
-/// These can be trimmed down as necessary via the various builder methods.
+/// 测试器通过假设您希望测试所有相关的代码路径来工作。可以通过各种构建器方法来逐渐缩减这些代码路径。
 #[derive(Debug)]
 pub struct SearcherTester {
     haystack: String,
@@ -220,46 +209,42 @@ pub struct SearcherTester {
 }
 
 impl SearcherTester {
-    /// Create a new tester for testing searchers.
+    /// 为测试搜索器创建一个新的测试器。
     pub fn new(haystack: &str, pattern: &str) -> SearcherTester {
         SearcherTester {
-            haystack: haystack.to_string(),
-            pattern: pattern.to_string(),
-            filter: None,
-            print_labels: false,
-            expected_no_line_number: None,
-            expected_with_line_number: None,
-            expected_slice_no_line_number: None,
-            expected_slice_with_line_number: None,
-            by_line: true,
-            multi_line: true,
-            invert_match: false,
-            line_number: true,
-            binary: BinaryDetection::none(),
-            auto_heap_limit: true,
-            after_context: 0,
-            before_context: 0,
-            passthru: false,
+            haystack: haystack.to_string(), // 初始化被搜索的文本
+            pattern: pattern.to_string(),   // 初始化搜索的模式
+            filter: None,                   // 过滤器，默认为空
+            print_labels: false,            // 是否打印测试标签，默认为 false
+            expected_no_line_number: None,  // 期望的无行号搜索结果，默认为空
+            expected_with_line_number: None, // 期望的带行号搜索结果，默认为空
+            expected_slice_no_line_number: None, // 期望的无行号切片搜索结果，默认为空
+            expected_slice_with_line_number: None, // 期望的带行号切片搜索结果，默认为空
+            by_line: true,                         // 是否按行搜索，默认为 true
+            multi_line: true, // 是否进行多行搜索，默认为 true
+            invert_match: false, // 是否反向匹配，默认为 false
+            line_number: true, // 是否显示行号，默认为 true
+            binary: BinaryDetection::none(), // 二进制检测，默认不启用
+            auto_heap_limit: true, // 是否自动设置堆限制，默认为 true
+            after_context: 0, // 后置上下文，默认为 0
+            before_context: 0, // 前置上下文，默认为 0
+            passthru: false,  // 是否启用透传模式，默认为 false
         }
     }
 
-    /// Execute the test. If the test succeeds, then this returns successfully.
-    /// If the test fails, then it panics with an informative message.
+    /// 执行测试。如果测试成功，函数返回成功。如果测试失败，函数会抛出带有信息的 panic。
     pub fn test(&self) {
-        // Check for configuration errors.
+        // 检查配置错误
         if self.expected_no_line_number.is_none() {
-            panic!("an 'expected' string with NO line numbers must be given");
+            panic!("必须提供不带行号的 'expected' 字符串");
         }
         if self.line_number && self.expected_with_line_number.is_none() {
-            panic!(
-                "an 'expected' string with line numbers must be given, \
-                    or disable testing with line numbers"
-            );
+            panic!("必须提供带行号的 'expected' 字符串，或者禁用带行号的测试");
         }
 
-        let configs = self.configs();
+        let configs = self.configs(); // 获取测试配置
         if configs.is_empty() {
-            panic!("test configuration resulted in nothing being tested");
+            panic!("测试配置导致没有任何测试被执行");
         }
         if self.print_labels {
             for config in &configs {
@@ -271,7 +256,7 @@ impl SearcherTester {
                     if self.include(label) {
                         println!("{}", label);
                     } else {
-                        println!("{} (ignored)", label);
+                        println!("{} (已忽略)", label);
                     }
                 }
             }
@@ -279,44 +264,39 @@ impl SearcherTester {
         for config in &configs {
             let label = format!("reader-{}", config.label);
             if self.include(&label) {
-                let got = config.search_reader(&self.haystack);
+                let got = config.search_reader(&self.haystack); // 执行基于读取器的搜索
                 assert_eq_printed!(config.expected_reader, got, "{}", label);
             }
 
             let label = format!("slice-{}", config.label);
             if self.include(&label) {
-                let got = config.search_slice(&self.haystack);
+                let got = config.search_slice(&self.haystack); // 执行基于切片的搜索
                 assert_eq_printed!(config.expected_slice, got, "{}", label);
             }
         }
     }
 
-    /// Set a regex pattern to filter the tests that are run.
+    /// 设置用于过滤要运行的测试的正则表达式模式。
     ///
-    /// By default, no filter is present. When a filter is set, only test
-    /// configurations with a label matching the given pattern will be run.
+    /// 默认情况下，没有设置过滤器。设置过滤器后，只会运行标签与给定模式匹配的测试配置。
     ///
-    /// This is often useful when debugging tests, e.g., when you want to do
-    /// printf debugging and only want one particular test configuration to
-    /// execute.
+    /// 这在调试测试时很有用，例如，当您想进行 printf 调试并且只想运行一个特定的测试配置时。
     #[allow(dead_code)]
     pub fn filter(&mut self, pattern: &str) -> &mut SearcherTester {
         self.filter = Some(::regex::Regex::new(pattern).unwrap());
         self
     }
 
-    /// When set, the labels for all test configurations are printed before
-    /// executing any test.
+    /// 当设置时，会在执行任何测试之前打印所有测试配置的标签。
     ///
-    /// Note that in order to see these in tests that aren't failing, you'll
-    /// want to use `cargo test -- --nocapture`.
+    /// 请注意，在非失败的测试中查看这些标签，您需要使用 `cargo test -- --nocapture`。
     #[allow(dead_code)]
     pub fn print_labels(&mut self, yes: bool) -> &mut SearcherTester {
         self.print_labels = yes;
         self
     }
 
-    /// Set the expected search results, without line numbers.
+    /// 设置预期的搜索结果，不包含行号。
     pub fn expected_no_line_number(
         &mut self,
         exp: &str,
@@ -325,7 +305,7 @@ impl SearcherTester {
         self
     }
 
-    /// Set the expected search results, with line numbers.
+    /// 设置预期的搜索结果，包含行号。
     pub fn expected_with_line_number(
         &mut self,
         exp: &str,
@@ -334,9 +314,7 @@ impl SearcherTester {
         self
     }
 
-    /// Set the expected search results, without line numbers, when performing
-    /// a search on a slice. When not present, `expected_no_line_number` is
-    /// used instead.
+    /// 设置预期的搜索结果，不包含行号，用于在切片上执行搜索。如果未提供，则使用 `expected_no_line_number`。
     pub fn expected_slice_no_line_number(
         &mut self,
         exp: &str,
@@ -345,9 +323,7 @@ impl SearcherTester {
         self
     }
 
-    /// Set the expected search results, with line numbers, when performing a
-    /// search on a slice. When not present, `expected_with_line_number` is
-    /// used instead.
+    /// 设置预期的搜索结果，包含行号，用于在切片上执行搜索。如果未提供，则使用 `expected_with_line_number`。
     #[allow(dead_code)]
     pub fn expected_slice_with_line_number(
         &mut self,
@@ -357,44 +333,42 @@ impl SearcherTester {
         self
     }
 
-    /// Whether to test search with line numbers or not.
+    /// 是否测试带行号的搜索。
     ///
-    /// This is enabled by default. When enabled, the string that is expected
-    /// when line numbers are present must be provided. Otherwise, the expected
-    /// string isn't required.
+    /// 默认情况下，启用此选项。启用时，必须提供带行号的字符串，否则不需要提供预期字符串。
     pub fn line_number(&mut self, yes: bool) -> &mut SearcherTester {
         self.line_number = yes;
         self
     }
 
-    /// Whether to test search using the line-by-line searcher or not.
+    /// 是否使用逐行搜索器进行搜索。
     ///
-    /// By default, this is enabled.
+    /// 默认情况下，启用此选项。
     pub fn by_line(&mut self, yes: bool) -> &mut SearcherTester {
         self.by_line = yes;
         self
     }
 
-    /// Whether to test search using the multi line searcher or not.
+    /// 是否使用多行搜索器进行搜索。
     ///
-    /// By default, this is enabled.
+    /// 默认情况下，启用此选项。
     #[allow(dead_code)]
     pub fn multi_line(&mut self, yes: bool) -> &mut SearcherTester {
         self.multi_line = yes;
         self
     }
 
-    /// Whether to perform an inverted search or not.
+    /// 是否执行反向匹配搜索。
     ///
-    /// By default, this is disabled.
+    /// 默认情况下，禁用此选项。
     pub fn invert_match(&mut self, yes: bool) -> &mut SearcherTester {
         self.invert_match = yes;
         self
     }
 
-    /// Whether to enable binary detection on all searches.
+    /// 是否在所有搜索中启用二进制检测。
     ///
-    /// By default, this is disabled.
+    /// 默认情况下，禁用此选项。
     pub fn binary_detection(
         &mut self,
         detection: BinaryDetection,
@@ -402,58 +376,47 @@ impl SearcherTester {
         self.binary = detection;
         self
     }
-
-    /// Whether to automatically attempt to test the heap limit setting or not.
+    /// 是否自动尝试测试堆限制设置。
     ///
-    /// By default, one of the test configurations includes setting the heap
-    /// limit to its minimal value for normal operation, which checks that
-    /// everything works even at the extremes. However, in some cases, the heap
-    /// limit can (expectedly) alter the output slightly. For example, it can
-    /// impact the number of bytes searched when performing binary detection.
-    /// For convenience, it can be useful to disable the automatic heap limit
-    /// test.
+    /// 默认情况下，其中一个测试配置包括将堆限制设置为正常操作的最小值，以检查一切是否在极端情况下都正常工作。
+    /// 然而，在某些情况下，堆限制可能会（有意地）略微改变输出。例如，它可以影响执行二进制检测时搜索的字节数。
+    /// 为了方便起见，可以禁用自动堆限制测试。
     pub fn auto_heap_limit(&mut self, yes: bool) -> &mut SearcherTester {
         self.auto_heap_limit = yes;
         self
     }
 
-    /// Set the number of lines to include in the "after" context.
+    /// 设置在“after”上下文中包含的行数。
     ///
-    /// The default is `0`, which is equivalent to not printing any context.
+    /// 默认值为 `0`，等效于不打印任何上下文。
     pub fn after_context(&mut self, lines: usize) -> &mut SearcherTester {
         self.after_context = lines;
         self
     }
 
-    /// Set the number of lines to include in the "before" context.
+    /// 设置在“before”上下文中包含的行数。
     ///
-    /// The default is `0`, which is equivalent to not printing any context.
+    /// 默认值为 `0`，等效于不打印任何上下文。
     pub fn before_context(&mut self, lines: usize) -> &mut SearcherTester {
         self.before_context = lines;
         self
     }
 
-    /// Whether to enable the "passthru" feature or not.
+    /// 是否启用“passthru”功能。
     ///
-    /// When passthru is enabled, it effectively treats all non-matching lines
-    /// as contextual lines. In other words, enabling this is akin to
-    /// requesting an unbounded number of before and after contextual lines.
+    /// 启用 passthru 时，它会将所有不匹配的行实际上视为上下文行。换句话说，启用此功能类似于请求不受限制的前后上下文行数。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，禁用此功能。
     pub fn passthru(&mut self, yes: bool) -> &mut SearcherTester {
         self.passthru = yes;
         self
     }
 
-    /// Return the minimum size of a buffer required for a successful search.
+    /// 返回用于成功搜索所需的缓冲区的最小大小。
     ///
-    /// Generally, this corresponds to the maximum length of a line (including
-    /// its terminator), but if context settings are enabled, then this must
-    /// include the sum of the longest N lines.
+    /// 通常，这对应于最长行的最大长度（包括其终止符）。但如果启用了上下文设置，则这必须包括最长 N 行的总和。
     ///
-    /// Note that this must account for whether the test is using multi line
-    /// search or not, since multi line search requires being able to fit the
-    /// entire haystack into memory.
+    /// 请注意，这必须考虑测试是否使用了多行搜索，因为多行搜索需要将整个文本都放入内存中。
     fn minimal_heap_limit(&self, multi_line: bool) -> usize {
         if multi_line {
             1 + self.haystack.len()
@@ -468,17 +431,13 @@ impl SearcherTester {
             let context_count = if self.passthru {
                 self.haystack.lines().count()
             } else {
-                // Why do we add 2 here? Well, we need to add 1 in order to
-                // have room to search at least one line. We add another
-                // because the implementation will occasionally include
-                // an additional line when handling the context. There's
-                // no particularly good reason, other than keeping the
-                // implementation simple.
+                // 为什么这里加 2？首先，我们需要添加 1 以便至少搜索一行。
+                // 我们再加 1 是因为在处理上下文时，实现有时会包含额外的一行。
+                // 没有特别好的理由，只是为了保持实现的简单性。
                 2 + self.before_context + self.after_context
             };
 
-            // We add 1 to each line since `str::lines` doesn't include the
-            // line terminator.
+            // 我们对每一行都加上 1，因为 `str::lines` 不包括行终止符。
             lens.into_iter()
                 .take(context_count)
                 .map(|len| len + 1)
@@ -486,11 +445,9 @@ impl SearcherTester {
         }
     }
 
-    /// Returns true if and only if the given label should be included as part
-    /// of executing `test`.
+    /// 如果且仅如果给定的标签应包含在执行 `test` 时中，返回 true。
     ///
-    /// Inclusion is determined by the filter specified. If no filter has been
-    /// given, then this always returns `true`.
+    /// 包含由指定的过滤器决定。如果没有给定过滤器，则始终返回 `true`。
     fn include(&self, label: &str) -> bool {
         let re = match self.filter {
             None => return true,
@@ -499,9 +456,7 @@ impl SearcherTester {
         re.is_match(label)
     }
 
-    /// Configs generates a set of all search configurations that should be
-    /// tested. The configs generated are based on the configuration in this
-    /// builder.
+    /// Configs 生成应该测试的所有搜索配置的集合。生成的配置基于此构建器中的配置。
     fn configs(&self) -> Vec<TesterConfig> {
         let mut configs = vec![];
 
@@ -665,50 +620,46 @@ impl SearcherTester {
         configs
     }
 }
-
 #[derive(Debug)]
 struct TesterConfig {
-    label: String,
-    expected_reader: String,
-    expected_slice: String,
-    builder: SearcherBuilder,
-    matcher: RegexMatcher,
+    label: String,            // 配置标签
+    expected_reader: String,  // 预期的读取器搜索结果
+    expected_slice: String,   // 预期的切片搜索结果
+    builder: SearcherBuilder, // 搜索器构建器
+    matcher: RegexMatcher,    // 正则表达式匹配器
 }
 
 impl TesterConfig {
-    /// Execute a search using a reader. This exercises the incremental search
-    /// strategy, where the entire contents of the corpus aren't necessarily
-    /// in memory at once.
+    /// 使用读取器执行搜索。这会使用增量搜索策略，其中不一定需要一次性在内存中加载整个语料库。
     fn search_reader(&self, haystack: &str) -> String {
-        let mut sink = KitchenSink::new();
-        let mut searcher = self.builder.build();
+        let mut sink = KitchenSink::new(); // 创建一个 "KitchenSink" 实例来收集搜索结果
+        let mut searcher = self.builder.build(); // 使用配置中的构建器创建搜索器实例
         let result = searcher.search_reader(
             &self.matcher,
             haystack.as_bytes(),
             &mut sink,
-        );
+        ); // 执行搜索
         if let Err(err) = result {
             let label = format!("reader-{}", self.label);
-            panic!("error running '{}': {}", label, err);
+            panic!("运行'{}'时出错: {}", label, err); // 如果出错，输出错误信息
         }
-        String::from_utf8(sink.as_bytes().to_vec()).unwrap()
+        String::from_utf8(sink.as_bytes().to_vec()).unwrap() // 将搜索结果转换为字符串返回
     }
 
-    /// Execute a search using a slice. This exercises the search routines that
-    /// have the entire contents of the corpus in memory at one time.
+    /// 使用切片执行搜索。这会使用一次性将整个语料库内容加载到内存中的搜索例程。
     fn search_slice(&self, haystack: &str) -> String {
-        let mut sink = KitchenSink::new();
-        let mut searcher = self.builder.build();
+        let mut sink = KitchenSink::new(); // 创建一个 "KitchenSink" 实例来收集搜索结果
+        let mut searcher = self.builder.build(); // 使用配置中的构建器创建搜索器实例
         let result = searcher.search_slice(
             &self.matcher,
             haystack.as_bytes(),
             &mut sink,
-        );
+        ); // 执行搜索
         if let Err(err) = result {
             let label = format!("slice-{}", self.label);
-            panic!("error running '{}': {}", label, err);
+            panic!("运行'{}'时出错: {}", label, err); // 如果出错，输出错误信息
         }
-        String::from_utf8(sink.as_bytes().to_vec()).unwrap()
+        String::from_utf8(sink.as_bytes().to_vec()).unwrap() // 将搜索结果转换为字符串返回
     }
 }
 

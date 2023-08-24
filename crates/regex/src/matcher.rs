@@ -17,15 +17,11 @@ use crate::{
     literal::InnerLiterals,
     word::WordMatcher,
 };
-
-/// A builder for constructing a `Matcher` using regular expressions.
+/// 用于使用正则表达式构建`Matcher`的构建器。
 ///
-/// This builder re-exports many of the same options found on the regex crate's
-/// builder, in addition to a few other options such as smart case, word
-/// matching and the ability to set a line terminator which may enable certain
-/// types of optimizations.
+/// 此构建器重新导出了 regex crate 构建器中的许多相同选项，此外还包括一些其他选项，如智能大小写、单词匹配以及设置行终止符的能力，这些选项可能会启用某些类型的优化。
 ///
-/// The syntax supported is documented as part of the regex crate:
+/// 支持的语法在 regex crate 中有文档记录：
 /// <https://docs.rs/regex/#syntax>.
 #[derive(Clone, Debug)]
 pub struct RegexMatcherBuilder {
@@ -33,30 +29,29 @@ pub struct RegexMatcherBuilder {
 }
 
 impl Default for RegexMatcherBuilder {
+    /// 默认情况下，创建一个新的`RegexMatcherBuilder`实例。
     fn default() -> RegexMatcherBuilder {
         RegexMatcherBuilder::new()
     }
 }
 
 impl RegexMatcherBuilder {
-    /// Create a new builder for configuring a regex matcher.
+    /// 用于配置正则匹配器的新构建器。
     pub fn new() -> RegexMatcherBuilder {
         RegexMatcherBuilder { config: Config::default() }
     }
 
-    /// Build a new matcher using the current configuration for the provided
-    /// pattern.
+    /// 使用当前配置为提供的模式构建一个新的匹配器。
     ///
-    /// The syntax supported is documented as part of the regex crate:
+    /// 支持的语法在 regex crate 中有文档记录：
     /// <https://docs.rs/regex/#syntax>.
     pub fn build(&self, pattern: &str) -> Result<RegexMatcher, Error> {
         self.build_many(&[pattern])
     }
 
-    /// Build a new matcher using the current configuration for the provided
-    /// patterns. The resulting matcher behaves as if all of the patterns
-    /// given are joined together into a single alternation. That is, it
-    /// reports matches where at least one of the given patterns matches.
+    /// 使用当前配置为提供的模式构建一个新的匹配器。
+    /// 所得到的匹配器的行为就好像所有给定的模式被连接成一个单一的选择。也就是说，
+    /// 当给定的模式之一匹配时，它报告匹配。
     pub fn build_many<P: AsRef<str>>(
         &self,
         patterns: &[P],
@@ -67,19 +62,15 @@ impl RegexMatcherBuilder {
         log::trace!("final regex: {:?}", chir.hir().to_string());
 
         let non_matching_bytes = chir.non_matching_bytes();
-        // If we can pick out some literals from the regex, then we might be
-        // able to build a faster regex that quickly identifies candidate
-        // matching lines. The regex engine will do what it can on its own, but
-        // we can specifically do a little more when a line terminator is set.
-        // For example, for a regex like `\w+foo\w+`, we can look for `foo`,
-        // and when a match is found, look for the line containing `foo` and
-        // then run the original regex on only that line. (In this case, the
-        // regex engine is likely to handle this case for us since it's so
-        // simple, but the idea applies.)
+        // 如果我们可以从正则表达式中提取一些字面量，那么我们可能能够构建一个更快的正则表达式，
+        // 它可以快速识别候选的匹配行。正则表达式引擎会自行处理其所能处理的情况，
+        // 但是当设置了行终止符时，我们可以专门多做一些工作。
+        // 例如，对于像 `\w+foo\w+` 这样的正则表达式，我们可以搜索 `foo`，
+        // 并且在找到匹配时，寻找包含 `foo` 的行，然后仅在该行上运行原始正则表达式。
+        // （在这种情况下，正则表达式引擎很可能会为我们处理此情况，因为它非常简单，但是这个思想适用。）
         let fast_line_regex = InnerLiterals::new(chir, re).one_regex()?;
 
-        // We override the line terminator in case the configured HIR doesn't
-        // support it.
+        // 我们在这里覆盖行终止符，以防配置的HIR不支持它。
         let mut config = self.config.clone();
         config.line_terminator = chir.line_terminator();
         Ok(RegexMatcher {
@@ -90,11 +81,9 @@ impl RegexMatcherBuilder {
         })
     }
 
-    /// Build a new matcher from a plain alternation of literals.
+    /// 从字面量的简单选择中构建一个新的匹配器。
     ///
-    /// Depending on the configuration set by the builder, this may be able to
-    /// build a matcher substantially faster than by joining the patterns with
-    /// a `|` and calling `build`.
+    /// 根据构建器设置的配置，这可能能够构建一个比通过使用 `|` 连接模式并调用 `build` 更快的匹配器。
     pub fn build_literals<B: AsRef<str>>(
         &self,
         literals: &[B],
@@ -102,50 +91,42 @@ impl RegexMatcherBuilder {
         self.build_many(literals)
     }
 
-    /// Set the value for the case insensitive (`i`) flag.
+    /// 设置大小写不敏感（`i`）标志的值。
     ///
-    /// When enabled, letters in the pattern will match both upper case and
-    /// lower case variants.
+    /// 启用时，模式中的字母将匹配大写和小写变体。
     pub fn case_insensitive(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.case_insensitive = yes;
         self
     }
 
-    /// Whether to enable "smart case" or not.
+    /// 是否启用 "智能大小写"。
     ///
-    /// When smart case is enabled, the builder will automatically enable
-    /// case insensitive matching based on how the pattern is written. Namely,
-    /// case insensitive mode is enabled when both of the following things
-    /// are true:
+    /// 启用智能大小写时，构建器将根据模式的编写方式自动启用大小写不敏感匹配。
+    /// 换句话说，仅当以下两个条件都满足时，大小写不敏感模式才会启用：
     ///
-    /// 1. The pattern contains at least one literal character. For example,
-    ///    `a\w` contains a literal (`a`) but `\w` does not.
-    /// 2. Of the literals in the pattern, none of them are considered to be
-    ///    uppercase according to Unicode. For example, `foo\pL` has no
-    ///    uppercase literals but `Foo\pL` does.
+    /// 1. 模式中包含至少一个字面字符。例如，`a\w` 包含一个字面字符（`a`），
+    ///    但 `\w` 不包含字面字符。
+    /// 2. 在模式的字面字符中，没有一个被认为是 Unicode 大写字符。
+    ///    例如，`foo\pL` 中没有大写字面字符，但 `Foo\pL` 中有。
     pub fn case_smart(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.case_smart = yes;
         self
     }
 
-    /// Set the value for the multi-line matching (`m`) flag.
+    /// 设置多行匹配（`m`）标志的值。
     ///
-    /// When enabled, `^` matches the beginning of lines and `$` matches the
-    /// end of lines.
-    ///
-    /// By default, they match beginning/end of the input.
+    /// 启用时，`^` 匹配行的开头，`$` 匹配行的结尾。
+    /// 默认情况下，它们匹配输入的开头/结尾。
     pub fn multi_line(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.multi_line = yes;
         self
     }
 
-    /// Set the value for the any character (`s`) flag, where in `.` matches
-    /// anything when `s` is set and matches anything except for new line when
-    /// it is not set (the default).
+    /// 设置任意字符（`s`）标志的值，
+    /// 当 `s` 被设置时，`.` 可以匹配任何字符；当它未设置时（默认），`.` 可以匹配除换行符以外的任何字符。
     ///
-    /// N.B. "matches anything" means "any byte" when Unicode is disabled and
-    /// means "any valid UTF-8 encoding of any Unicode scalar value" when
-    /// Unicode is enabled.
+    /// 注意："匹配任何字符" 意味着 "任何字节"（当禁用 Unicode 时），
+    /// 而在启用 Unicode 时，它意味着 "任何 Unicode 标量值的任何有效 UTF-8 编码"。
     pub fn dot_matches_new_line(
         &mut self,
         yes: bool,
@@ -154,22 +135,19 @@ impl RegexMatcherBuilder {
         self
     }
 
-    /// Set the value for the greedy swap (`U`) flag.
+    /// 设置贪婪转换 (`U`) 标志的值。
     ///
-    /// When enabled, a pattern like `a*` is lazy (tries to find shortest
-    /// match) and `a*?` is greedy (tries to find longest match).
-    ///
-    /// By default, `a*` is greedy and `a*?` is lazy.
+    /// 启用时，`a*` 是懒惰的（尝试找到最短匹配），而 `a*?` 是贪婪的（尝试找到最长匹配）。
+    /// 默认情况下，`a*` 是贪婪的，`a*?` 是懒惰的。
     pub fn swap_greed(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.swap_greed = yes;
         self
     }
 
-    /// Set the value for the ignore whitespace (`x`) flag.
+    /// 设置忽略空格 (`x`) 标志的值。
     ///
-    /// When enabled, whitespace such as new lines and spaces will be ignored
-    /// between expressions of the pattern, and `#` can be used to start a
-    /// comment until the next new line.
+    /// 启用时，诸如换行符和空格之类的空白将在模式的表达式之间被忽略，
+    /// 并且 `#` 可以用于从当前位置开始的下一个换行符之前的注释。
     pub fn ignore_whitespace(
         &mut self,
         yes: bool,
@@ -177,55 +155,49 @@ impl RegexMatcherBuilder {
         self.config.ignore_whitespace = yes;
         self
     }
-
-    /// Set the value for the Unicode (`u`) flag.
+    /// 设置 Unicode (`u`) 标志的值。
     ///
-    /// Enabled by default. When disabled, character classes such as `\w` only
-    /// match ASCII word characters instead of all Unicode word characters.
+    /// 默认情况下启用。当禁用时，字符类如 `\w` 仅匹配 ASCII 单词字符，
+    /// 而不是所有的 Unicode 单词字符。
     pub fn unicode(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.unicode = yes;
         self
     }
 
-    /// Whether to support octal syntax or not.
+    /// 是否支持八进制语法。
     ///
-    /// Octal syntax is a little-known way of uttering Unicode codepoints in
-    /// a regular expression. For example, `a`, `\x61`, `\u0061` and
-    /// `\141` are all equivalent regular expressions, where the last example
-    /// shows octal syntax.
+    /// 八进制语法是在正则表达式中表示 Unicode 代码点的一种较少知名的方式。
+    /// 例如，`a`、`\x61`、`\u0061` 和 `\141` 都是等价的正则表达式，
+    /// 其中最后一个示例展示了八进制语法。
     ///
-    /// While supporting octal syntax isn't in and of itself a problem, it does
-    /// make good error messages harder. That is, in PCRE based regex engines,
-    /// syntax like `\0` invokes a backreference, which is explicitly
-    /// unsupported in Rust's regex engine. However, many users expect it to
-    /// be supported. Therefore, when octal support is disabled, the error
-    /// message will explicitly mention that backreferences aren't supported.
+    /// 虽然支持八进制语法本身不是问题，但它确实使得生成良好的错误消息变得更困难。
+    /// 也就是说，在基于 PCRE 的正则表达式引擎中，例如 `\0` 的语法会调用反向引用，
+    /// 而在 Rust 的正则表达式引擎中明确不支持这一点。
+    /// 但是，许多用户期望它被支持。因此，当禁用八进制支持时，错误消息将明确提到不支持反向引用。
     ///
-    /// Octal syntax is disabled by default.
+    /// 默认情况下禁用八进制语法。
     pub fn octal(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.octal = yes;
         self
     }
 
-    /// Set the approximate size limit of the compiled regular expression.
+    /// 设置编译后正则表达式的大致大小限制。
     ///
-    /// This roughly corresponds to the number of bytes occupied by a single
-    /// compiled program. If the program exceeds this number, then a
-    /// compilation error is returned.
+    /// 这大致对应于单个编译程序占用的字节数。
+    /// 如果程序超过此数量，将返回编译错误。
     pub fn size_limit(&mut self, bytes: usize) -> &mut RegexMatcherBuilder {
         self.config.size_limit = bytes;
         self
     }
 
-    /// Set the approximate size of the cache used by the DFA.
+    /// 设置 DFA 使用的缓存的大致大小。
     ///
-    /// This roughly corresponds to the number of bytes that the DFA will
-    /// use while searching.
+    /// 这大致对应于 DFA 在搜索时将使用的字节数。
     ///
-    /// Note that this is a *per thread* limit. There is no way to set a global
-    /// limit. In particular, if a regex is used from multiple threads
-    /// simultaneously, then each thread may use up to the number of bytes
-    /// specified here.
+    /// 请注意，这是*每个线程*的限制。
+    /// 没有设置全局限制的方式。
+    /// 特别地，如果一个正则表达式在多个线程中同时使用，
+    /// 那么每个线程可能使用多达此处指定的字节数。
     pub fn dfa_size_limit(
         &mut self,
         bytes: usize,
@@ -234,56 +206,43 @@ impl RegexMatcherBuilder {
         self
     }
 
-    /// Set the nesting limit for this parser.
+    /// 设置此解析器的嵌套限制。
     ///
-    /// The nesting limit controls how deep the abstract syntax tree is allowed
-    /// to be. If the AST exceeds the given limit (e.g., with too many nested
-    /// groups), then an error is returned by the parser.
+    /// 嵌套限制控制允许抽象语法树深度有多深。
+    /// 如果 AST 超过给定的限制（例如，有太多嵌套的分组），
+    /// 则解析器将返回错误。
     ///
-    /// The purpose of this limit is to act as a heuristic to prevent stack
-    /// overflow for consumers that do structural induction on an `Ast` using
-    /// explicit recursion. While this crate never does this (instead using
-    /// constant stack space and moving the call stack to the heap), other
-    /// crates may.
+    /// 此限制的目的是作为一种启发式措施，
+    /// 以防止对 `Ast` 进行显式递归进行结构归纳的消费者出现堆栈溢出。
+    /// 虽然此 crate 从不这样做（而是使用恒定的堆栈空间，并将调用堆栈移至堆），
+    /// 但其他 crate 可能会这样做。
     ///
-    /// This limit is not checked until the entire Ast is parsed. Therefore,
-    /// if callers want to put a limit on the amount of heap space used, then
-    /// they should impose a limit on the length, in bytes, of the concrete
-    /// pattern string. In particular, this is viable since this parser
-    /// implementation will limit itself to heap space proportional to the
-    /// length of the pattern string.
+    /// 此限制在整个 Ast 被解析之前不会被检查。
+    /// 因此，如果调用方想要对使用的堆空间量设置限制，
+    /// 那么他们应该对具体模式字符串的长度（以字节为单位）设置限制。
+    /// 特别地，这是可行的，因为此解析器实现将限制自己的堆空间，与模式字符串的长度成比例。
     ///
-    /// Note that a nest limit of `0` will return a nest limit error for most
-    /// patterns but not all. For example, a nest limit of `0` permits `a` but
-    /// not `ab`, since `ab` requires a concatenation, which results in a nest
-    /// depth of `1`. In general, a nest limit is not something that manifests
-    /// in an obvious way in the concrete syntax, therefore, it should not be
-    /// used in a granular way.
+    /// 注意，嵌套限制为 `0` 将对大多数模式返回嵌套限制错误，
+    /// 但不是所有模式。例如，`a` 允许但 `ab` 不允许，
+    /// 因为 `ab` 需要连接，这会导致嵌套深度为 `1`。
+    /// 一般来说，嵌套限制不是在具体语法中明显体现的东西，因此不应以粒度方式使用。
     pub fn nest_limit(&mut self, limit: u32) -> &mut RegexMatcherBuilder {
         self.config.nest_limit = limit;
         self
     }
 
-    /// Set an ASCII line terminator for the matcher.
+    /// 为匹配器设置 ASCII 行终止符。
     ///
-    /// The purpose of setting a line terminator is to enable a certain class
-    /// of optimizations that can make line oriented searching faster. Namely,
-    /// when a line terminator is enabled, then the builder will guarantee that
-    /// the resulting matcher will never be capable of producing a match that
-    /// contains the line terminator. Because of this guarantee, users of the
-    /// resulting matcher do not need to slowly execute a search line by line
-    /// for line oriented search.
+    /// 设置行终止符的目的是启用某些优化，可以使面向行的搜索更快。
+    /// 即，当启用行终止符时，生成的匹配器保证永远不会产生包含行终止符的匹配。
+    /// 由于此保证，使用生成的匹配器的用户无需逐行执行慢速搜索以进行行定向搜索。
     ///
-    /// If the aforementioned guarantee about not matching a line terminator
-    /// cannot be made because of how the pattern was written, then the builder
-    /// will return an error when attempting to construct the matcher. For
-    /// example, the pattern `a\sb` will be transformed such that it can never
-    /// match `a\nb` (when `\n` is the line terminator), but the pattern `a\nb`
-    /// will result in an error since the `\n` cannot be easily removed without
-    /// changing the fundamental intent of the pattern.
+    /// 如果由于模式的编写方式，无法保证不匹配行终止符，
+    /// 则在尝试构建匹配器时构建器将返回错误。
+    /// 例如，模式 `a\sb` 将被转换，以便永远无法匹配 `a\nb`（当 `\n` 是行终止符时），
+    /// 但模式 `a\nb` 将返回错误，因为无法轻松删除 `\n`，而不改变模式的基本意图。
     ///
-    /// If the given line terminator isn't an ASCII byte (`<=127`), then the
-    /// builder will return an error when constructing the matcher.
+    /// 如果给定的行终止符不是 ASCII 字节（`<=127`），则构建器在构建匹配器时将返回错误。
     pub fn line_terminator(
         &mut self,
         line_term: Option<u8>,
@@ -292,23 +251,19 @@ impl RegexMatcherBuilder {
         self
     }
 
-    /// Set the line terminator to `\r\n` and enable CRLF matching for `$` in
-    /// regex patterns.
+    /// 将行终止符设置为 `\r\n`，并在正则表达式模式中启用 CRLF 匹配。
     ///
-    /// This method sets two distinct settings:
+    /// 该方法设置两个不同的设置：
     ///
-    /// 1. It causes the line terminator for the matcher to be `\r\n`. Namely,
-    ///    this prevents the matcher from ever producing a match that contains
-    ///    a `\r` or `\n`.
-    /// 2. It enables CRLF mode for `^` and `$`. This means that line anchors
-    ///    will treat both `\r` and `\n` as line terminators, but will never
-    ///    match between a `\r` and `\n`.
+    /// 1. 它使匹配器的行终止符为 `\r\n`。
+    ///    也就是说，这会阻止匹配器产生包含 `\r` 或 `\n` 的匹配。
+    /// 2. 它为 `^` 和 `$` 启用了 CRLF 模式。
+    ///    这意味着行锚点将将 `\r` 和 `\n` 都视为行终止符，
+    ///    但永远不会在 `\r` 和 `\n` 之间匹配。
     ///
-    /// Note that if you do not wish to set the line terminator but would
-    /// still like `$` to match `\r\n` line terminators, then it is valid to
-    /// call `crlf(true)` followed by `line_terminator(None)`. Ordering is
-    /// important, since `crlf` sets the line terminator, but `line_terminator`
-    /// does not touch the `crlf` setting.
+    /// 请注意，如果您不希望设置行终止符，但仍希望 `$` 匹配 `\r\n` 行终止符，
+    /// 则可以调用 `crlf(true)`，然后调用 `line_terminator(None)`。
+    /// 顺序很重要，因为 `crlf` 设置行终止符，但 `line_terminator` 不会影响 `crlf` 设置。
     pub fn crlf(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         if yes {
             self.config.line_terminator = Some(LineTerminator::crlf());
@@ -319,96 +274,83 @@ impl RegexMatcherBuilder {
         self
     }
 
-    /// Require that all matches occur on word boundaries.
+    /// 要求所有匹配都发生在单词边界上。
     ///
-    /// Enabling this option is subtly different than putting `\b` assertions
-    /// on both sides of your pattern. In particular, a `\b` assertion requires
-    /// that one side of it match a word character while the other match a
-    /// non-word character. This option, in contrast, merely requires that
-    /// one side match a non-word character.
+    /// 启用此选项与在模式两侧放置 `\b` 断言略有不同。
+    /// 特别地，`\b` 断言要求其一侧匹配单词字符，而另一侧匹配非单词字符。
+    /// 相反，此选项仅要求其一侧匹配非单词字符。
     ///
-    /// For example, `\b-2\b` will not match `foo -2 bar` since `-` is not a
-    /// word character. However, `-2` with this `word` option enabled will
-    /// match the `-2` in `foo -2 bar`.
+    /// 例如，`\b-2\b` 不会匹配 `foo -2 bar`，因为 `-` 不是单词字符。
+    /// 但是，启用此 `word` 选项的 `-2` 将匹配 `foo -2 bar` 中的 `-2`。
     pub fn word(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.word = yes;
         self
     }
 
-    /// Whether the patterns should be treated as literal strings or not. When
-    /// this is active, all characters, including ones that would normally be
-    /// special regex meta characters, are matched literally.
+    /// 是否应将模式视为固定字符串。当启用此选项时，
+    /// 所有字符，包括通常会成为特殊正则元字符的字符，都会被字面匹配。
     pub fn fixed_strings(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.fixed_strings = yes;
         self
     }
 
-    /// Whether each pattern should match the entire line or not. This is
-    /// equivalent to surrounding the pattern with `(?m:^)` and `(?m:$)`.
+    /// 是否每个模式应完整匹配一整行。这等效于在模式周围使用 `(?m:^)` 和 `(?m:$)`。
     pub fn whole_line(&mut self, yes: bool) -> &mut RegexMatcherBuilder {
         self.config.whole_line = yes;
         self
     }
 }
-
-/// 使用Rust的标准regex 库实现' Matcher '特性。
+/// 使用 Rust 的标准正则库实现的 `Matcher` 特性。
 #[derive(Clone, Debug)]
 pub struct RegexMatcher {
-    /// 调用方指定的配置。
+    /// 调用者指定的配置。
     config: Config,
     /// 底层匹配器实现。
     matcher: RegexMatcherImpl,
-    /// A regex that never reports false negatives but may report false
-    /// positives that is believed to be capable of being matched more quickly
-    /// than `regex`. Typically, this is a single literal or an alternation
-    /// of literals.
+    /// 一个永不报告错误的负面结果但可能会报告错误的正面结果，
+    /// 被认为可以更快地匹配比 `regex`。通常，这是一个单一的字面值或多个字面值的交替。
     fast_line_regex: Option<Regex>,
-    /// A set of bytes that will never appear in a match.
+    /// 一组永远不会出现在匹配中的字节。
     non_matching_bytes: ByteSet,
 }
 
 impl RegexMatcher {
-    /// Create a new matcher from the given pattern using the default
-    /// configuration.
+    /// 使用默认配置从给定的模式创建新的匹配器。
     pub fn new(pattern: &str) -> Result<RegexMatcher, Error> {
         RegexMatcherBuilder::new().build(pattern)
     }
 
-    /// Create a new matcher from the given pattern using the default
-    /// configuration, but matches lines terminated by `\n`.
+    /// 使用默认配置从给定的模式创建新的匹配器，但匹配以 `\n` 终止的行。
     ///
-    /// This is meant to be a convenience constructor for
-    /// using a `RegexMatcherBuilder` and setting its
-    /// [`line_terminator`](RegexMatcherBuilder::method.line_terminator) to
-    /// `\n`. The purpose of using this constructor is to permit special
-    /// optimizations that help speed up line oriented search. These types of
-    /// optimizations are only appropriate when matches span no more than one
-    /// line. For this reason, this constructor will return an error if the
-    /// given pattern contains a literal `\n`. Other uses of `\n` (such as in
-    /// `\s`) are removed transparently.
+    /// 这是一个方便的构造函数，
+    /// 用于使用 `RegexMatcherBuilder` 并将其
+    /// [`line_terminator`](RegexMatcherBuilder::method.line_terminator) 设置为 `\n`。
+    /// 使用此构造函数的目的是允许带有特殊优化以加快面向行的搜索速度。
+    /// 这些类型的优化仅在匹配不跨越多行时适用。
+    /// 出于这个原因，如果给定的模式包含字面量 `\n`，则此构造函数将返回错误。
+    /// 其他用途的 `\n`（比如在 `\s` 中）会被透明地删除。
     pub fn new_line_matcher(pattern: &str) -> Result<RegexMatcher, Error> {
         RegexMatcherBuilder::new().line_terminator(Some(b'\n')).build(pattern)
     }
 }
 
-/// 我们在' RegexMatcher '中使用的匹配器类型的封装。
+/// 匹配器类型的封装，我们在 `RegexMatcher` 中使用它。
 #[derive(Clone, Debug)]
 enum RegexMatcherImpl {
     /// 用于所有正则表达式的标准匹配器。
     Standard(StandardMatcher),
-    /// 仅在单词边界处匹配的匹配器。这将正则表达式转换为 `(^|\W)(...)($|\W)`，
-    /// 而不是更直观的 `\b(...)\b`。由于这个原因，WordMatcher 提供了自己的 `Matcher`
-    /// 实现，以封装其对捕获组的使用，使它们对调用者不可见。
+    /// 仅在单词边界匹配的匹配器。
+    /// 这会将正则表达式转换为 `(^|\W)(...)($|\W)`，而不是更直观的 `\b(...)\b`。
+    /// 因此，`WordMatcher` 提供了自己的 `Matcher` 实现，以封装其对捕获组的使用，
+    /// 以使它们对调用者不可见。
     Word(WordMatcher),
 }
 
 impl RegexMatcherImpl {
-    /// Based on the configuration, create a new implementation of the
-    /// `Matcher` trait.
+    /// 根据配置创建实现 `Matcher` 特性的新实现。
     fn new(mut chir: ConfiguredHIR) -> Result<RegexMatcherImpl, Error> {
-        // When whole_line is set, we don't use a word matcher even if word
-        // matching was requested. Why? Because `(?m:^)(pat)(?m:$)` implies
-        // word matching.
+        // 当设置 whole_line 时，即使请求了单词匹配，我们也不使用单词匹配器。
+        // 为什么？因为 `(?m:^)(pat)(?m:$)` 意味着单词匹配。
         Ok(if chir.config().word && !chir.config().whole_line {
             RegexMatcherImpl::Word(WordMatcher::new(chir)?)
         } else {
@@ -419,7 +361,7 @@ impl RegexMatcherImpl {
         })
     }
 
-    /// Return the underlying regex object used.
+    /// 返回所使用的底层正则表达式对象。
     fn regex(&self) -> &Regex {
         match *self {
             RegexMatcherImpl::Word(ref x) => x.regex(),
@@ -427,7 +369,7 @@ impl RegexMatcherImpl {
         }
     }
 
-    /// Return the underlying HIR of the regex used for searching.
+    /// 返回用于搜索的底层正则表达式的 HIR。
     fn chir(&self) -> &ConfiguredHIR {
         match *self {
             RegexMatcherImpl::Word(ref x) => x.chir(),
@@ -436,13 +378,14 @@ impl RegexMatcherImpl {
     }
 }
 
-// This implementation just dispatches on the internal matcher impl except
-// for the line terminator optimization, which is possibly executed via
-// `fast_line_regex`.
+// 此实现只是根据内部匹配器实现进行调度，
+// 除了行终止符优化，这可能通过 `fast_line_regex` 执行。
 impl Matcher for RegexMatcher {
+    // 指定与 RegexMatcher 关联的捕获类型和错误类型。
     type Captures = RegexCaptures;
     type Error = NoError;
 
+    // 在给定位置查找匹配项。
     fn find_at(
         &self,
         haystack: &[u8],
@@ -455,6 +398,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 创建新的捕获对象。
     fn new_captures(&self) -> Result<RegexCaptures, NoError> {
         use self::RegexMatcherImpl::*;
         match self.matcher {
@@ -463,6 +407,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 获取匹配中捕获组的数量。
     fn capture_count(&self) -> usize {
         use self::RegexMatcherImpl::*;
         match self.matcher {
@@ -471,6 +416,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 获取给定名称的捕获组索引。
     fn capture_index(&self, name: &str) -> Option<usize> {
         use self::RegexMatcherImpl::*;
         match self.matcher {
@@ -479,6 +425,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 在整个文本中查找匹配项。
     fn find(&self, haystack: &[u8]) -> Result<Option<Match>, NoError> {
         use self::RegexMatcherImpl::*;
         match self.matcher {
@@ -487,6 +434,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 使用迭代器查找所有匹配项，并对每个匹配项执行指定的操作。
     fn find_iter<F>(&self, haystack: &[u8], matched: F) -> Result<(), NoError>
     where
         F: FnMut(Match) -> bool,
@@ -498,6 +446,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 使用尝试迭代器查找所有匹配项，并对每个匹配项执行指定的操作。
     fn try_find_iter<F, E>(
         &self,
         haystack: &[u8],
@@ -513,6 +462,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 查找并捕获匹配项的捕获组。
     fn captures(
         &self,
         haystack: &[u8],
@@ -525,6 +475,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 使用迭代器查找并捕获所有匹配项的捕获组。
     fn captures_iter<F>(
         &self,
         haystack: &[u8],
@@ -541,6 +492,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 使用尝试迭代器查找并捕获所有匹配项的捕获组。
     fn try_captures_iter<F, E>(
         &self,
         haystack: &[u8],
@@ -557,6 +509,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 在给定位置查找并捕获匹配项的捕获组。
     fn captures_at(
         &self,
         haystack: &[u8],
@@ -570,6 +523,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 替换匹配项并将结果写入指定的缓冲区。
     fn replace<F>(
         &self,
         haystack: &[u8],
@@ -586,6 +540,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 替换匹配项的捕获组并将结果写入指定的缓冲区。
     fn replace_with_captures<F>(
         &self,
         haystack: &[u8],
@@ -607,6 +562,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 检查整个文本是否匹配正则表达式。
     fn is_match(&self, haystack: &[u8]) -> Result<bool, NoError> {
         use self::RegexMatcherImpl::*;
         match self.matcher {
@@ -615,6 +571,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 检查指定位置的文本是否匹配正则表达式。
     fn is_match_at(
         &self,
         haystack: &[u8],
@@ -627,6 +584,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 查找最短匹配长度。
     fn shortest_match(
         &self,
         haystack: &[u8],
@@ -638,6 +596,7 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 查找给定位置的最短匹配长度。
     fn shortest_match_at(
         &self,
         haystack: &[u8],
@@ -650,14 +609,17 @@ impl Matcher for RegexMatcher {
         }
     }
 
+    // 获取非匹配字节集合。
     fn non_matching_bytes(&self) -> Option<&ByteSet> {
         Some(&self.non_matching_bytes)
     }
 
+    // 获取行终止符设置。
     fn line_terminator(&self) -> Option<LineTerminator> {
         self.config.line_terminator
     }
 
+    // 查找候选行匹配类型。
     fn find_candidate_line(
         &self,
         haystack: &[u8],
@@ -679,47 +641,60 @@ impl Matcher for RegexMatcher {
 /// 标准正则表达式匹配器的实现。
 #[derive(Clone, Debug)]
 struct StandardMatcher {
-    /// 从调用方提供的模式编译的正则表达式。
+    /// 从调用者提供的模式编译而来的正则表达式。
     regex: Regex,
-    /// 生成这个正则表达式的HIR。
+    /// 产生此正则表达式的 HIR。
     ///
-    /// 我们把它放在一个“Arc”中，因为当它到达这里时，它不会改变。因为克隆和删除' Hir '有点昂贵由于它的深度递归表示。
+    /// 我们将其放在 `Arc` 中，因为在它到达这里的时候，它将不会发生变化。
+    /// 并且因为克隆和丢弃 `Hir` 在某种程度上是昂贵的，因为它具有深层递归表示。
     chir: Arc<ConfiguredHIR>,
 }
 
 impl StandardMatcher {
+    // 创建一个新的标准匹配器。
     fn new(chir: ConfiguredHIR) -> Result<StandardMatcher, Error> {
         let chir = Arc::new(chir);
-        let regex = chir.to_regex()?;
+        let regex = chir.to_regex()?; // 将 HIR 转换为正则表达式。
         Ok(StandardMatcher { regex, chir })
     }
 }
 
 impl Matcher for StandardMatcher {
+    // 指定与标准匹配器关联的捕获类型和错误类型。
     type Captures = RegexCaptures;
     type Error = NoError;
 
+    // 在给定位置查找匹配项。
     fn find_at(
         &self,
         haystack: &[u8],
         at: usize,
     ) -> Result<Option<Match>, NoError> {
+        // 创建一个输入范围，从指定位置到文本末尾。
         let input = Input::new(haystack).span(at..haystack.len());
+        // 使用正则表达式在输入范围内查找匹配项。
         Ok(self.regex.find(input).map(|m| Match::new(m.start(), m.end())))
     }
 
+    // 创建新的捕获对象。
     fn new_captures(&self) -> Result<RegexCaptures, NoError> {
+        // 使用正则表达式创建新的捕获对象。
         Ok(RegexCaptures::new(self.regex.create_captures()))
     }
 
+    // 获取匹配中捕获组的数量。
     fn capture_count(&self) -> usize {
+        // 获取正则表达式中捕获组的数量。
         self.regex.captures_len()
     }
 
+    // 获取给定名称的捕获组索引。
     fn capture_index(&self, name: &str) -> Option<usize> {
+        // 使用正则表达式获取给定名称的捕获组索引。
         self.regex.group_info().to_index(PatternID::ZERO, name)
     }
 
+    // 使用尝试迭代器查找所有匹配项，并对每个匹配项执行指定的操作。
     fn try_find_iter<F, E>(
         &self,
         haystack: &[u8],
@@ -728,6 +703,7 @@ impl Matcher for StandardMatcher {
     where
         F: FnMut(Match) -> Result<bool, E>,
     {
+        // 使用正则表达式的迭代器查找所有匹配项。
         for m in self.regex.find_iter(haystack) {
             match matched(Match::new(m.start(), m.end())) {
                 Ok(true) => continue,
@@ -738,60 +714,58 @@ impl Matcher for StandardMatcher {
         Ok(Ok(()))
     }
 
+    // 在给定位置查找并捕获匹配项的捕获组。
     fn captures_at(
         &self,
         haystack: &[u8],
         at: usize,
         caps: &mut RegexCaptures,
     ) -> Result<bool, NoError> {
+        // 创建一个输入范围，从指定位置到文本末尾。
         let input = Input::new(haystack).span(at..haystack.len());
+        // 获取捕获对象的可变引用，并使用正则表达式在输入范围内搜索并捕获。
         let caps = caps.captures_mut();
         self.regex.search_captures(&input, caps);
         Ok(caps.is_match())
     }
 
+    // 查找给定位置的最短匹配长度。
     fn shortest_match_at(
         &self,
         haystack: &[u8],
         at: usize,
     ) -> Result<Option<usize>, NoError> {
+        // 创建一个输入范围，从指定位置到文本末尾。
         let input = Input::new(haystack).span(at..haystack.len());
+        // 使用正则表达式在输入范围内查找最短匹配。
         Ok(self.regex.search_half(&input).map(|hm| hm.offset()))
     }
 }
-
-/// Represents the match offsets of each capturing group in a match.
+/// 表示匹配中每个捕获组的偏移量。
 ///
-/// The first, or `0`th capture group, always corresponds to the entire match
-/// and is guaranteed to be present when a match occurs. The next capture
-/// group, at index `1`, corresponds to the first capturing group in the regex,
-/// ordered by the position at which the left opening parenthesis occurs.
+/// 第一个，或 `0` 号捕获组，始终对应于整个匹配，并且在发生匹配时保证存在。
+/// 下一个捕获组，位于索引 `1` 处，对应于正则表达式中第一个捕获组，其顺序与左圆括号出现的位置有关。
 ///
-/// Note that not all capturing groups are guaranteed to be present in a match.
-/// For example, in the regex, `(?P<foo>\w)|(?P<bar>\W)`, only one of `foo`
-/// or `bar` will ever be set in any given match.
+/// 需要注意的是，并非所有捕获组在匹配中都保证存在。例如，在正则表达式 `(?P<foo>\w)|(?P<bar>\W)` 中，
+/// 在任何给定的匹配中，只会设置 `foo` 或 `bar` 中的一个。
 ///
-/// In order to access a capture group by name, you'll need to first find the
-/// index of the group using the corresponding matcher's `capture_index`
-/// method, and then use that index with `RegexCaptures::get`.
+/// 要通过名称访问捕获组，首先需要使用相应匹配器的 `capture_index` 方法找到组的索引，
+/// 然后将该索引与 `RegexCaptures::get` 一起使用。
 #[derive(Clone, Debug)]
 pub struct RegexCaptures {
-    /// Where the captures are stored.
+    /// 存储捕获组的地方。
     caps: AutomataCaptures,
-    /// These captures behave as if the capturing groups begin at the given
-    /// offset. When set to `0`, this has no affect and capture groups are
-    /// indexed like normal.
+    /// 这些捕获组的行为就好像捕获组从给定偏移量开始。当设置为 `0` 时，这没有影响，
+    /// 捕获组按照正常方式进行索引。
     ///
-    /// This is useful when building matchers that wrap arbitrary regular
-    /// expressions. For example, `WordMatcher` takes an existing regex
-    /// `re` and creates `(?:^|\W)(re)(?:$|\W)`, but hides the fact that
-    /// the regex has been wrapped from the caller. In order to do this,
-    /// the matcher and the capturing groups must behave as if `(re)` is
-    /// the `0`th capture group.
+    /// 当构建包装任意正则表达式的匹配器时，这很有用。例如，`WordMatcher` 接受现有的正则表达式 `re`，
+    /// 并创建 `(?:^|\W)(re)(?:$|\W)`，但会隐藏从调用者处包装了正则表达式的事实。
+    /// 为了实现这一点，匹配器和捕获组必须像 `(re)` 是第 `0` 号捕获组一样进行操作。
     offset: usize,
 }
 
 impl Captures for RegexCaptures {
+    // 返回捕获组的数量。
     fn len(&self) -> usize {
         self.caps
             .group_info()
@@ -800,6 +774,7 @@ impl Captures for RegexCaptures {
             .unwrap()
     }
 
+    // 获取给定索引处的匹配项。
     fn get(&self, i: usize) -> Option<Match> {
         let actual = i.checked_add(self.offset).unwrap();
         self.caps.get_group(actual).map(|sp| Match::new(sp.start, sp.end))
@@ -807,10 +782,12 @@ impl Captures for RegexCaptures {
 }
 
 impl RegexCaptures {
+    // 创建一个新的 RegexCaptures 实例。
     pub(crate) fn new(caps: AutomataCaptures) -> RegexCaptures {
         RegexCaptures::with_offset(caps, 0)
     }
 
+    // 创建一个带偏移量的 RegexCaptures 实例。
     pub(crate) fn with_offset(
         caps: AutomataCaptures,
         offset: usize,
@@ -818,6 +795,7 @@ impl RegexCaptures {
         RegexCaptures { caps, offset }
     }
 
+    // 获取可变引用的捕获对象。
     pub(crate) fn captures_mut(&mut self) -> &mut AutomataCaptures {
         &mut self.caps
     }
@@ -828,8 +806,7 @@ mod tests {
     use super::*;
     use grep_matcher::{LineMatchKind, Matcher};
 
-    // Test that enabling word matches does the right thing and demonstrate
-    // the difference between it and surrounding the regex in `\b`.
+    // 测试启用单词匹配时的行为，以及演示它与在正则表达式周围使用 `\b` 的区别。
     #[test]
     fn word() {
         let matcher =
@@ -841,15 +818,14 @@ mod tests {
         assert!(!matcher.is_match(b"abc -2 foo").unwrap());
     }
 
-    // Test that enabling a line terminator prevents it from matching through
-    // said line terminator.
+    // 测试启用换行终止符时阻止其匹配穿过该行终止符。
     #[test]
     fn line_terminator() {
-        // This works, because there's no line terminator specified.
+        // 这个例子工作，因为没有指定行终止符。
         let matcher = RegexMatcherBuilder::new().build(r"abc\sxyz").unwrap();
         assert!(matcher.is_match(b"abc\nxyz").unwrap());
 
-        // This doesn't.
+        // 这个例子不工作。
         let matcher = RegexMatcherBuilder::new()
             .line_terminator(Some(b'\n'))
             .build(r"abc\sxyz")
@@ -857,8 +833,7 @@ mod tests {
         assert!(!matcher.is_match(b"abc\nxyz").unwrap());
     }
 
-    // Ensure that the builder returns an error if a line terminator is set
-    // and the regex could not be modified to remove a line terminator.
+    // 确保如果设置了行终止符并且无法修改正则表达式以删除行终止符，则构建器返回错误。
     #[test]
     fn line_terminator_error() {
         assert!(RegexMatcherBuilder::new()
@@ -867,24 +842,24 @@ mod tests {
             .is_err())
     }
 
-    // Test that enabling CRLF permits `$` to match at the end of a line.
+    // 测试启用 CRLF 时允许 `$` 在行末匹配。
     #[test]
     fn line_terminator_crlf() {
-        // Test normal use of `$` with a `\n` line terminator.
+        // 测试在带有 `\n` 行终止符的情况下正常使用 `$`。
         let matcher = RegexMatcherBuilder::new()
             .multi_line(true)
             .build(r"abc$")
             .unwrap();
         assert!(matcher.is_match(b"abc\n").unwrap());
 
-        // Test that `$` doesn't match at `\r\n` boundary normally.
+        // 测试 `$` 在 `\r\n` 边界处通常不匹配。
         let matcher = RegexMatcherBuilder::new()
             .multi_line(true)
             .build(r"abc$")
             .unwrap();
         assert!(!matcher.is_match(b"abc\r\n").unwrap());
 
-        // Now check the CRLF handling.
+        // 现在检查 CRLF 处理。
         let matcher = RegexMatcherBuilder::new()
             .multi_line(true)
             .crlf(true)
@@ -893,7 +868,7 @@ mod tests {
         assert!(matcher.is_match(b"abc\r\n").unwrap());
     }
 
-    // Test that smart case works.
+    // 测试智能大小写是否起作用。
     #[test]
     fn case_smart() {
         let matcher =
@@ -905,8 +880,8 @@ mod tests {
         assert!(!matcher.is_match(b"ABC").unwrap());
     }
 
-    // Test that finding candidate lines works as expected.
-    // FIXME: Re-enable this test once inner literal extraction works.
+    // 测试找到候选行是否按预期工作。
+    // FIXME: 一旦内部文字提取工作，重新启用此测试。
     #[test]
     #[ignore]
     fn candidate_lines() {
@@ -923,15 +898,13 @@ mod tests {
             }
         }
 
-        // With no line terminator set, we can't employ any optimizations,
-        // so we get a confirmed match.
+        // 没有设置行终止符时，我们无法应用任何优化，因此会得到一个已确认的匹配。
         let matcher = RegexMatcherBuilder::new().build(r"\wfoo\s").unwrap();
         let m = matcher.find_candidate_line(b"afoo ").unwrap().unwrap();
         assert!(is_confirmed(m));
 
-        // With a line terminator and a regex specially crafted to have an
-        // easy-to-detect inner literal, we can apply an optimization that
-        // quickly finds candidate matches.
+        // 有行终止符和一个专门制作以具有易于检测的内部文字为特点的正则表达式时，
+        // 我们可以应用一个快速查找候选匹配项的优化。
         let matcher = RegexMatcherBuilder::new()
             .line_terminator(Some(b'\n'))
             .build(r"\wfoo\s")

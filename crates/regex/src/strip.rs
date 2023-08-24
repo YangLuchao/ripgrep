@@ -5,26 +5,20 @@ use {
 
 use crate::error::{Error, ErrorKind};
 
-/// Return an HIR that is guaranteed to never match the given line terminator,
-/// if possible.
+/// 如果可能，返回一个 HIR，该 HIR 绝对不会匹配给定的行终止符。
 ///
-/// If the transformation isn't possible, then an error is returned.
+/// 如果无法进行这种转换，则返回错误。
 ///
-/// In general, if a literal line terminator occurs anywhere in the HIR, then
-/// this will return an error. However, if the line terminator occurs within
-/// a character class with at least one other character (that isn't also a line
-/// terminator), then the line terminator is simply stripped from that class.
+/// 一般来说，如果文本中的字面行终止符出现在 HIR 中的任何位置，则会返回错误。
+/// 但是，如果行终止符出现在一个字符类中，并且该字符类中至少包含一个其他字符
+/// （不是行终止符），则行终止符会从该字符类中被简单地去除。
 ///
-/// If the given line terminator is not ASCII, then this function returns an
-/// error.
+/// 如果给定的行终止符不是 ASCII，此函数将返回错误。
 ///
-/// Note that as of regex 1.9, this routine could theoretically be implemented
-/// without returning an error. Namely, for example, we could turn
-/// `foo\nbar` into `foo[a&&b]bar`. That is, replace line terminators with a
-/// sub-expression that can never match anything. Thus, ripgrep would accept
-/// such regexes and just silently not match anything. Regex versions prior to 1.8
-/// don't support such constructs. I ended up deciding to leave the existing
-/// behavior of returning an error instead. For example:
+/// 请注意，截至 regex 1.9 版本，理论上可以在不返回错误的情况下实现此过程。
+/// 例如，我们可以将 `foo\nbar` 转换为 `foo[a&&b]bar`。也就是说，将行终止符替换为一个永远不会匹配的子表达式。
+/// 因此，ripgrep 将接受这种正则表达式，但不会匹配任何内容。在 1.8 版本之前的正则表达式版本不支持这样的构造。
+/// 我最终决定保留返回错误的现有行为。例如：
 ///
 /// ```text
 /// $ echo -n 'foo\nbar\n' | rg 'foo\nbar'
@@ -34,8 +28,7 @@ use crate::error::{Error, ErrorKind};
 /// When multiline mode is enabled, new line characters can be matched.
 /// ```
 ///
-/// This looks like a good error message to me, and even suggests a flag that
-/// the user can use instead.
+/// 我认为这是一个很好的错误信息，甚至提供了用户可以使用的标志。
 pub(crate) fn strip_from_match(
     expr: Hir,
     line_term: LineTerminator,
@@ -48,10 +41,8 @@ pub(crate) fn strip_from_match(
     }
 }
 
-/// The implementation of strip_from_match. The given byte must be ASCII.
-/// This function returns an error otherwise. It also returns an error if
-/// it couldn't remove `\n` from the given regex without leaving an empty
-/// character class in its place.
+/// strip_from_match 的实现。给定的字节必须是 ASCII。
+/// 否则，此函数将返回错误。如果无法在不留下空字符类的情况下从给定的正则表达式中删除 `\n`，也会返回错误。
 fn strip_from_match_ascii(expr: Hir, byte: u8) -> Result<Hir, Error> {
     if !byte.is_ascii() {
         return Err(Error::new(ErrorKind::InvalidLineTerminator(byte)));

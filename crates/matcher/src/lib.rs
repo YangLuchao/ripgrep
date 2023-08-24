@@ -1,39 +1,20 @@
 /*!
-This crate provides an interface for regular expressions, with a focus on line
-oriented search. The purpose of this crate is to provide a low level matching
-interface that permits any kind of substring or regex implementation to power
-the search routines provided by the
+这个crate提供了一个正则表达式接口，重点关注面向行的搜索。这个crate的目的是提供一个低级的匹配接口，允许任何类型的子串或正则表达式实现来支持
 [`grep-searcher`](https://docs.rs/grep-searcher)
-crate.
+crate提供的搜索例程。
 
-The primary thing provided by this crate is the
+这个crate提供的主要功能是
 [`Matcher`](trait.Matcher.html)
-trait. The trait defines an abstract interface for text search. It is robust
-enough to support everything from basic substring search all the way to
-arbitrarily complex regular expression implementations without sacrificing
-performance.
+trait。这个trait定义了一个用于文本搜索的抽象接口。它足够强大，支持从基本的子串搜索到任意复杂的正则表达式实现，而不会牺牲性能。
 
-A key design decision made in this crate is the use of *internal iteration*,
-or otherwise known as the "push" model of searching. In this paradigm,
-implementations of the `Matcher` trait will drive search and execute callbacks
-provided by the caller when a match is found. This is in contrast to the
-usual style of *external iteration* (the "pull" model) found throughout the
-Rust ecosystem. There are two primary reasons why internal iteration was
-chosen:
+在这个crate中做出的一个关键设计决策是使用*内部迭代*，又称为搜索的“推”模型。在这个范式中，`Matcher` trait的实现将驱动搜索，并在找到匹配时执行由调用者提供的回调函数。
+这与Rust生态系统中普遍使用的*外部迭代*（“拉”模型）的风格不同。选择内部迭代有两个主要原因：
 
-* Some search implementations may themselves require internal iteration.
-  Converting an internal iterator to an external iterator can be non-trivial
-  and sometimes even practically impossible.
-* Rust's type system isn't quite expressive enough to write a generic interface
-  using external iteration without giving something else up (namely, ease of
-  use and/or performance).
+* 一些搜索实现本身可能需要内部迭代。将内部迭代器转换为外部迭代器可能是非常复杂甚至实际上是不可能的。
+* Rust的类型系统在不放弃其他东西（即易用性和/或性能）的情况下，不能以外部迭代的方式编写通用接口。
 
-In other words, internal iteration was chosen because it is the lowest common
-denominator and because it is probably the least bad way of expressing the
-interface in today's Rust. As a result, this trait isn't specifically intended
-for everyday use, although, you might find it to be a happy price to pay if you
-want to write code that is generic over multiple different regex
-implementations.
+换句话说，选择内部迭代是因为它是最低公共分母，并且因为在当今的Rust中，这可能是表达接口的最不糟糕的方式。因此，这个trait并不是专门为日常使用而设计的，
+尽管如果您想编写可以在多个不同的正则表达式实现之间通用的代码，您可能会发现它是一个值得付出的代价。
 */
 
 #![deny(missing_docs)]
@@ -79,68 +60,64 @@ pub struct Match {
 }
 
 impl Match {
-    /// Create a new match.
+    /// 创建一个新的匹配。
     ///
     /// # Panics
     ///
-    /// This function panics if `start > end`.
+    /// 如果 `start > end`，则此函数会导致 panic。
     #[inline]
     pub fn new(start: usize, end: usize) -> Match {
         assert!(start <= end);
         Match { start, end }
     }
 
-    /// Creates a zero width match at the given offset.
+    /// 在给定的偏移量创建一个零宽度的匹配。
     #[inline]
     pub fn zero(offset: usize) -> Match {
         Match { start: offset, end: offset }
     }
 
-    /// Return the start offset of this match.
+    /// 返回此匹配的起始偏移量。
     #[inline]
     pub fn start(&self) -> usize {
         self.start
     }
 
-    /// Return the end offset of this match.
+    /// 返回此匹配的结束偏移量。
     #[inline]
     pub fn end(&self) -> usize {
         self.end
     }
 
-    /// Return a new match with the start offset replaced with the given
-    /// value.
+    /// 返回一个新的匹配，起始偏移量被替换为给定的值。
     ///
     /// # Panics
     ///
-    /// This method panics if `start > self.end`.
+    /// 如果 `start > self.end`，则此方法会导致 panic。
     #[inline]
     pub fn with_start(&self, start: usize) -> Match {
-        assert!(start <= self.end, "{} is not <= {}", start, self.end);
+        assert!(start <= self.end, "{} 不小于等于 {}", start, self.end);
         Match { start, ..*self }
     }
 
-    /// Return a new match with the end offset replaced with the given
-    /// value.
+    /// 返回一个新的匹配，结束偏移量被替换为给定的值。
     ///
     /// # Panics
     ///
-    /// This method panics if `self.start > end`.
+    /// 如果 `self.start > end`，则此方法会导致 panic。
     #[inline]
     pub fn with_end(&self, end: usize) -> Match {
-        assert!(self.start <= end, "{} is not <= {}", self.start, end);
+        assert!(self.start <= end, "{} 不小于等于 {}", self.start, end);
         Match { end, ..*self }
     }
 
-    /// Offset this match by the given amount and return a new match.
+    /// 通过给定的数量偏移此匹配，并返回一个新的匹配。
     ///
-    /// This adds the given offset to the start and end of this match, and
-    /// returns the resulting match.
+    /// 这会将给定的偏移量添加到此匹配的起始和结束，并返回结果匹配。
     ///
     /// # Panics
     ///
-    /// This panics if adding the given amount to either the start or end
-    /// offset would result in an overflow.
+    /// 如果将给定的数量添加到起始或结束偏移量会导致溢出，则会发生 panic。
     #[inline]
     pub fn offset(&self, amount: usize) -> Match {
         Match {
@@ -149,13 +126,13 @@ impl Match {
         }
     }
 
-    /// Returns the number of bytes in this match.
+    /// 返回此匹配的字节数。
     #[inline]
     pub fn len(&self) -> usize {
         self.end - self.start
     }
 
-    /// Returns true if and only if this match is empty.
+    /// 如果且仅如果此匹配为空，则返回 true。
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -187,62 +164,55 @@ impl ops::Index<Match> for str {
     }
 }
 
-/// A line terminator.
+/// 一个行终止符。
 ///
-/// A line terminator represents the end of a line. Generally, every line is
-/// either "terminated" by the end of a stream or a specific byte (or sequence
-/// of bytes).
+/// 行终止符表示行的结束。通常，每行要么由流的末尾终止，要么由特定的字节（或字节序列）终止。
 ///
-/// Generally, a line terminator is a single byte, specifically, `\n`, on
-/// Unix-like systems. On Windows, a line terminator is `\r\n` (referred to
-/// as `CRLF` for `Carriage Return; Line Feed`).
+/// 一般来说，行终止符是一个单字节，具体而言，在类Unix系统中为 `\n`。在Windows上，行终止符为 `\r\n`
+/// （称为 `CRLF`，即 `回车换行`）。
 ///
-/// The default line terminator is `\n` on all platforms.
+/// 在所有平台上，默认的行终止符都是 `\n`。
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct LineTerminator(LineTerminatorImp);
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum LineTerminatorImp {
-    /// Any single byte representing a line terminator.
+    /// 表示任何单字节的行终止符。
     ///
-    /// We represent this as an array so we can safely convert it to a slice
-    /// for convenient access. At some point, we can use `std::slice::from_ref`
-    /// instead.
+    /// 我们将其表示为一个数组，以便可以将其安全地转换为切片，以便方便地访问。
+    /// 在某些情况下，我们可以使用 `std::slice::from_ref` 来替代。
     Byte([u8; 1]),
-    /// A line terminator represented by `\r\n`.
+    /// 由 `\r\n` 表示的行终止符。
     ///
-    /// When this option is used, consumers may generally treat a lone `\n` as
-    /// a line terminator in addition to `\r\n`.
+    /// 当使用此选项时，使用者通常可以将独立的 `\n` 视为行终止符，除了 `\r\n` 之外。
     CRLF,
 }
 
 impl LineTerminator {
-    /// Return a new single-byte line terminator. Any byte is valid.
+    /// 返回一个新的单字节行终止符。任何字节都是有效的。
     #[inline]
     pub fn byte(byte: u8) -> LineTerminator {
         LineTerminator(LineTerminatorImp::Byte([byte]))
     }
 
-    /// Return a new line terminator represented by `\r\n`.
+    /// 返回一个由 `\r\n` 表示的新的行终止符。
     ///
-    /// When this option is used, consumers may generally treat a lone `\n` as
-    /// a line terminator in addition to `\r\n`.
+    /// 当使用此选项时，使用者通常可以将独立的 `\n` 视为行终止符，除了 `\r\n` 之外。
     #[inline]
     pub fn crlf() -> LineTerminator {
         LineTerminator(LineTerminatorImp::CRLF)
     }
 
-    /// Returns true if and only if this line terminator is CRLF.
+    /// 如果且仅如果此行终止符为 CRLF，则返回 true。
     #[inline]
     pub fn is_crlf(&self) -> bool {
         self.0 == LineTerminatorImp::CRLF
     }
 
-    /// Returns this line terminator as a single byte.
+    /// 将此行终止符作为单个字节返回。
     ///
-    /// If the line terminator is CRLF, then this returns `\n`. This is
-    /// useful for routines that, for example, find line boundaries by treating
-    /// `\n` as a line terminator even when it isn't preceded by `\r`.
+    /// 如果行终止符为 CRLF，则返回 `\n`。这对于一些例程非常有用，
+    /// 例如，通过将 `\n` 视为行终止符来查找行边界，即使它没有被 `\r` 之前的字符所包围。
     #[inline]
     pub fn as_byte(&self) -> u8 {
         match self.0 {
@@ -251,12 +221,11 @@ impl LineTerminator {
         }
     }
 
-    /// Returns this line terminator as a sequence of bytes.
+    /// 将此行终止符作为字节序列返回。
     ///
-    /// This returns a singleton sequence for all line terminators except for
-    /// `CRLF`, in which case, it returns `\r\n`.
+    /// 对于除了 `CRLF` 之外的所有行终止符，返回一个只有一个元素的序列。
     ///
-    /// The slice returned is guaranteed to have length at least `1`.
+    /// 返回的切片保证至少有长度 `1`。
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         match self.0 {
@@ -265,11 +234,9 @@ impl LineTerminator {
         }
     }
 
-    /// Returns true if and only if the given slice ends with this line
-    /// terminator.
+    /// 如果且仅如果给定的切片以此行终止符结尾，则返回 true。
     ///
-    /// If this line terminator is `CRLF`, then this only checks whether the
-    /// last byte is `\n`.
+    /// 如果行终止符为 `CRLF`，则只检查最后一个字节是否为 `\n`。
     #[inline]
     pub fn is_suffix(&self, slice: &[u8]) -> bool {
         slice.last().map_or(false, |&b| b == self.as_byte())
@@ -282,19 +249,13 @@ impl Default for LineTerminator {
         LineTerminator::byte(b'\n')
     }
 }
-
-/// A set of bytes.
+/// 一个字节集合。
 ///
-/// In this crate, byte sets are used to express bytes that can never appear
-/// anywhere in a match for a particular implementation of the `Matcher` trait.
-/// Specifically, if such a set can be determined, then it's possible for
-/// callers to perform additional operations on the basis that certain bytes
-/// may never match.
+/// 在这个 crate 中，字节集合用于表示在特定 `Matcher` 特性的实现中，某些字节绝对不会出现在匹配中的情况。
+/// 具体来说，如果能够确定这样的集合，那么调用者可以执行额外的操作，因为某些字节可能永远不会匹配。
 ///
-/// For example, if a search is configured to possibly produce results that
-/// span multiple lines but a caller provided pattern can never match across
-/// multiple lines, then it may make sense to divert to more optimized line
-/// oriented routines that don't need to handle the multi-line match case.
+/// 例如，如果配置了一个可能产生跨越多行的结果的搜索，但调用者提供的模式永远不会跨越多行匹配，
+/// 那么可能会转向更优化的面向行的例程，而不需要处理多行匹配情况。
 #[derive(Clone, Debug)]
 pub struct ByteSet(BitSet);
 
@@ -314,50 +275,49 @@ impl fmt::Debug for BitSet {
 }
 
 impl ByteSet {
-    /// Create an empty set of bytes.
+    /// 创建一个空的字节集合。
     pub fn empty() -> ByteSet {
         ByteSet(BitSet([0; 4]))
     }
 
-    /// Create a full set of bytes such that every possible byte is in the set
-    /// returned.
+    /// 创建一个包含所有可能字节的完整字节集合。
     pub fn full() -> ByteSet {
         ByteSet(BitSet([u64::MAX; 4]))
     }
 
-    /// Add a byte to this set.
+    /// 添加一个字节到这个集合中。
     ///
-    /// If the given byte already belongs to this set, then this is a no-op.
+    /// 如果给定的字节已经属于此集合，则不会进行操作。
     pub fn add(&mut self, byte: u8) {
         let bucket = byte / 64;
         let bit = byte % 64;
         (self.0).0[bucket as usize] |= 1 << bit;
     }
 
-    /// Add an inclusive range of bytes.
+    /// 添加一个字节范围（包括起始和结束字节）。
     pub fn add_all(&mut self, start: u8, end: u8) {
         for b in (start as u64..end as u64 + 1).map(|b| b as u8) {
             self.add(b);
         }
     }
 
-    /// Remove a byte from this set.
+    /// 从这个集合中移除一个字节。
     ///
-    /// If the given byte is not in this set, then this is a no-op.
+    /// 如果给定的字节不在此集合中，则不会进行操作。
     pub fn remove(&mut self, byte: u8) {
         let bucket = byte / 64;
         let bit = byte % 64;
         (self.0).0[bucket as usize] &= !(1 << bit);
     }
 
-    /// Remove an inclusive range of bytes.
+    /// 移除一个字节范围（包括起始和结束字节）。
     pub fn remove_all(&mut self, start: u8, end: u8) {
         for b in (start as u64..end as u64 + 1).map(|b| b as u8) {
             self.remove(b);
         }
     }
 
-    /// Return true if and only if the given byte is in this set.
+    /// 返回 true 如果且仅如果给定的字节在此集合中。
     pub fn contains(&self, byte: u8) -> bool {
         let bucket = byte / 64;
         let bit = byte % 64;
@@ -365,72 +325,52 @@ impl ByteSet {
     }
 }
 
-/// A trait that describes implementations of capturing groups.
+/// 描述捕获组实现的特性。
 ///
-/// When a matcher supports capturing group extraction, then it is the
-/// matcher's responsibility to provide an implementation of this trait.
+/// 当匹配器支持捕获组提取时，它的责任是提供此特性的实现。
 ///
-/// Principally, this trait provides a way to access capturing groups
-/// in a uniform way that does not require any specific representation.
-/// Namely, different matcher implementations may require different in-memory
-/// representations of capturing groups. This trait permits matchers to
-/// maintain their specific in-memory representation.
+/// 主要来说，这个特性提供了一种以统一的方式访问捕获组的方法，而不需要任何特定的表示法。
+/// 换句话说，不同的匹配器实现可能需要不同的内存表示捕获组的方式。
+/// 这个特性允许匹配器维护其特定的内存表示。
 ///
-/// Note that this trait explicitly does not provide a way to construct a new
-/// capture value. Instead, it is the responsibility of a `Matcher` to build
-/// one, which might require knowledge of the matcher's internal implementation
-/// details.
+/// 注意，这个特性明确不提供构建新捕获值的方法。相反，`Matcher` 负责构建一个，
+/// 这可能需要了解匹配器的内部实现细节。
 pub trait Captures {
-    /// Return the total number of capturing groups. This includes capturing
-    /// groups that have not matched anything.
+    /// 返回捕获组的总数。这包括没有匹配任何内容的捕获组。
     fn len(&self) -> usize;
 
-    /// Return the capturing group match at the given index. If no match of
-    /// that capturing group exists, then this returns `None`.
+    /// 返回给定索引的捕获组匹配。如果没有匹配该捕获组，则返回 `None`。
     ///
-    /// When a matcher reports a match with capturing groups, then the first
-    /// capturing group (at index `0`) must always correspond to the offsets
-    /// for the overall match.
+    /// 当匹配器报告具有捕获组的匹配时，第一个捕获组（索引为 `0`）必须始终对应于整体匹配的偏移量。
     fn get(&self, i: usize) -> Option<Match>;
 
-    /// Returns true if and only if these captures are empty. This occurs
-    /// when `len` is `0`.
+    /// 如果且仅如果这些捕获组为空，则返回 true。这发生在 `len` 为 `0` 时。
     ///
-    /// Note that capturing groups that have non-zero length but otherwise
-    /// contain no matching groups are *not* empty.
+    /// 注意，具有非零长度但否则不包含匹配组的捕获组 *不* 是空的。
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Expands all instances of `$name` in `replacement` to the corresponding
-    /// capture group `name`, and writes them to the `dst` buffer given.
+    /// 将 `replacement` 中的所有 `$name` 实例扩展为相应的捕获组 `name`，并将其写入给定的 `dst` 缓冲区中。
     ///
-    /// (Note: If you're looking for a convenient way to perform replacements
-    /// with interpolation, then you'll want to use the `replace_with_captures`
-    /// method on the `Matcher` trait.)
+    ///（注意：如果您想要一个方便的方法来执行带插值的替换，
+    /// 那么您会想要使用 `Matcher` 特性的 `replace_with_captures` 方法。）
     ///
-    /// `name` may be an integer corresponding to the index of the
-    /// capture group (counted by order of opening parenthesis where `0` is the
-    /// entire match) or it can be a name (consisting of letters, digits or
-    /// underscores) corresponding to a named capture group.
+    /// `name` 可以是与捕获组索引相对应的整数（按打开括号的顺序计数，其中 `0` 是整体匹配），
+    /// 也可以是与命名捕获组相对应的名称（由字母、数字或下划线组成）。
     ///
-    /// A `name` is translated to a capture group index via the given
-    /// `name_to_index` function. If `name` isn't a valid capture group
-    /// (whether the name doesn't exist or isn't a valid index), then it is
-    /// replaced with the empty string.
+    /// 通过给定的 `name_to_index` 函数，将 `name` 转换为捕获组索引。
+    /// 如果 `name` 不是有效的捕获组（无论名称是否存在或是否是有效的索引），
+    /// 则用空字符串替换它。
     ///
-    /// The longest possible name is used. e.g., `$1a` looks up the capture
-    /// group named `1a` and not the capture group at index `1`. To exert
-    /// more precise control over the name, use braces, e.g., `${1}a`. In all
-    /// cases, capture group names are limited to ASCII letters, numbers and
-    /// underscores.
+    /// 使用最长可能的名称。例如，`$1a` 查找名为 `1a` 的捕获组，而不是索引为 `1` 的捕获组。
+    /// 要对名称更精确地进行控制，可以使用大括号，例如 `${1}a`。
+    /// 在所有情况下，捕获组名称限制为 ASCII 字母、数字和下划线。
     ///
-    /// To write a literal `$` use `$$`.
+    /// 要写入字面量 `$`，请使用 `$$`。
     ///
-    /// Note that the capture group match indices are resolved by slicing
-    /// the given `haystack`. Generally, this means that `haystack` should be
-    /// the same slice that was searched to get the current capture group
-    /// matches.
+    /// 注意，捕获组匹配索引是通过对给定的 `haystack` 进行切片来解析的。
+    /// 通常，这意味着 `haystack` 应该是搜索以获取当前捕获组匹配的相同切片。
     fn interpolate<F>(
         &self,
         name_to_index: F,
@@ -452,16 +392,14 @@ pub trait Captures {
         )
     }
 }
-
-/// NoCaptures provides an always-empty implementation of the `Captures` trait.
+/// `NoCaptures` 提供了 `Captures` 特性的始终为空的实现。
 ///
-/// This type is useful for implementations of `Matcher` that don't support
-/// capturing groups.
+/// 这个类型对于不支持捕获组的 `Matcher` 实现非常有用。
 #[derive(Clone, Debug)]
 pub struct NoCaptures(());
 
 impl NoCaptures {
-    /// Create an empty set of capturing groups.
+    /// 创建一个空的捕获组集合。
     pub fn new() -> NoCaptures {
         NoCaptures(())
     }
@@ -476,12 +414,11 @@ impl Captures for NoCaptures {
     }
 }
 
-/// NoError provides an error type for matchers that never produce errors.
+/// `NoError` 为从不产生错误的匹配器提供了错误类型。
 ///
-/// This error type implements the `std::error::Error` and `fmt::Display`
-/// traits for use in matcher implementations that can never produce errors.
+/// 这个错误类型实现了 `std::error::Error` 和 `fmt::Display` 特性，用于匹配器实现中从不产生错误的情况。
 ///
-/// The `fmt::Debug` and `fmt::Display` impls for this type panics.
+/// 这个类型的 `fmt::Debug` 和 `fmt::Display` 实现会导致 panic。
 #[derive(Debug, Eq, PartialEq)]
 pub struct NoError(());
 
@@ -503,116 +440,85 @@ impl From<NoError> for io::Error {
     }
 }
 
-/// The type of match for a line oriented matcher.
+/// 用于行导向匹配器的匹配类型。
 #[derive(Clone, Copy, Debug)]
 pub enum LineMatchKind {
-    /// A position inside a line that is known to contain a match.
+    /// 行内已知包含匹配的位置。
     ///
-    /// This position can be anywhere in the line. It does not need to point
-    /// at the location of the match.
+    /// 此位置可以在行中的任何地方。它不需要指向匹配的位置。
     Confirmed(usize),
-    /// A position inside a line that may contain a match, and must be searched
-    /// for verification.
+    /// 行内可能包含匹配的位置，需要进行搜索以进行验证。
     ///
-    /// This position can be anywhere in the line. It does not need to point
-    /// at the location of the match.
+    /// 此位置可以在行中的任何地方。它不需要指向匹配的位置。
     Candidate(usize),
 }
 
-/// A matcher defines an interface for regular expression implementations.
+/// 匹配器定义了正则表达式实现的接口。
 ///
-/// While this trait is large, there are only two required methods that
-/// implementors must provide: `find_at` and `new_captures`. If captures
-/// aren't supported by your implementation, then `new_captures` can be
-/// implemented with
-/// [`NoCaptures`](struct.NoCaptures.html). If your implementation does support
-/// capture groups, then you should also implement the other capture related
-/// methods, as dictated by the documentation. Crucially, this includes
-/// `captures_at`.
+/// 虽然这个特性很大，但只有两个必须提供的方法：`find_at` 和 `new_captures`。
+/// 如果您的实现不支持捕获组，则可以使用 [`NoCaptures`](struct.NoCaptures.html) 实现 `new_captures`。
+/// 如果您的实现确实支持捕获组，则还应该根据文档的规定实现其他与捕获相关的方法。重要的是，这包括 `captures_at`。
 ///
-/// The rest of the methods on this trait provide default implementations on
-/// top of `find_at` and `new_captures`. It is not uncommon for implementations
-/// to be able to provide faster variants of some methods; in those cases,
-/// simply override the default implementation.
+/// 此特性上的其余方法都在 `find_at` 和 `new_captures` 之上提供了默认实现。
+/// 在某些情况下，实现可能能够提供某些方法的更快变体；在这些情况下，只需覆盖默认实现即可。
+
 pub trait Matcher {
-    /// The concrete type of capturing groups used for this matcher.
+    /// 用于此匹配器的捕获组的具体类型。
     ///
-    /// If this implementation does not support capturing groups, then set
-    /// this to `NoCaptures`.
+    /// 如果此实现不支持捕获组，则将其设置为 `NoCaptures`。
     type Captures: Captures;
 
-    /// The error type used by this matcher.
+    /// 此匹配器使用的错误类型。
     ///
-    /// For matchers in which an error is not possible, they are encouraged to
-    /// use the `NoError` type in this crate. In the future, when the "never"
-    /// (spelled `!`) type is stabilized, then it should probably be used
-    /// instead.
+    /// 对于不可能发生错误的匹配器，建议在此类型中使用本库中的 `NoError` 类型。
+    /// 在将来，当“never”类型（用 `!` 表示）稳定下来时，可能应该使用它。
     type Error: fmt::Display;
 
-    /// Returns the start and end byte range of the first match in `haystack`
-    /// after `at`, where the byte offsets are relative to that start of
-    /// `haystack` (and not `at`). If no match exists, then `None` is returned.
+    /// 在 `at` 之后的 `haystack` 中查找第一个匹配的起始和结束字节范围，其中字节偏移量相对于 `haystack` 的开始（而不是 `at`）。
+    /// 如果没有匹配，那么将返回 `None`。
     ///
-    /// The text encoding of `haystack` is not strictly specified. Matchers are
-    /// advised to assume UTF-8, or at worst, some ASCII compatible encoding.
+    /// `haystack` 的文本编码未严格指定。建议匹配器假设为 UTF-8，或者在最坏的情况下，一些兼容 ASCII 编码。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn find_at(
         &self,
         haystack: &[u8],
         at: usize,
     ) -> Result<Option<Match>, Self::Error>;
 
-    /// Creates an empty group of captures suitable for use with the capturing
-    /// APIs of this trait.
+    /// 创建适用于此特性的捕获 API 的空捕获组。
     ///
-    /// Implementations that don't support capturing groups should use
-    /// the `NoCaptures` type and implement this method by calling
-    /// `NoCaptures::new()`.
+    /// 不支持捕获组的实现应使用 `NoCaptures` 类型，并通过调用 `NoCaptures::new()` 来实现此方法。
     fn new_captures(&self) -> Result<Self::Captures, Self::Error>;
 
-    /// Returns the total number of capturing groups in this matcher.
+    /// 返回此匹配器中捕获组的总数。
     ///
-    /// If a matcher supports capturing groups, then this value must always be
-    /// at least 1, where the first capturing group always corresponds to the
-    /// overall match.
+    /// 如果匹配器支持捕获组，则此值必须始终至少为 1，其中第一个捕获组始终对应于整个匹配。
     ///
-    /// If a matcher does not support capturing groups, then this should
-    /// always return 0.
+    /// 如果匹配器不支持捕获组，则应始终返回 0。
     ///
-    /// By default, capturing groups are not supported, so this always
-    /// returns 0.
+    /// 默认情况下，不支持捕获组，因此始终返回 0。
     fn capture_count(&self) -> usize {
         0
     }
 
-    /// Maps the given capture group name to its corresponding capture group
-    /// index, if one exists. If one does not exist, then `None` is returned.
+    /// 将给定的捕获组名称映射到其相应的捕获组索引（如果存在）。如果不存在，则返回 `None`。
     ///
-    /// If the given capture group name maps to multiple indices, then it is
-    /// not specified which one is returned. However, it is guaranteed that
-    /// one of them is returned.
+    /// 如果给定的捕获组名称映射到多个索引，则不指定返回哪一个。但是，保证返回其中之一。
     ///
-    /// By default, capturing groups are not supported, so this always returns
-    /// `None`.
+    /// 默认情况下，不支持捕获组，因此始终返回 `None`。
     fn capture_index(&self, _name: &str) -> Option<usize> {
         None
     }
 
-    /// Returns the start and end byte range of the first match in `haystack`.
-    /// If no match exists, then `None` is returned.
+    /// 返回在 `haystack` 中第一个匹配的起始和结束字节范围。如果没有匹配，那么将返回 `None`。
     ///
-    /// The text encoding of `haystack` is not strictly specified. Matchers are
-    /// advised to assume UTF-8, or at worst, some ASCII compatible encoding.
+    /// `haystack` 的文本编码未严格指定。建议匹配器假设为 UTF-8，或者在最坏的情况下，一些兼容 ASCII 编码。
     fn find(&self, haystack: &[u8]) -> Result<Option<Match>, Self::Error> {
         self.find_at(haystack, 0)
     }
 
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack`. If no match exists, then the given function is never
-    /// called. If the function returns `false`, then iteration stops.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数。如果没有匹配，那么永远不会调用给定的函数。如果函数返回 `false`，则停止迭代。
     fn find_iter<F>(
         &self,
         haystack: &[u8],
@@ -624,13 +530,9 @@ pub trait Matcher {
         self.find_iter_at(haystack, 0, matched)
     }
 
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack`. If no match exists, then the given function is never
-    /// called. If the function returns `false`, then iteration stops.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数。如果没有匹配，那么永远不会调用给定的函数。如果函数返回 `false`，则停止迭代。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn find_iter_at<F>(
         &self,
         haystack: &[u8],
@@ -644,13 +546,8 @@ pub trait Matcher {
             .map(|r: Result<(), ()>| r.unwrap())
     }
 
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack`. If no match exists, then the given function is never
-    /// called. If the function returns `false`, then iteration stops.
-    /// Similarly, if the function returns an error then iteration stops and
-    /// the error is yielded. If an error occurs while executing the search,
-    /// then it is converted to
-    /// `E`.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数。如果没有匹配，那么永远不会调用给定的函数。如果函数返回 `false`，则停止迭代。
+    /// 类似地，如果函数返回错误，则停止迭代并产生错误。如果执行搜索时发生错误，则转换为 `E`。
     fn try_find_iter<F, E>(
         &self,
         haystack: &[u8],
@@ -662,17 +559,10 @@ pub trait Matcher {
         self.try_find_iter_at(haystack, 0, matched)
     }
 
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack`. If no match exists, then the given function is never
-    /// called. If the function returns `false`, then iteration stops.
-    /// Similarly, if the function returns an error then iteration stops and
-    /// the error is yielded. If an error occurs while executing the search,
-    /// then it is converted to
-    /// `E`.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数。如果没有匹配，那么永远不会调用给定的函数。如果函数返回 `false`，则停止迭代。
+    /// 类似地，如果函数返回错误，则停止迭代并产生错误。如果执行搜索时发生错误，则转换为 `E`。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn try_find_iter_at<F, E>(
         &self,
         haystack: &[u8],
@@ -694,12 +584,9 @@ pub trait Matcher {
                 Some(m) => m,
             };
             if m.start == m.end {
-                // This is an empty match. To ensure we make progress, start
-                // the next search at the smallest possible starting position
-                // of the next match following this one.
+                // 这是一个空匹配。为确保我们取得进展，从接下来的下一个匹配的最小可能起始位置开始下一次搜索。
                 last_end = m.end + 1;
-                // Don't accept empty matches immediately following a match.
-                // Just move on to the next match.
+                // 不要立即接受跟在匹配后面的空匹配。继续下一个匹配。
                 if Some(m.end) == last_match {
                     continue;
                 }
@@ -715,11 +602,7 @@ pub trait Matcher {
         }
     }
 
-    /// Populates the first set of capture group matches from `haystack` into
-    /// `caps`. If no match exists, then `false` is returned.
-    ///
-    /// The text encoding of `haystack` is not strictly specified. Matchers are
-    /// advised to assume UTF-8, or at worst, some ASCII compatible encoding.
+    /// 将 `haystack` 中第一个匹配的捕获组结果填充到 `caps` 中。如果没有匹配，那么返回 `false`。
     fn captures(
         &self,
         haystack: &[u8],
@@ -728,10 +611,7 @@ pub trait Matcher {
         self.captures_at(haystack, 0, caps)
     }
 
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack` with capture groups extracted from each match. If no
-    /// match exists, then the given function is never called. If the function
-    /// returns `false`, then iteration stops.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数，并从每个匹配中提取捕获组。如果没有匹配，那么永远不会调用给定的函数。如果函数返回 `false`，则停止迭代。
     fn captures_iter<F>(
         &self,
         haystack: &[u8],
@@ -744,14 +624,9 @@ pub trait Matcher {
         self.captures_iter_at(haystack, 0, caps, matched)
     }
 
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack` with capture groups extracted from each match. If no
-    /// match exists, then the given function is never called. If the function
-    /// returns `false`, then iteration stops.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数，并从每个匹配中提取捕获组。如果没有匹配，那么永远不会调用给定的函数。如果函数返回 `false`，则停止迭代。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn captures_iter_at<F>(
         &self,
         haystack: &[u8],
@@ -765,14 +640,8 @@ pub trait Matcher {
         self.try_captures_iter_at(haystack, at, caps, |caps| Ok(matched(caps)))
             .map(|r: Result<(), ()>| r.unwrap())
     }
-
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack` with capture groups extracted from each match. If no
-    /// match exists, then the given function is never called. If the function
-    /// returns `false`, then iteration stops. Similarly, if the function
-    /// returns an error then iteration stops and the error is yielded. If
-    /// an error occurs while executing the search, then it is converted to
-    /// `E`.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数，并从每个匹配中提取捕获组。如果没有匹配，那么永远不会调用给定的函数。
+    /// 如果函数返回 `false`，则停止迭代。类似地，如果函数返回错误，则停止迭代并产生错误。如果执行搜索时发生错误，则转换为 `E`。
     fn try_captures_iter<F, E>(
         &self,
         haystack: &[u8],
@@ -785,17 +654,10 @@ pub trait Matcher {
         self.try_captures_iter_at(haystack, 0, caps, matched)
     }
 
-    /// Executes the given function over successive non-overlapping matches
-    /// in `haystack` with capture groups extracted from each match. If no
-    /// match exists, then the given function is never called. If the function
-    /// returns `false`, then iteration stops. Similarly, if the function
-    /// returns an error then iteration stops and the error is yielded. If
-    /// an error occurs while executing the search, then it is converted to
-    /// `E`.
+    /// 在 `haystack` 中连续非重叠匹配上执行给定的函数，并从每个匹配中提取捕获组。如果没有匹配，那么永远不会调用给定的函数。
+    /// 如果函数返回 `false`，则停止迭代。类似地，如果函数返回错误，则停止迭代并产生错误。如果执行搜索时发生错误，则转换为 `E`。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn try_captures_iter_at<F, E>(
         &self,
         haystack: &[u8],
@@ -818,12 +680,9 @@ pub trait Matcher {
             }
             let m = caps.get(0).unwrap();
             if m.start == m.end {
-                // This is an empty match. To ensure we make progress, start
-                // the next search at the smallest possible starting position
-                // of the next match following this one.
+                // 这是一个空匹配。为确保我们取得进展，从接下来的下一个匹配的最小可能起始位置开始下一次搜索。
                 last_end = m.end + 1;
-                // Don't accept empty matches immediately following a match.
-                // Just move on to the next match.
+                // 不要立即接受跟在匹配后面的空匹配。继续下一个匹配。
                 if Some(m.end) == last_match {
                     continue;
                 }
@@ -839,29 +698,18 @@ pub trait Matcher {
         }
     }
 
-    /// Populates the first set of capture group matches from `haystack`
-    /// into `matches` after `at`, where the byte offsets in each capturing
-    /// group are relative to the start of `haystack` (and not `at`). If no
-    /// match exists, then `false` is returned and the contents of the given
-    /// capturing groups are unspecified.
+    /// 将 `haystack` 中第一个匹配的捕获组结果填充到 `matches` 中，位置在 `at` 之后，其中每个捕获组中的字节偏移量相对于 `haystack` 的开始（而不是 `at`）。
+    /// 如果没有匹配，那么返回 `false`，并且给定的捕获组的内容是未指定的。
     ///
-    /// The text encoding of `haystack` is not strictly specified. Matchers are
-    /// advised to assume UTF-8, or at worst, some ASCII compatible encoding.
+    /// `haystack` 的文本编码未严格指定。建议匹配器假设为 UTF-8，或者在最坏的情况下，一些兼容 ASCII 编码。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     ///
-    /// By default, capturing groups aren't supported, and this implementation
-    /// will always behave as if a match were impossible.
+    /// 默认情况下，不支持捕获组，并且此实现始终会像匹配是不可能的一样行事。
     ///
-    /// Implementors that provide support for capturing groups must guarantee
-    /// that when a match occurs, the first capture match (at index `0`) is
-    /// always set to the overall match offsets.
+    /// 提供对捕获组的支持的实现必须保证当发生匹配时，第一个捕获组匹配（索引为 `0`）始终设置为整体匹配偏移量。
     ///
-    /// Note that if implementors seek to support capturing groups, then they
-    /// should implement this method. Other methods that match based on
-    /// captures will then work automatically.
+    /// 请注意，如果实现者希望支持捕获组，则应实现此方法。基于捕获组的其他匹配方法将自动工作。
     fn captures_at(
         &self,
         _haystack: &[u8],
@@ -871,11 +719,9 @@ pub trait Matcher {
         Ok(false)
     }
 
-    /// Replaces every match in the given haystack with the result of calling
-    /// `append`. `append` is given the start and end of a match, along with
-    /// a handle to the `dst` buffer provided.
+    /// 使用调用 `append` 的结果，将给定 haystack 中的每个匹配替换为结果。`append` 函数会接收匹配的起始和结束位置，以及所提供的 `dst` 缓冲区的句柄。
     ///
-    /// If the given `append` function returns `false`, then replacement stops.
+    /// 如果给定的 `append` 函数返回 `false`，则替换停止。
     fn replace<F>(
         &self,
         haystack: &[u8],
@@ -895,10 +741,9 @@ pub trait Matcher {
         Ok(())
     }
 
-    /// Replaces every match in the given haystack with the result of calling
-    /// `append` with the matching capture groups.
+    /// 使用匹配的捕获组，将给定 haystack 中的每个匹配替换为调用 `append` 的结果。
     ///
-    /// If the given `append` function returns `false`, then replacement stops.
+    /// 如果给定的 `append` 函数返回 `false`，则替换停止。
     fn replace_with_captures<F>(
         &self,
         haystack: &[u8],
@@ -912,14 +757,11 @@ pub trait Matcher {
         self.replace_with_captures_at(haystack, 0, caps, dst, append)
     }
 
-    /// Replaces every match in the given haystack with the result of calling
-    /// `append` with the matching capture groups.
+    /// 使用匹配的捕获组，将给定 haystack 中的每个匹配替换为调用 `append` 的结果。
     ///
-    /// If the given `append` function returns `false`, then replacement stops.
+    /// 如果给定的 `append` 函数返回 `false`，则替换停止。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn replace_with_captures_at<F>(
         &self,
         haystack: &[u8],
@@ -942,21 +784,18 @@ pub trait Matcher {
         Ok(())
     }
 
-    /// Returns true if and only if the matcher matches the given haystack.
+    /// 当且仅当匹配器匹配给定 haystack 时，返回 true。
     ///
-    /// By default, this method is implemented by calling `shortest_match`.
+    /// 默认情况下，此方法通过调用 `shortest_match` 实现。
     fn is_match(&self, haystack: &[u8]) -> Result<bool, Self::Error> {
         self.is_match_at(haystack, 0)
     }
 
-    /// Returns true if and only if the matcher matches the given haystack
-    /// starting at the given position.
+    /// 当且仅当匹配器从给定位置开始匹配给定 haystack 时，返回 true。
     ///
-    /// By default, this method is implemented by calling `shortest_match_at`.
+    /// 默认情况下，此方法通过调用 `shortest_match_at` 实现。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn is_match_at(
         &self,
         haystack: &[u8],
@@ -965,45 +804,32 @@ pub trait Matcher {
         Ok(self.shortest_match_at(haystack, at)?.is_some())
     }
 
-    /// Returns an end location of the first match in `haystack`. If no match
-    /// exists, then `None` is returned.
+    /// 返回 `haystack` 中第一个匹配的结束位置。如果没有匹配，那么返回 `None`。
     ///
-    /// Note that the end location reported by this method may be less than the
-    /// same end location reported by `find`. For example, running `find` with
-    /// the pattern `a+` on the haystack `aaa` should report a range of `[0,
-    /// 3)`, but `shortest_match` may report `1` as the ending location since
-    /// that is the place at which a match is guaranteed to occur.
+    /// 请注意，此方法报告的结束位置可能小于 `find` 报告的相同结束位置。
+    /// 例如，在 haystack 上运行模式为 `a+` 的 `find` 方法，`aaa` 应报告范围为 `[0, 3)`，
+    /// 但 `shortest_match` 可能报告 `1` 作为结束位置，因为保证在此位置上发生匹配。
     ///
-    /// This method should never report false positives or false negatives. The
-    /// point of this method is that some implementors may be able to provide
-    /// a faster implementation of this than what `find` does.
+    /// 此方法不应报告假阳性或假阴性。此方法的目的是，一些实现者可能能够提供比 `find` 更快的实现。
     ///
-    /// By default, this method is implemented by calling `find`.
+    /// 默认情况下，此方法通过调用 `find` 实现。
     fn shortest_match(
         &self,
         haystack: &[u8],
     ) -> Result<Option<usize>, Self::Error> {
         self.shortest_match_at(haystack, 0)
     }
-
-    /// Returns an end location of the first match in `haystack` starting at
-    /// the given position. If no match exists, then `None` is returned.
+    /// 返回在给定位置开始的 `haystack` 中第一个匹配的结束位置。如果没有匹配，那么返回 `None`。
     ///
-    /// Note that the end location reported by this method may be less than the
-    /// same end location reported by `find`. For example, running `find` with
-    /// the pattern `a+` on the haystack `aaa` should report a range of `[0,
-    /// 3)`, but `shortest_match` may report `1` as the ending location since
-    /// that is the place at which a match is guaranteed to occur.
+    /// 请注意，此方法报告的结束位置可能小于 `find` 报告的相同结束位置。
+    /// 例如，在 `aaa` 上运行模式为 `a+` 的 `find` 方法，应报告范围为 `[0, 3)`，
+    /// 但 `shortest_match` 可能报告 `1` 作为结束位置，因为这是确保发生匹配的位置。
     ///
-    /// This method should never report false positives or false negatives. The
-    /// point of this method is that some implementors may be able to provide
-    /// a faster implementation of this than what `find` does.
+    /// 此方法不应报告假阳性或假阴性。此方法的目的是，一些实现者可能能够提供比 `find` 更快的实现。
     ///
-    /// By default, this method is implemented by calling `find_at`.
+    /// 默认情况下，此方法通过调用 `find_at` 实现。
     ///
-    /// The significance of the starting point is that it takes the surrounding
-    /// context into consideration. For example, the `\A` anchor can only
-    /// match when `at == 0`.
+    /// 起始点的重要性在于它考虑了周围的上下文。例如，`\A` 锚只能在 `at == 0` 时匹配。
     fn shortest_match_at(
         &self,
         haystack: &[u8],
@@ -1012,84 +838,51 @@ pub trait Matcher {
         Ok(self.find_at(haystack, at)?.map(|m| m.end))
     }
 
-    /// If available, return a set of bytes that will never appear in a match
-    /// produced by an implementation.
+    /// 如果可用，返回一组永远不会出现在实现产生的匹配中的字节。
     ///
-    /// Specifically, if such a set can be determined, then it's possible for
-    /// callers to perform additional operations on the basis that certain
-    /// bytes may never match.
+    /// 具体来说，如果可以确定这样的集合，那么调用者可以根据某些字节永远不会匹配来执行其他操作。
     ///
-    /// For example, if a search is configured to possibly produce results
-    /// that span multiple lines but a caller provided pattern can never
-    /// match across multiple lines, then it may make sense to divert to
-    /// more optimized line oriented routines that don't need to handle the
-    /// multi-line match case.
+    /// 例如，如果搜索配置为可能生成跨越多行的结果，但调用者提供的模式永远不会跨越多行匹配，
+    /// 那么可能会转向更优化的面向行的例程，这些例程不需要处理多行匹配情况。
     ///
-    /// Implementations that produce this set must never report false
-    /// positives, but may produce false negatives. That is, is a byte is in
-    /// this set then it must be guaranteed that it is never in a match. But,
-    /// if a byte is not in this set, then callers cannot assume that a match
-    /// exists with that byte.
+    /// 生成此集合的实现绝不能报告假阳性，但可能会产生假阴性。
+    /// 也就是说，如果一个字节在此集合中，则必须保证它永远不在匹配中。
+    /// 但是，如果一个字节不在此集合中，则调用者不能假设存在与该字节匹配的情况。
     ///
-    /// By default, this returns `None`.
+    /// 默认情况下，返回 `None`。
     fn non_matching_bytes(&self) -> Option<&ByteSet> {
         None
     }
 
-    /// If this matcher was compiled as a line oriented matcher, then this
-    /// method returns the line terminator if and only if the line terminator
-    /// never appears in any match produced by this matcher. If this wasn't
-    /// compiled as a line oriented matcher, or if the aforementioned guarantee
-    /// cannot be made, then this must return `None`, which is the default.
-    /// It is **never wrong** to return `None`, but returning a line terminator
-    /// when it can appear in a match results in unspecified behavior.
+    /// 如果此匹配器是作为面向行的匹配器编译的，则仅当行终止符永远不出现在此匹配器产生的任何匹配中时，
+    /// 此方法返回行终止符。如果未将其编译为面向行的匹配器，或者无法提供上述保证，则必须返回 `None`，
+    /// 这是默认情况。返回行终止符，当它可以出现在匹配结果中时，会导致未指定的行为。
     ///
-    /// The line terminator is typically `b'\n'`, but can be any single byte or
-    /// `CRLF`.
+    /// 行终止符通常为 `b'\n'`，但可以是任何单字节或 `CRLF`。
     ///
-    /// By default, this returns `None`.
+    /// 默认情况下，返回 `None`。
     fn line_terminator(&self) -> Option<LineTerminator> {
         None
     }
 
-    /// Return one of the following: a confirmed line match, a candidate line
-    /// match (which may be a false positive) or no match at all (which **must
-    /// not** be a false negative). When reporting a confirmed or candidate
-    /// match, the position returned can be any position in the line.
+    /// 返回以下之一：已确认的行匹配、候选行匹配（可能是假阳性）或根本没有匹配（**不得**为假阴性）。
+    /// 在报告已确认或候选匹配时，返回的位置可以是行中的任何位置。
     ///
-    /// By default, this never returns a candidate match, and always either
-    /// returns a confirmed match or no match at all.
+    /// 默认情况下，此方法永远不会返回候选匹配，而始终返回已确认匹配或根本没有匹配。
     ///
-    /// When a matcher can match spans over multiple lines, then the behavior
-    /// of this method is unspecified. Namely, use of this method only
-    /// makes sense in a context where the caller is looking for the next
-    /// matching line. That is, callers should only use this method when
-    /// `line_terminator` does not return `None`.
+    /// 当匹配器可以跨越多行匹配范围时，此方法的行为是未指定的。
+    /// 也就是说，仅在调用者寻找下一个匹配行时才有用。也就是说，只有在 `line_terminator` 不返回 `None` 时，
+    /// 调用者才应使用此方法。
     ///
-    /// # Design rationale
+    /// # 设计理念
     ///
-    /// A line matcher is, fundamentally, a normal matcher with the addition
-    /// of one optional method: finding a line. By default, this routine
-    /// is implemented via the matcher's `shortest_match` method, which
-    /// always yields either no match or a `LineMatchKind::Confirmed`. However,
-    /// implementors may provide a routine for this that can return candidate
-    /// lines that need subsequent verification to be confirmed as a match.
-    /// This can be useful in cases where it may be quicker to find candidate
-    /// lines via some other means instead of relying on the more general
-    /// implementations for `find` and `shortest_match`.
+    /// 面向行的匹配器从根本上讲是普通的匹配器，只是多了一个可选的方法：查找行。
+    /// 默认情况下，通过匹配器的 `shortest_match` 方法实现此例程，该方法始终返回无匹配或 `LineMatchKind::Confirmed`。
+    /// 但是，实现者可以提供一个例程，可以返回需要进一步验证以确认为匹配的候选行。
+    /// 在某些情况下，通过其他方式查找候选行可能更快，而不是依赖于用于解析 `\w+foo\s+` 的更通用实现。
+    /// 此时，调用者负责确认是否存在匹配。
     ///
-    /// For example, consider the regex `\w+foo\s+`. Both `find` and
-    /// `shortest_match` must consider the entire regex, including the `\w+`
-    /// and `\s+`, while searching. However, this method could look for lines
-    /// containing `foo` and return them as candidates. Finding `foo` might
-    /// be implemented as a highly optimized substring search routine (like
-    /// `memmem`), which is likely to be faster than whatever more generalized
-    /// routine is required for resolving `\w+foo\s+`. The caller is then
-    /// responsible for confirming whether a match exists or not.
-    ///
-    /// Note that while this method may report false positives, it must never
-    /// report false negatives. That is, it can never skip over lines that
-    /// contain a match.
+    /// 请注意，尽管此方法可能报告假阳性，但不能报告假阴性。也就是说，它绝不能跳过包含匹配的行。
     fn find_candidate_line(
         &self,
         haystack: &[u8],

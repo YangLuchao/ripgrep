@@ -8,76 +8,49 @@ use {
 };
 
 use crate::{config::ConfiguredHIR, error::Error};
-
-/// A type that encapsulates "inner" literal extractiong from a regex.
+/// 一种封装了来自正则表达式的“内部”文字提取的类型。
 ///
-/// It uses a huge pile of heuristics to try to pluck out literals from a regex
-/// that are in turn used to build a simpler regex that is more amenable to
-/// optimization.
+/// 它使用许多启发式方法，尝试从正则表达式中提取出用于构建更容易优化的简化正则表达式的文字。
 ///
-/// The main idea underyling the validity of this technique is the fact
-/// that ripgrep searches individuals lines and not across lines. (Unless
-/// -U/--multiline is enabled.) Namely, we can pluck literals out of the regex,
-/// search for them, find the bounds of the line in which that literal occurs
-/// and then run the original regex on only that line. This overall works
-/// really really well in throughput oriented searches because it potentially
-/// allows ripgrep to spend a lot more time in a fast vectorized routine for
-/// finding literals as opposed to the (much) slower regex engine.
+/// 这种技术背后的主要思想是，ripgrep 搜索单独的行而不是跨行搜索。（除非启用了 -U/--multiline 选项。）
+/// 也就是说，我们可以从正则表达式中提取文字，搜索这些文字，找到包含该文字的行的边界，然后只对该行运行原始正则表达式。
+/// 这在吞吐量导向的搜索中总体效果非常好，因为它可能使 ripgrep 能够在快速向量化的文字查找例程中花费更多时间，而不是在（更慢的）正则表达式引擎中。
 ///
-/// This optimization was far more important in the old days, but since then,
-/// Rust's regex engine has actually grown its own (albeit limited) support for
-/// inner literal optimizations. So this technique doesn't apply as much as it
-/// used to.
+/// 这种优化在早期阶段更为重要，但自那以来，Rust 的正则表达式引擎实际上已经在某种程度上支持了自己的（尽管有限的）内部文字优化。
+/// 因此，这种技术的适用性不如过去那么大了。
 ///
-/// A good example of a regex where this particular extractor helps is
-/// `\s+(Sherlock|[A-Z]atso[a-z]|Moriarty)\s+`. The `[A-Z]` before the `atso`
-/// in particular is what inhibits the regex engine's own inner literal
-/// optimizations from kicking in. This particular regex also did not have any
-/// inner literals extracted in the old implementation (ripgrep <=13). So this
-/// particular implementation represents a strict improvement from both the old
-/// implementation and from the regex engine's own optimizations. (Which could
-/// in theory be improved still.)
+/// 一个很好的例子是正则表达式 `\s+(Sherlock|[A-Z]atso[a-z]|Moriarty)\s+`。
+/// 特别是 `atso` 前面的 `[A-Z]` 部分会阻止正则表达式引擎自身的内部文字优化生效。
+/// 在旧的实现中（ripgrep <=13），此特定正则表达式中也没有提取任何内部文字。
+/// 因此，这种特定的实现在从旧实现和正则表达式引擎自身的优化（理论上仍然可以改进）中都有所改进。
 #[derive(Clone, Debug)]
 pub(crate) struct InnerLiterals {
     seq: Seq,
 }
 
 impl InnerLiterals {
-    /// Create a set of inner literals from the given HIR expression.
+    /// 从给定的配置好的HIR表达式创建一组内部文字。
     ///
-    /// If no line terminator was configured, then this always declines to
-    /// extract literals because the inner literal optimization may not be
-    /// valid.
+    /// 如果没有配置行终止符，则始终会拒绝提取文字，因为内部文字优化可能无效。
     ///
-    /// Note that this requires the actual regex that will be used for a search
-    /// because it will query some state about the compiled regex. That state
-    /// may influence inner literal extraction.
+    /// 注意，这需要实际用于搜索的实际正则表达式，因为它会查询有关已编译正则表达式的一些状态。
+    /// 该状态可能会影响内部文字提取。
     pub(crate) fn new(chir: &ConfiguredHIR, re: &Regex) -> InnerLiterals {
-        // If there's no line terminator, then the inner literal optimization
-        // at this level is not valid.
+        // 如果没有配置行终止符，则在此级别上内部文字优化无效。
         if chir.config().line_terminator.is_none() {
-            log::trace!(
-                "skipping inner literal extraction, \
-                 no line terminator is set"
-            );
+            log::trace!("跳过内部文字提取，未设置行终止符");
             return InnerLiterals::none();
         }
-        // If we believe the regex is already accelerated, then just let
-        // the regex engine do its thing. We'll skip the inner literal
-        // optimization.
+        // 如果我们认为正则表达式已经加速，则让正则表达式引擎自行处理。我们将跳过内部文字优化。
         if re.is_accelerated() {
-            log::trace!(
-                "skipping inner literal extraction, \
-                 existing regex is believed to already be accelerated",
-            );
+            log::trace!("跳过内部文字提取，已存在的正则表达式被认为已经加速",);
             return InnerLiterals::none();
         }
-        // In this case, we pretty much know that the regex engine will handle
-        // it as best as possible, even if it isn't reported as accelerated.
+        // 在这种情况下，我们几乎可以肯定正则表达式引擎将尽最大努力处理它，即使它没有被报告为已加速。
+        // 如果是字面值的交替，则在此级别上内部文字优化无效。
         if chir.hir().properties().is_alternation_literal() {
             log::trace!(
-                "skipping inner literal extraction, \
-                 found alternation of literals, deferring to regex engine",
+                "跳过内部文字提取，发现字面值的交替，推迟到正则表达式引擎",
             );
             return InnerLiterals::none();
         }
@@ -85,18 +58,14 @@ impl InnerLiterals {
         InnerLiterals { seq }
     }
 
-    /// Returns a infinite set of inner literals, such that it can never
-    /// produce a matcher.
+    /// 返回一个无限的内部文字集，以便永远不会生成匹配器。
     pub(crate) fn none() -> InnerLiterals {
         InnerLiterals { seq: Seq::infinite() }
     }
 
-    /// If it is deemed advantageous to do so (via various suspicious
-    /// heuristics), this will return a single regular expression pattern that
-    /// matches a subset of the language matched by the regular expression that
-    /// generated these literal sets. The idea here is that the pattern
-    /// returned by this method is much cheaper to search for. i.e., It is
-    /// usually a single literal or an alternation of literals.
+    /// 如果认为有利于这样做（通过各种可疑的启发式方法），
+    /// 则会返回一个单一的正则表达式模式，该模式匹配生成这些文字集的正则表达式所匹配的语言的子集。
+    /// 这里的想法是，此方法返回的模式要便宜得多。即通常是单个文字或文字的交替。
     pub(crate) fn one_regex(&self) -> Result<Option<Regex>, Error> {
         let Some(lits) = self.seq.literals() else { return Ok(None) };
         if lits.is_empty() {
@@ -107,7 +76,8 @@ impl InnerLiterals {
             alts.push(Hir::literal(lit.as_bytes()));
         }
         let hir = Hir::alternation(alts);
-        log::debug!("extracted fast line regex: {:?}", hir.to_string());
+        log::debug!("提取的快速行正则表达式: {:?}", hir.to_string());
+
         let re = Regex::builder()
             .configure(Regex::config().utf8_empty(false))
             .build_from_hir(&hir)
@@ -116,11 +86,9 @@ impl InnerLiterals {
     }
 }
 
-/// An inner literal extractor.
+/// 内部文字提取器。
 ///
-/// This is a somewhat stripped down version of the extractor from
-/// regex-syntax. The main difference is that we try to identify a "best" set
-/// of required literals while traversing the HIR.
+/// 这是来自regex-syntax的提取器的一种精简版本。主要区别在于，我们尝试在遍历HIR时识别出“最佳”一组所需的文字。
 #[derive(Debug)]
 struct Extractor {
     limit_class: usize,
@@ -130,7 +98,7 @@ struct Extractor {
 }
 
 impl Extractor {
-    /// Create a new inner literal extractor with a default configuration.
+    /// 使用默认配置创建一个新的内部字面量提取器。
     fn new() -> Extractor {
         Extractor {
             limit_class: 10,
@@ -140,26 +108,20 @@ impl Extractor {
         }
     }
 
-    /// Execute the extractor at the top-level and return an untagged sequence
-    /// of literals.
+    /// 在顶层执行提取器并返回一个无标记的字面量序列。
     fn extract_untagged(&self, hir: &Hir) -> Seq {
         let mut seq = self.extract(hir);
-        log::trace!("extracted inner literals: {:?}", seq.seq);
+        log::trace!("提取的内部字面量：{:?}", seq.seq);
         seq.seq.optimize_for_prefix_by_preference();
-        log::trace!(
-            "extracted inner literals after optimization: {:?}",
-            seq.seq
-        );
+        log::trace!("优化后的提取的内部字面量：{:?}", seq.seq);
         if !seq.is_good() {
-            log::trace!(
-                "throwing away inner literals because they might be slow"
-            );
+            log::trace!("丢弃内部字面量，因为它们可能很慢");
             seq.make_infinite();
         }
         seq.seq
     }
 
-    /// Execute the extractor and return a sequence of literals.
+    /// 执行提取器并返回一个字面量序列。
     fn extract(&self, hir: &Hir) -> TSeq {
         use regex_syntax::hir::HirKind::*;
 
@@ -182,23 +144,16 @@ impl Extractor {
         }
     }
 
-    /// Extract a sequence from the given concatenation. Sequences from each of
-    /// the child HIR expressions are combined via cross product.
+    /// 从给定的连接中提取序列。通过交叉乘积组合每个子Hir表达式的序列。
     ///
-    /// This short circuits once the cross product turns into a sequence
-    /// containing only inexact literals.
+    /// 一旦交叉乘积变成仅包含不精确字面量的序列，此操作将提前终止。
     fn extract_concat<'a, I: Iterator<Item = &'a Hir>>(&self, it: I) -> TSeq {
         let mut seq = TSeq::singleton(self::Literal::exact(vec![]));
         let mut prev: Option<TSeq> = None;
         for hir in it {
-            // If every element in the sequence is inexact, then a cross
-            // product will always be a no-op. Thus, there is nothing else we
-            // can add to it and can quit early. Note that this also includes
-            // infinite sequences.
+            // 如果序列中的每个元素都是不精确的，那么交叉乘积将始终是无操作。因此，我们无法再添加任何内容，可以提前退出。
             if seq.is_inexact() {
-                // If a concatenation has an empty sequence anywhere, then
-                // it's impossible for the concatenantion to ever match. So we
-                // can just quit now.
+                // 如果连接中有空序列，那么连接将永远无法匹配。因此我们可以立即退出。
                 if seq.is_empty() {
                     return seq;
                 }
@@ -212,8 +167,7 @@ impl Extractor {
                 seq = TSeq::singleton(self::Literal::exact(vec![]));
                 seq.make_not_prefix();
             }
-            // Note that 'cross' also dispatches based on whether we're
-            // extracting prefixes or suffixes.
+            // 注意，'cross'还根据我们是否提取前缀或后缀进行调度。
             seq = self.cross(seq, self.extract(hir));
         }
         if let Some(prev) = prev {
@@ -223,19 +177,16 @@ impl Extractor {
         }
     }
 
-    /// Extract a sequence from the given alternation.
+    /// 从给定的选择中提取序列。
     ///
-    /// This short circuits once the union turns into an infinite sequence.
+    /// 一旦联合操作变成无限序列，此操作将提前终止。
     fn extract_alternation<'a, I: Iterator<Item = &'a Hir>>(
         &self,
         it: I,
     ) -> TSeq {
         let mut seq = TSeq::empty();
         for hir in it {
-            // Once our 'seq' is infinite, every subsequent union
-            // operation on it will itself always result in an
-            // infinite sequence. Thus, it can never change and we can
-            // short-circuit.
+            // 一旦序列是无限的，每个随后的联合操作都将始终导致无限序列。因此，它永远不会改变，我们可以提前终止。
             if !seq.is_finite() {
                 break;
             }
@@ -244,28 +195,21 @@ impl Extractor {
         seq
     }
 
-    /// Extract a sequence of literals from the given repetition. We do our
-    /// best, Some examples:
+    /// 从给定的重复中提取字面量序列。我们尽力而为，以下是一些示例：
     ///
-    ///   'a*'    => [inexact(a), exact("")]
-    ///   'a*?'   => [exact(""), inexact(a)]
-    ///   'a+'    => [inexact(a)]
-    ///   'a{3}'  => [exact(aaa)]
-    ///   'a{3,5} => [inexact(aaa)]
+    ///   'a*'    => [不精确(a), 精确("")]
+    ///   'a*?'   => [精确(""), 不精确(a)]
+    ///   'a+'    => [不精确(a)]
+    ///   'a{3}'  => [精确(aaa)]
+    ///   'a{3,5} => [不精确(aaa)]
     ///
-    /// The key here really is making sure we get the 'inexact' vs 'exact'
-    /// attributes correct on each of the literals we add. For example, the
-    /// fact that 'a*' gives us an inexact 'a' and an exact empty string means
-    /// that a regex like 'ab*c' will result in [inexact(ab), exact(ac)]
-    /// literals being extracted, which might actually be a better prefilter
-    /// than just 'a'.
+    /// 关键在于确保我们在添加的每个字面量上正确地设置'inexact' vs 'exact'属性。
+    /// 例如，'a*' 给了我们一个不精确的 'a' 和一个精确的空字符串，这意味着正则表达式 'ab*c' 将导致提取 [不精确(ab), 精确(ac)] 字面量，这实际上可能是一个比只有 'a' 更好的预过滤器。
     fn extract_repetition(&self, rep: &hir::Repetition) -> TSeq {
         let mut subseq = self.extract(&rep.sub);
         match *rep {
             hir::Repetition { min: 0, max, greedy, .. } => {
-                // When 'max=1', we can retain exactness, since 'a?' is
-                // equivalent to 'a|'. Similarly below, 'a??' is equivalent to
-                // '|a'.
+                // 当 'max=1' 时，我们可以保留精确性，因为 'a?' 等同于 'a|'。类似地，下面的 'a??' 等同于 '|a'。
                 if max != Some(1) {
                     subseq.make_inexact();
                 }
@@ -276,7 +220,7 @@ impl Extractor {
                 self.union(subseq, &mut empty)
             }
             hir::Repetition { min, max: Some(max), .. } if min == max => {
-                assert!(min > 0); // handled above
+                assert!(min > 0); // 在上面处理过了
                 let limit =
                     u32::try_from(self.limit_repeat).unwrap_or(u32::MAX);
                 let mut seq = TSeq::singleton(Literal::exact(vec![]));
@@ -292,7 +236,7 @@ impl Extractor {
                 seq
             }
             hir::Repetition { min, max: Some(max), .. } if min < max => {
-                assert!(min > 0); // handled above
+                assert!(min > 0); // 在上面处理过了
                 let limit =
                     u32::try_from(self.limit_repeat).unwrap_or(u32::MAX);
                 let mut seq = TSeq::singleton(Literal::exact(vec![]));
@@ -312,9 +256,8 @@ impl Extractor {
         }
     }
 
-    /// Convert the given Unicode class into a sequence of literals if the
-    /// class is small enough. If the class is too big, return an infinite
-    /// sequence.
+    /// 如果给定的Unicode类小到足够处理，则将其转换为字面量序列。
+    /// 如果类太大，则返回一个无限序列。
     fn extract_class_unicode(&self, cls: &hir::ClassUnicode) -> TSeq {
         if self.class_over_limit_unicode(cls) {
             return TSeq::infinite();
@@ -329,8 +272,8 @@ impl Extractor {
         seq
     }
 
-    /// Convert the given byte class into a sequence of literals if the class
-    /// is small enough. If the class is too big, return an infinite sequence.
+    /// 如果给定的字节类小到足够处理，则将其转换为字面量序列。
+    /// 如果类太大，则返回一个无限序列。
     fn extract_class_bytes(&self, cls: &hir::ClassBytes) -> TSeq {
         if self.class_over_limit_bytes(cls) {
             return TSeq::infinite();
@@ -345,8 +288,7 @@ impl Extractor {
         seq
     }
 
-    /// Returns true if the given Unicode class exceeds the configured limits
-    /// on this extractor.
+    /// 如果给定的Unicode类超出了此提取器的配置限制，则返回true。
     fn class_over_limit_unicode(&self, cls: &hir::ClassUnicode) -> bool {
         let mut count = 0;
         for r in cls.iter() {
@@ -357,9 +299,7 @@ impl Extractor {
         }
         count > self.limit_class
     }
-
-    /// Returns true if the given byte class exceeds the configured limits on
-    /// this extractor.
+    /// 如果给定的字节类超出了此提取器的配置限制，则返回true。
     fn class_over_limit_bytes(&self, cls: &hir::ClassBytes) -> bool {
         let mut count = 0;
         for r in cls.iter() {
@@ -371,9 +311,7 @@ impl Extractor {
         count > self.limit_class
     }
 
-    /// Compute the cross product of the two sequences if the result would be
-    /// within configured limits. Otherwise, make `seq2` infinite and cross the
-    /// infinite sequence with `seq1`.
+    /// 计算两个序列的交叉乘积，如果结果在配置限制内。否则，将 `seq2` 设为无限，然后将无限序列与 `seq1` 进行交叉。
     fn cross(&self, mut seq1: TSeq, mut seq2: TSeq) -> TSeq {
         if !seq2.prefix {
             return seq1.choose(seq2);
@@ -390,26 +328,17 @@ impl Extractor {
         seq1
     }
 
-    /// Union the two sequences if the result would be within configured
-    /// limits. Otherwise, make `seq2` infinite and union the infinite sequence
-    /// with `seq1`.
+    /// 如果结果在配置限制内，将两个序列合并。否则，将 `seq2` 设为无限，然后将无限序列与 `seq1` 进行合并。
     fn union(&self, mut seq1: TSeq, seq2: &mut TSeq) -> TSeq {
         if seq1.max_union_len(seq2).map_or(false, |len| len > self.limit_total)
         {
-            // We try to trim our literal sequences to see if we can make
-            // room for more literals. The idea is that we'd rather trim down
-            // literals already in our sequence if it means we can add a few
-            // more and retain a finite sequence. Otherwise, we'll union with
-            // an infinite sequence and that infects everything and effectively
-            // stops literal extraction in its tracks.
+            // 我们尝试修剪字面量序列，以查看是否可以为更多字面量腾出空间。
+            // 我们的想法是，如果我们可以通过修剪序列中已经存在的字面量来添加更多字面量并保留有限序列，那么我们宁愿这样做。
+            // 否则，我们将与一个无限序列进行合并，这会影响一切，实际上会停止字面量提取。
             //
-            // We do we keep 4 bytes here? Well, it's a bit of an abstraction
-            // leakage. Downstream, the literals may wind up getting fed to
-            // the Teddy algorithm, which supports searching literals up to
-            // length 4. So that's why we pick that number here. Arguably this
-            // should be a tuneable parameter, but it seems a little tricky to
-            // describe. And I'm still unsure if this is the right way to go
-            // about culling literal sequences.
+            // 为什么我们在这里保留了4个字节？这有点是一个抽象泄漏。在下游，这些字面量可能最终会被输入到 Teddy 算法中，
+            // 该算法支持搜索长度为4的字面量。所以这就是我们选择这个数字的原因。可以说，这应该是一个可调参数，但似乎有点棘手来描述。
+            // 而且我还不确定这是否是正确处理修剪字面量序列的方法。
             seq1.keep_first_bytes(4);
             seq2.keep_first_bytes(4);
             seq1.dedup();
@@ -426,8 +355,7 @@ impl Extractor {
         seq1
     }
 
-    /// Applies the literal length limit to the given sequence. If none of the
-    /// literals in the sequence exceed the limit, then this is a no-op.
+    /// 对给定序列应用字面量长度限制。如果序列中没有一个字面量超过限制，则不进行操作。
     fn enforce_literal_len(&self, seq: &mut TSeq) {
         seq.keep_first_bytes(self.limit_literal_len);
     }

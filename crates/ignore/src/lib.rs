@@ -53,59 +53,54 @@ mod pathutil;
 pub mod types;
 mod walk;
 
-/// Represents an error that can occur when parsing a gitignore file.
+/// 表示解析 gitignore 文件时可能出现的错误。
 #[derive(Debug)]
 pub enum Error {
-    /// A collection of "soft" errors. These occur when adding an ignore
-    /// file partially succeeded.
+    /// 一组“软”错误。这些错误在部分添加忽略文件时出现。
     Partial(Vec<Error>),
-    /// An error associated with a specific line number.
+    /// 与特定行号相关联的错误。
     WithLineNumber {
-        /// The line number.
+        /// 行号。
         line: u64,
-        /// The underlying error.
+        /// 原始错误。
         err: Box<Error>,
     },
-    /// An error associated with a particular file path.
+    /// 与特定文件路径相关联的错误。
     WithPath {
-        /// The file path.
+        /// 文件路径。
         path: PathBuf,
-        /// The underlying error.
+        /// 原始错误。
         err: Box<Error>,
     },
-    /// An error associated with a particular directory depth when recursively
-    /// walking a directory.
+    /// 与递归遍历目录时的特定目录深度相关的错误。
     WithDepth {
-        /// The directory depth.
+        /// 目录深度。
         depth: usize,
-        /// The underlying error.
+        /// 原始错误。
         err: Box<Error>,
     },
-    /// An error that occurs when a file loop is detected when traversing
-    /// symbolic links.
+    /// 在遍历符号链接时检测到文件循环的错误。
     Loop {
-        /// The ancestor file path in the loop.
+        /// 循环中的祖先文件路径。
         ancestor: PathBuf,
-        /// The child file path in the loop.
+        /// 循环中的子文件路径。
         child: PathBuf,
     },
-    /// An error that occurs when doing I/O, such as reading an ignore file.
+    /// 发生 I/O 错误时的错误，比如读取忽略文件。
     Io(io::Error),
-    /// An error that occurs when trying to parse a glob.
+    /// 尝试解析通配符时发生的错误。
     Glob {
-        /// The original glob that caused this error. This glob, when
-        /// available, always corresponds to the glob provided by an end user.
-        /// e.g., It is the glob as written in a `.gitignore` file.
+        /// 导致此错误的原始通配符。此通配符当可用时，始终对应于终端用户提供的通配符。
+        /// 例如，它是在 `.gitignore` 文件中写的通配符。
         ///
-        /// (This glob may be distinct from the glob that is actually
-        /// compiled, after accounting for `gitignore` semantics.)
+        /// （这个通配符可能与实际编译后的通配符不同，因为要考虑到 `gitignore` 的语义。）
         glob: Option<String>,
-        /// The underlying glob error as a string.
+        /// 作为字符串的底层通配符错误。
         err: String,
     },
-    /// A type selection for a file type that is not defined.
+    /// 未定义的文件类型选择。
     UnrecognizedFileType(String),
-    /// A user specified file type definition could not be parsed.
+    /// 用户指定的文件类型定义无法解析。
     InvalidDefinition,
 }
 
@@ -142,11 +137,9 @@ impl Clone for Error {
 }
 
 impl Error {
-    /// Returns true if this is a partial error.
+    /// 如果这是一个部分错误，则返回 true。
     ///
-    /// A partial error occurs when only some operations failed while others
-    /// may have succeeded. For example, an ignore file may contain an invalid
-    /// glob among otherwise valid globs.
+    /// 部分错误发生在只有部分操作失败，而其他操作可能已成功的情况下。例如，忽略文件可能包含一个无效的通配符，但其他通配符仍然有效。
     pub fn is_partial(&self) -> bool {
         match *self {
             Error::Partial(_) => true,
@@ -157,7 +150,7 @@ impl Error {
         }
     }
 
-    /// Returns true if this error is exclusively an I/O error.
+    /// 如果此错误仅为 I/O 错误，则返回 true。
     pub fn is_io(&self) -> bool {
         match *self {
             Error::Partial(ref errs) => errs.len() == 1 && errs[0].is_io(),
@@ -172,19 +165,13 @@ impl Error {
         }
     }
 
-    /// Inspect the original [`io::Error`] if there is one.
+    /// 检查是否有原始 [`io::Error`]。
     ///
-    /// [`None`] is returned if the [`Error`] doesn't correspond to an
-    /// [`io::Error`]. This might happen, for example, when the error was
-    /// produced because a cycle was found in the directory tree while
-    /// following symbolic links.
+    /// 如果 [`Error`] 不对应于 [`io::Error`]，则返回 [`None`]。这可能发生在例如在跟随符号链接时在目录树中发现循环的错误。
     ///
-    /// This method returns a borrowed value that is bound to the lifetime of the [`Error`]. To
-    /// obtain an owned value, the [`into_io_error`] can be used instead.
+    /// 此方法返回一个与 [`Error`] 的生命周期绑定的借用值。要获取拥有的值，可以使用 [`into_io_error`]。
     ///
-    /// > This is the original [`io::Error`] and is _not_ the same as
-    /// > [`impl From<Error> for std::io::Error`][impl] which contains additional context about the
-    /// error.
+    /// > 这是原始 [`io::Error`]，与 [`impl From<Error> for std::io::Error`][impl] 不同，后者包含了关于错误的其他上下文。
     ///
     /// [`None`]: https://doc.rust-lang.org/stable/std/option/enum.Option.html#variant.None
     /// [`io::Error`]: https://doc.rust-lang.org/stable/std/io/struct.Error.html
@@ -212,8 +199,7 @@ impl Error {
         }
     }
 
-    /// Similar to [`io_error`] except consumes self to convert to the original
-    /// [`io::Error`] if one exists.
+    /// 类似于 [`io_error`]，但将自身消耗以转换为原始的 [`io::Error`]（如果存在）。
     ///
     /// [`io_error`]: struct.Error.html#method.io_error
     /// [`io::Error`]: https://doc.rust-lang.org/stable/std/io/struct.Error.html
@@ -237,8 +223,7 @@ impl Error {
         }
     }
 
-    /// Returns a depth associated with recursively walking a directory (if
-    /// this error was generated from a recursive directory iterator).
+    /// 返回与递归遍历目录相关联的深度（如果此错误是从递归目录迭代器生成的）。
     pub fn depth(&self) -> Option<usize> {
         match *self {
             Error::WithPath { ref err, .. } => err.depth(),
@@ -247,7 +232,7 @@ impl Error {
         }
     }
 
-    /// Turn an error into a tagged error with the given file path.
+    /// 将错误转换为带有给定文件路径的标记错误。
     fn with_path<P: AsRef<Path>>(self, path: P) -> Error {
         Error::WithPath {
             path: path.as_ref().to_path_buf(),
@@ -255,13 +240,12 @@ impl Error {
         }
     }
 
-    /// Turn an error into a tagged error with the given depth.
+    /// 将错误转换为带有给定深度的标记错误。
     fn with_depth(self, depth: usize) -> Error {
         Error::WithDepth { depth: depth, err: Box::new(self) }
     }
 
-    /// Turn an error into a tagged error with the given file path and line
-    /// number. If path is empty, then it is omitted from the error.
+    /// 将错误转换为带有给定文件路径和行号的标记错误。如果路径为空，则省略错误中的路径。
     fn tagged<P: AsRef<Path>>(self, path: P, lineno: u64) -> Error {
         let errline =
             Error::WithLineNumber { line: lineno, err: Box::new(self) };
@@ -271,7 +255,7 @@ impl Error {
         errline.with_path(path)
     }
 
-    /// Build an error from a walkdir error.
+    /// 从 walkdir 错误构建错误。
     fn from_walkdir(err: walkdir::Error) -> Error {
         let depth = err.depth();
         if let (Some(anc), Some(child)) = (err.loop_ancestor(), err.path()) {
@@ -390,27 +374,22 @@ impl PartialErrorBuilder {
         }
     }
 }
-
-/// The result of a glob match.
+/// 匹配结果的枚举类型，代表通配符匹配的结果。
 ///
-/// The type parameter `T` typically refers to a type that provides more
-/// information about a particular match. For example, it might identify
-/// the specific gitignore file and the specific glob pattern that caused
-/// the match.
+/// 类型参数 `T` 通常指的是提供有关特定匹配的更多信息的类型。
+/// 例如，它可能标识导致匹配的特定 gitignore 文件和特定通配符模式。
 #[derive(Clone, Debug)]
 pub enum Match<T> {
-    /// The path didn't match any glob.
+    /// 路径未匹配任何通配符。
     None,
-    /// The highest precedent glob matched indicates the path should be
-    /// ignored.
+    /// 最高优先级的匹配的通配符指示路径应该被忽略。
     Ignore(T),
-    /// The highest precedent glob matched indicates the path should be
-    /// whitelisted.
+    /// 最高优先级的匹配的通配符指示路径应该被加入白名单。
     Whitelist(T),
 }
 
 impl<T> Match<T> {
-    /// Returns true if the match result didn't match any globs.
+    /// 如果匹配结果未匹配任何通配符，则返回 true。
     pub fn is_none(&self) -> bool {
         match *self {
             Match::None => true,
@@ -418,7 +397,7 @@ impl<T> Match<T> {
         }
     }
 
-    /// Returns true if the match result implies the path should be ignored.
+    /// 如果匹配结果表明路径应该被忽略，则返回 true。
     pub fn is_ignore(&self) -> bool {
         match *self {
             Match::Ignore(_) => true,
@@ -426,8 +405,7 @@ impl<T> Match<T> {
         }
     }
 
-    /// Returns true if the match result implies the path should be
-    /// whitelisted.
+    /// 如果匹配结果表明路径应该被加入白名单，则返回 true。
     pub fn is_whitelist(&self) -> bool {
         match *self {
             Match::Whitelist(_) => true,
@@ -435,8 +413,8 @@ impl<T> Match<T> {
         }
     }
 
-    /// Inverts the match so that `Ignore` becomes `Whitelist` and
-    /// `Whitelist` becomes `Ignore`. A non-match remains the same.
+    /// 反转匹配，使 `Ignore` 变为 `Whitelist`，`Whitelist` 变为 `Ignore`。
+    /// 非匹配结果保持不变。
     pub fn invert(self) -> Match<T> {
         match self {
             Match::None => Match::None,
@@ -445,7 +423,7 @@ impl<T> Match<T> {
         }
     }
 
-    /// Return the value inside this match if it exists.
+    /// 如果存在，则返回此匹配中的值。
     pub fn inner(&self) -> Option<&T> {
         match *self {
             Match::None => None,
@@ -454,9 +432,9 @@ impl<T> Match<T> {
         }
     }
 
-    /// Apply the given function to the value inside this match.
+    /// 对此匹配中的值应用给定的函数。
     ///
-    /// If the match has no value, then return the match unchanged.
+    /// 如果匹配没有值，则返回不变的匹配结果。
     pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> Match<U> {
         match self {
             Match::None => Match::None,
@@ -465,7 +443,7 @@ impl<T> Match<T> {
         }
     }
 
-    /// Return the match if it is not none. Otherwise, return other.
+    /// 如果不是 none 匹配，则返回匹配本身。否则，返回其他匹配。
     pub fn or(self, other: Self) -> Self {
         if self.is_none() {
             other
@@ -483,7 +461,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::result;
 
-    /// A convenient result type alias.
+    /// 一个方便的结果类型别名。
     pub type Result<T> =
         result::Result<T, Box<dyn error::Error + Send + Sync>>;
 
@@ -493,11 +471,9 @@ mod tests {
         }
     }
 
-    /// A simple wrapper for creating a temporary directory that is
-    /// automatically deleted when it's dropped.
+    /// 一个简单的包装器，用于创建临时目录，在丢弃时会自动删除。
     ///
-    /// We use this in lieu of tempfile because tempfile brings in too many
-    /// dependencies.
+    /// 我们使用这个来替代 tempfile，因为 tempfile 带来了太多依赖。
     #[derive(Debug)]
     pub struct TempDir(PathBuf);
 
@@ -508,8 +484,7 @@ mod tests {
     }
 
     impl TempDir {
-        /// Create a new empty temporary directory under the system's configured
-        /// temporary directory.
+        /// 在系统配置的临时目录下创建一个新的空临时目录。
         pub fn new() -> Result<TempDir> {
             use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -523,15 +498,14 @@ mod tests {
                 if path.is_dir() {
                     continue;
                 }
-                fs::create_dir_all(&path).map_err(|e| {
-                    err!("failed to create {}: {}", path.display(), e)
-                })?;
+                fs::create_dir_all(&path)
+                    .map_err(|e| err!("无法创建 {}: {}", path.display(), e))?;
                 return Ok(TempDir(path));
             }
-            Err(err!("failed to create temp dir after {} tries", TRIES))
+            Err(err!("在 {} 次尝试后无法创建临时目录", TRIES))
         }
 
-        /// Return the underlying path to this temporary directory.
+        /// 返回此临时目录的基础路径。
         pub fn path(&self) -> &Path {
             &self.0
         }

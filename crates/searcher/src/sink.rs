@@ -6,38 +6,30 @@ use grep_matcher::LineTerminator;
 
 use crate::lines::LineIter;
 use crate::searcher::{ConfigError, Searcher};
-
-/// A trait that describes errors that can be reported by searchers and
-/// implementations of `Sink`.
+/// 描述搜索器和 `Sink` 实现可能报告的错误的 trait。
 ///
-/// Unless you have a specialized use case, you probably don't need to
-/// implement this trait explicitly. It's likely that using `io::Error` (which
-/// implements this trait) for your error type is good enough, largely because
-/// most errors that occur during search will likely be an `io::Error`.
+/// 除非您有特殊的用例，否则您可能不需要显式实现此 trait。通常情况下，对于错误类型，
+/// 使用 `io::Error`（实现了此 trait）可能已经足够，因为在搜索期间发生的大多数错误可能都是 `io::Error`。
 pub trait SinkError: Sized {
-    /// A constructor for converting any value that satisfies the
-    /// `fmt::Display` trait into an error.
+    /// 将满足 `fmt::Display` trait 的任何值转换为错误的构造函数。
     fn error_message<T: fmt::Display>(message: T) -> Self;
 
-    /// A constructor for converting I/O errors that occur while searching into
-    /// an error of this type.
+    /// 将搜索期间发生的 I/O 错误转换为此错误类型的构造函数。
     ///
-    /// By default, this is implemented via the `error_message` constructor.
+    /// 默认情况下，通过 `error_message` 构造函数来实现。
     fn error_io(err: io::Error) -> Self {
         Self::error_message(err)
     }
 
-    /// A constructor for converting configuration errors that occur while
-    /// building a searcher into an error of this type.
+    /// 将在构建搜索器时发生的配置错误转换为此错误类型的构造函数。
     ///
-    /// By default, this is implemented via the `error_message` constructor.
+    /// 默认情况下，通过 `error_message` 构造函数来实现。
     fn error_config(err: ConfigError) -> Self {
         Self::error_message(err)
     }
 }
 
-/// An `io::Error` can be used as an error for `Sink` implementations out of
-/// the box.
+/// `io::Error` 可以直接用作 `Sink` 实现的错误。
 impl SinkError for io::Error {
     fn error_message<T: fmt::Display>(message: T) -> io::Error {
         io::Error::new(io::ErrorKind::Other, message.to_string())
@@ -48,94 +40,71 @@ impl SinkError for io::Error {
     }
 }
 
-/// A `Box<std::error::Error>` can be used as an error for `Sink`
-/// implementations out of the box.
+/// `Box<std::error::Error>` 可以直接用作 `Sink` 实现的错误。
 impl SinkError for Box<dyn error::Error> {
     fn error_message<T: fmt::Display>(message: T) -> Box<dyn error::Error> {
         Box::<dyn error::Error>::from(message.to_string())
     }
 }
 
-/// A trait that defines how results from searchers are handled.
+/// 定义如何处理搜索器的结果的 trait。
 ///
-/// In this crate, a searcher follows the "push" model. What that means is that
-/// the searcher drives execution, and pushes results back to the caller. This
-/// is in contrast to a "pull" model where the caller drives execution and
-/// takes results as they need them. These are also known as "internal" and
-/// "external" iteration strategies, respectively.
+/// 在此 crate 中，搜索器遵循“推送”模型。这意味着搜索器驱动执行，并将结果推送回调用者。
+/// 这与“拉取”模型相反，其中调用者驱动执行，并在需要结果时获取它们。这些也被称为“内部”和“外部”迭代策略。
 ///
-/// For a variety of reasons, including the complexity of the searcher
-/// implementation, this crate chooses the "push" or "internal" model of
-/// execution. Thus, in order to act on search results, callers must provide
-/// an implementation of this trait to a searcher, and the searcher is then
-/// responsible for calling the methods on this trait.
+/// 由于搜索器实现的复杂性等多种原因，此 crate 选择了“推送”或“内部”执行模型。因此，
+/// 要在搜索结果上执行操作，调用者必须为搜索器提供此 trait 的实现，然后搜索器负责调用此 trait 上的方法。
 ///
-/// This trait defines several behaviors:
+/// 此 trait 定义了几种行为：
 ///
-/// * What to do when a match is found. Callers must provide this.
-/// * What to do when an error occurs. Callers must provide this via the
-///   [`SinkError`](trait.SinkError.html) trait. Generally, callers can just
-///   use `io::Error` for this, which already implements `SinkError`.
-/// * What to do when a contextual line is found. By default, these are
-///   ignored.
-/// * What to do when a gap between contextual lines has been found. By
-///   default, this is ignored.
-/// * What to do when a search has started. By default, this does nothing.
-/// * What to do when a search has finished successfully. By default, this does
-///   nothing.
+/// * 在找到匹配项时要执行的操作。调用者必须提供这些操作。
+/// * 在发生错误时要执行的操作。调用者必须通过 [`SinkError`](trait.SinkError.html) trait 提供这些操作。
+///   通常情况下，调用者可以使用 `io::Error` 来实现，因为它已经实现了 `SinkError`。
+/// * 在找到上下文行时要执行的操作。默认情况下，这些操作会被忽略。
+/// * 在上下文行之间找到间隔时要执行的操作。默认情况下，这些操作会被忽略。
+/// * 在搜索开始时要执行的操作。默认情况下，这些操作不执行任何操作。
+/// * 在搜索成功完成时要执行的操作。默认情况下，这些操作不执行任何操作。
 ///
-/// Callers must, at minimum, specify the behavior when an error occurs and
-/// the behavior when a match occurs. The rest is optional. For each behavior,
-/// callers may report an error (say, if writing the result to another
-/// location failed) or simply return `false` if they want the search to stop
-/// (e.g., when implementing a cap on the number of search results to show).
+/// 调用者至少必须指定在发生错误时的行为以及在找到匹配项时的行为。其余的是可选的。
+/// 对于每个行为，调用者可以报告错误（例如，如果写入结果到另一个位置失败），
+/// 或者如果他们希望搜索停止（例如，在实现对要显示的搜索结果数量的限制时），
+/// 则可以简单地返回 `false`。
 ///
-/// When errors are reported (whether in the searcher or in the implementation
-/// of `Sink`), then searchers quit immediately without calling `finish`.
+/// 当错误被报告时（无论是在搜索器中还是在 `Sink` 的实现中），
+/// 搜索器会立即退出而不会调用 `finish`。
 ///
-/// For simpler uses of `Sink`, callers may elect to use one of
-/// the more convenient but less flexible implementations in the
-/// [`sinks`](sinks/index.html) module.
+/// 对于 `Sink` 的更简单用法，调用者可以选择使用 [`sinks`](sinks/index.html) 模块中更方便但不太灵活的实现之一。
 pub trait Sink {
-    /// The type of an error that should be reported by a searcher.
+    /// 应由搜索器报告的错误类型。
     ///
-    /// Errors of this type are not only returned by the methods on this
-    /// trait, but the constructors defined in `SinkError` are also used in
-    /// the searcher implementation itself. e.g., When a I/O error occurs when
-    /// reading data from a file.
+    /// 此类型的错误不仅在此 trait 的方法中返回，还在 `SinkError` 中定义的构造函数中使用。
+    /// 例如，当从文件中读取数据时发生 I/O 错误。
     type Error: SinkError;
 
-    /// This method is called whenever a match is found.
+    /// 每当找到匹配项时，将调用此方法。
     ///
-    /// If multi line is enabled on the searcher, then the match reported here
-    /// may span multiple lines and it may include multiple matches. When multi
-    /// line is disabled, then the match is guaranteed to span exactly one
-    /// non-empty line (where a single line is, at minimum, a line terminator).
+    /// 如果搜索器启用了多行模式，则此处报告的匹配项可能跨越多行，并且可能包含多个匹配项。
+    /// 当禁用多行模式时，确保匹配项仅跨足够多的行（至少为一个行终止符）。
     ///
-    /// If this returns `true`, then searching continues. If this returns
-    /// `false`, then searching is stopped immediately and `finish` is called.
+    /// 如果返回 `true`，则继续搜索。如果返回 `false`，则立即停止搜索并调用 `finish`。
     ///
-    /// If this returns an error, then searching is stopped immediately,
-    /// `finish` is not called and the error is bubbled back up to the caller
-    /// of the searcher.
+    /// 如果返回错误，则立即停止搜索，不会调用 `finish`，
+    /// 并且错误会向上传播到搜索器的调用者。
     fn matched(
         &mut self,
         _searcher: &Searcher,
         _mat: &SinkMatch<'_>,
     ) -> Result<bool, Self::Error>;
 
-    /// This method is called whenever a context line is found, and is optional
-    /// to implement. By default, it does nothing and returns `true`.
+    /// 每当找到上下文行时，将调用此方法，但是此方法是可选的，可以选择实现。
+    /// 默认情况下，它不执行任何操作并返回 `true`。
     ///
-    /// In all cases, the context given is guaranteed to span exactly one
-    /// non-empty line (where a single line is, at minimum, a line terminator).
+    /// 在所有情况下，所提供的上下文都确保仅跨足够多的行（至少为一个行终止符）。
     ///
-    /// If this returns `true`, then searching continues. If this returns
-    /// `false`, then searching is stopped immediately and `finish` is called.
+    /// 如果返回 `true`，则继续搜索。如果返回 `false`，则立即停止搜索并调用 `finish`。
     ///
-    /// If this returns an error, then searching is stopped immediately,
-    /// `finish` is not called and the error is bubbled back up to the caller
-    /// of the searcher.
+    /// 如果返回错误，则立即停止搜索，不会调用 `finish`，
+    /// 并且错误会向上传播到搜索器的调用者。
     #[inline]
     fn context(
         &mut self,
@@ -145,21 +114,16 @@ pub trait Sink {
         Ok(true)
     }
 
-    /// This method is called whenever a break in contextual lines is found,
-    /// and is optional to implement. By default, it does nothing and returns
-    /// `true`.
+    /// 每当找到上下文行之间的间隔时，将调用此方法，但是此方法是可选的，可以选择实现。
+    /// 默认情况下，它不执行任何操作并返回 `true`。
     ///
-    /// A break can only occur when context reporting is enabled (that is,
-    /// either or both of `before_context` or `after_context` are greater than
-    /// `0`). More precisely, a break occurs between non-contiguous groups of
-    /// lines.
+    /// 仅当启用上下文报告时（即 `before_context` 或 `after_context` 中的任一个大于 `0`）
+    /// 才会出现间隔。更准确地说，间隔在非连续的行组之间出现。
     ///
-    /// If this returns `true`, then searching continues. If this returns
-    /// `false`, then searching is stopped immediately and `finish` is called.
+    /// 如果返回 `true`，则继续搜索。如果返回 `false`，则立即停止搜索并调用 `finish`。
     ///
-    /// If this returns an error, then searching is stopped immediately,
-    /// `finish` is not called and the error is bubbled back up to the caller
-    /// of the searcher.
+    /// 如果返回错误，则立即停止搜索，不会调用 `finish`，
+    /// 并且错误会向上传播到搜索器的调用者。
     #[inline]
     fn context_break(
         &mut self,
@@ -168,19 +132,15 @@ pub trait Sink {
         Ok(true)
     }
 
-    /// This method is called whenever binary detection is enabled and binary
-    /// data is found. If binary data is found, then this is called at least
-    /// once for the first occurrence with the absolute byte offset at which
-    /// the binary data begins.
+    /// 每当启用二进制检测并找到二进制数据时，将调用此方法。如果找到二进制数据，
+    /// 则至少会为第一次出现调用一次，参数是二进制数据开始的绝对字节偏移量。
     ///
-    /// If this returns `true`, then searching continues. If this returns
-    /// `false`, then searching is stopped immediately and `finish` is called.
+    /// 如果返回 `true`，则继续搜索。如果返回 `false`，则立即停止搜索并调用 `finish`。
     ///
-    /// If this returns an error, then searching is stopped immediately,
-    /// `finish` is not called and the error is bubbled back up to the caller
-    /// of the searcher.
+    /// 如果返回错误，则立即停止搜索，不会调用 `finish`，
+    /// 并且错误会向上传播到搜索器的调用者。
     ///
-    /// By default, it does nothing and returns `true`.
+    /// 默认情况下，不执行任何操作并返回 `true`。
     #[inline]
     fn binary_data(
         &mut self,
@@ -190,25 +150,20 @@ pub trait Sink {
         Ok(true)
     }
 
-    /// This method is called when a search has begun, before any search is
-    /// executed. By default, this does nothing.
+    /// 在搜索开始时调用此方法，在执行任何搜索之前调用。默认情况下，不执行任何操作。
     ///
-    /// If this returns `true`, then searching continues. If this returns
-    /// `false`, then searching is stopped immediately and `finish` is called.
+    /// 如果返回 `true`，则继续搜索。如果返回 `false`，则立即停止搜索并调用 `finish`。
     ///
-    /// If this returns an error, then searching is stopped immediately,
-    /// `finish` is not called and the error is bubbled back up to the caller
-    /// of the searcher.
+    /// 如果返回错误，则立即停止搜索，不会调用 `finish`，
+    /// 并且错误会向上传播到搜索器的调用者。
     #[inline]
     fn begin(&mut self, _searcher: &Searcher) -> Result<bool, Self::Error> {
         Ok(true)
     }
 
-    /// This method is called when a search has completed. By default, this
-    /// does nothing.
+    /// 当搜索完成时调用此方法。默认情况下，不执行任何操作。
     ///
-    /// If this returns an error, the error is bubbled back up to the caller of
-    /// the searcher.
+    /// 如果返回错误，则错误会向上传播到搜索器的调用者。
     #[inline]
     fn finish(
         &mut self,
@@ -218,10 +173,13 @@ pub trait Sink {
         Ok(())
     }
 }
-
+/// 为实现了 `Sink` 的类型定义一个代理 `Sink`，使其实现可以通过引用进行调用。
+///
+/// 这允许对 `Sink` 的引用进行调用，而无需复制其所有权。
 impl<'a, S: Sink> Sink for &'a mut S {
     type Error = S::Error;
 
+    /// 将 `matched` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn matched(
         &mut self,
@@ -231,6 +189,7 @@ impl<'a, S: Sink> Sink for &'a mut S {
         (**self).matched(searcher, mat)
     }
 
+    /// 将 `context` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn context(
         &mut self,
@@ -240,6 +199,7 @@ impl<'a, S: Sink> Sink for &'a mut S {
         (**self).context(searcher, context)
     }
 
+    /// 将 `context_break` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn context_break(
         &mut self,
@@ -248,6 +208,7 @@ impl<'a, S: Sink> Sink for &'a mut S {
         (**self).context_break(searcher)
     }
 
+    /// 将 `binary_data` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn binary_data(
         &mut self,
@@ -257,11 +218,13 @@ impl<'a, S: Sink> Sink for &'a mut S {
         (**self).binary_data(searcher, binary_byte_offset)
     }
 
+    /// 将 `begin` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn begin(&mut self, searcher: &Searcher) -> Result<bool, S::Error> {
         (**self).begin(searcher)
     }
 
+    /// 将 `finish` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn finish(
         &mut self,
@@ -272,9 +235,13 @@ impl<'a, S: Sink> Sink for &'a mut S {
     }
 }
 
+/// 为实现了 `Sink` 的类型定义一个代理 `Sink`，使其实现可以通过 `Box` 进行调用。
+///
+/// 这允许对 `Sink` 的实现进行堆分配，并在需要时进行所有权转移。
 impl<S: Sink + ?Sized> Sink for Box<S> {
     type Error = S::Error;
 
+    /// 将 `matched` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn matched(
         &mut self,
@@ -284,6 +251,7 @@ impl<S: Sink + ?Sized> Sink for Box<S> {
         (**self).matched(searcher, mat)
     }
 
+    /// 将 `context` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn context(
         &mut self,
@@ -293,6 +261,7 @@ impl<S: Sink + ?Sized> Sink for Box<S> {
         (**self).context(searcher, context)
     }
 
+    /// 将 `context_break` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn context_break(
         &mut self,
@@ -301,6 +270,7 @@ impl<S: Sink + ?Sized> Sink for Box<S> {
         (**self).context_break(searcher)
     }
 
+    /// 将 `binary_data` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn binary_data(
         &mut self,
@@ -310,11 +280,13 @@ impl<S: Sink + ?Sized> Sink for Box<S> {
         (**self).binary_data(searcher, binary_byte_offset)
     }
 
+    /// 将 `begin` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn begin(&mut self, searcher: &Searcher) -> Result<bool, S::Error> {
         (**self).begin(searcher)
     }
 
+    /// 将 `finish` 方法委托给实际的 `Sink` 实现。
     #[inline]
     fn finish(
         &mut self,
@@ -325,14 +297,12 @@ impl<S: Sink + ?Sized> Sink for Box<S> {
     }
 }
 
-/// Summary data reported at the end of a search.
+/// 在搜索结束时报告的摘要数据。
 ///
-/// This reports data such as the total number of bytes searched and the
-/// absolute offset of the first occurrence of binary data, if any were found.
+/// 这些数据包括总搜索的字节数以及如果发现了二进制数据，则第一个字节的绝对偏移量。
 ///
-/// A searcher that stops early because of an error does not call `finish`.
-/// A searcher that stops early because the `Sink` implementor instructed it
-/// to will still call `finish`.
+/// 由于出现错误而提前停止的搜索器不会调用 `finish`。
+/// 因为 `Sink` 实现者的指示而提前停止的搜索器仍将调用 `finish`。
 #[derive(Clone, Debug)]
 pub struct SinkFinish {
     pub(crate) byte_count: u64,
@@ -340,25 +310,22 @@ pub struct SinkFinish {
 }
 
 impl SinkFinish {
-    /// Return the total number of bytes searched.
+    /// 返回总搜索的字节数。
     #[inline]
     pub fn byte_count(&self) -> u64 {
         self.byte_count
     }
 
-    /// If binary detection is enabled and if binary data was found, then this
-    /// returns the absolute byte offset of the first detected byte of binary
-    /// data.
+    /// 如果启用了二进制检测，并且找到了二进制数据，则返回检测到的二进制数据的第一个字节的绝对偏移量。
     ///
-    /// Note that since this is an absolute byte offset, it cannot be relied
-    /// upon to index into any addressable memory.
+    /// 请注意，由于这是一个绝对字节偏移量，因此不能依赖它来索引任何可寻址的内存。
     #[inline]
     pub fn binary_byte_offset(&self) -> Option<u64> {
         self.binary_byte_offset
     }
 }
 
-/// A type that describes a match reported by a searcher.
+/// 描述搜索器报告的匹配项的类型。
 #[derive(Clone, Debug)]
 pub struct SinkMatch<'b> {
     pub(crate) line_term: LineTerminator,
@@ -370,39 +337,33 @@ pub struct SinkMatch<'b> {
 }
 
 impl<'b> SinkMatch<'b> {
-    /// Returns the bytes for all matching lines, including the line
-    /// terminators, if they exist.
+    /// 返回所有匹配行的字节，包括行终止符（如果存在）。
     #[inline]
     pub fn bytes(&self) -> &'b [u8] {
         self.bytes
     }
 
-    /// Return an iterator over the lines in this match.
+    /// 返回此匹配中的行的迭代器。
     ///
-    /// If multi line search is enabled, then this may yield more than one
-    /// line (but always at least one line). If multi line search is disabled,
-    /// then this always reports exactly one line (but may consist of just
-    /// the line terminator).
+    /// 如果启用了多行搜索，则可能会产生多行（但始终至少为一行）。
+    /// 如果禁用了多行搜索，则始终报告一行（但可能只包括行终止符）。
     ///
-    /// Lines yielded by this iterator include their terminators.
+    /// 此迭代器生成的行包括其终止符。
     #[inline]
     pub fn lines(&self) -> LineIter<'b> {
         LineIter::new(self.line_term.as_byte(), self.bytes)
     }
 
-    /// Returns the absolute byte offset of the start of this match. This
-    /// offset is absolute in that it is relative to the very beginning of the
-    /// input in a search, and can never be relied upon to be a valid index
-    /// into an in-memory slice.
+    /// 返回此匹配的开始处的绝对字节偏移量。此偏移量是绝对的，
+    /// 因为它相对于搜索中的开头，绝不可依赖于将其用作可寻址内存的索引。
     #[inline]
     pub fn absolute_byte_offset(&self) -> u64 {
         self.absolute_byte_offset
     }
 
-    /// Returns the line number of the first line in this match, if available.
+    /// 返回此匹配中的第一行的行号（如果可用）。
     ///
-    /// Line numbers are only available when the search builder is instructed
-    /// to compute them.
+    /// 仅当搜索生成器被指示计算行号时，才可用。
     #[inline]
     pub fn line_number(&self) -> Option<u64> {
         self.line_number
@@ -420,20 +381,18 @@ impl<'b> SinkMatch<'b> {
         self.bytes_range_in_buffer.clone()
     }
 }
-
-/// The type of context reported by a searcher.
+/// 描述搜索器报告的上下文类型。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SinkContextKind {
-    /// The line reported occurred before a match.
+    /// 报告的行出现在匹配项之前。
     Before,
-    /// The line reported occurred after a match.
+    /// 报告的行出现在匹配项之后。
     After,
-    /// Any other type of context reported, e.g., as a result of a searcher's
-    /// "passthru" mode.
+    /// 报告的其他类型的上下文，例如搜索器的“透传”模式的结果。
     Other,
 }
 
-/// A type that describes a contextual line reported by a searcher.
+/// 描述搜索器报告的上下文行的类型。
 #[derive(Clone, Debug)]
 pub struct SinkContext<'b> {
     #[cfg(test)]
@@ -445,71 +404,59 @@ pub struct SinkContext<'b> {
 }
 
 impl<'b> SinkContext<'b> {
-    /// Returns the context bytes, including line terminators.
+    /// 返回上下文字节，包括行终止符。
     #[inline]
     pub fn bytes(&self) -> &'b [u8] {
         self.bytes
     }
 
-    /// Returns the type of context.
+    /// 返回上下文类型。
     #[inline]
     pub fn kind(&self) -> &SinkContextKind {
         &self.kind
     }
 
-    /// Return an iterator over the lines in this match.
+    /// 返回匹配的行的迭代器。
     ///
-    /// This always yields exactly one line (and that one line may contain just
-    /// the line terminator).
+    /// 这始终只生成一行（该行可能只包含行终止符）。
     ///
-    /// Lines yielded by this iterator include their terminators.
+    /// 此迭代器生成的行包括其终止符。
     #[cfg(test)]
     pub(crate) fn lines(&self) -> LineIter<'b> {
         LineIter::new(self.line_term.as_byte(), self.bytes)
     }
 
-    /// Returns the absolute byte offset of the start of this context. This
-    /// offset is absolute in that it is relative to the very beginning of the
-    /// input in a search, and can never be relied upon to be a valid index
-    /// into an in-memory slice.
+    /// 返回此上下文的开始处的绝对字节偏移量。此偏移量是绝对的，
+    /// 因为它相对于搜索中的开头，绝不可依赖于将其用作可寻址内存的索引。
     #[inline]
     pub fn absolute_byte_offset(&self) -> u64 {
         self.absolute_byte_offset
     }
 
-    /// Returns the line number of the first line in this context, if
-    /// available.
+    /// 返回此上下文中第一行的行号（如果可用）。
     ///
-    /// Line numbers are only available when the search builder is instructed
-    /// to compute them.
+    /// 仅当搜索生成器被指示计算行号时，才可用。
     #[inline]
     pub fn line_number(&self) -> Option<u64> {
         self.line_number
     }
 }
 
-/// A collection of convenience implementations of `Sink`.
+/// `sinks` 模块提供的 `Sink` 的便捷实现集合。
 ///
-/// Each implementation in this module makes some kind of sacrifice in the name
-/// of making common cases easier to use. Most frequently, each type is a
-/// wrapper around a closure specified by the caller that provides limited
-/// access to the full suite of information available to implementors of
-/// `Sink`.
+/// 此模块中的每个实现在某种程度上都以某种牺牲的方式，以便于使用常见情况。
+/// 最常见的是，每个类型都是调用者指定的闭包的包装，该闭包提供对 `Sink` 的完整信息的有限访问。
 ///
-/// For example, the `UTF8` sink makes the following sacrifices:
+/// 例如，`UTF8` 汇聚了以下牺牲：
 ///
-/// * All matches must be UTF-8. An arbitrary `Sink` does not have this
-///   restriction and can deal with arbitrary data. If this sink sees invalid
-///   UTF-8, then an error is returned and searching stops. (Use the `Lossy`
-///   sink instead to suppress this error.)
-/// * The searcher must be configured to report line numbers. If it isn't,
-///   an error is reported at the first match and searching stops.
-/// * Context lines, context breaks and summary data reported at the end of
-///   a search are all ignored.
-/// * Implementors are forced to use `io::Error` as their error type.
+/// * 所有匹配必须是 UTF-8。任意的 `Sink` 并没有此限制，可以处理任意数据。
+///   如果此汇聚遇到无效的 UTF-8，则返回错误并停止搜索。
+///   （使用 `Lossy` 汇聚以代替可抑制此错误。）
+/// * 搜索器必须配置为报告行号。如果未配置，将在第一个匹配处报告错误并停止搜索。
+/// * 忽略在上下文行、上下文中断以及搜索结束时报告的摘要数据。
+/// * 实现者被强制使用 `io::Error` 作为其错误类型。
 ///
-/// If you need more flexibility, then you're advised to implement the `Sink`
-/// trait directly.
+/// 如果需要更大的灵活性，则建议直接实现 `Sink` trait。
 pub mod sinks {
     use std::io;
     use std::str;
@@ -517,21 +464,16 @@ pub mod sinks {
     use super::{Sink, SinkError, SinkMatch};
     use crate::searcher::Searcher;
 
-    /// A sink that provides line numbers and matches as strings while ignoring
-    /// everything else.
+    /// 一种汇聚，提供了行号和匹配项作为字符串，并忽略其他内容。
     ///
-    /// This implementation will return an error if a match contains invalid
-    /// UTF-8 or if the searcher was not configured to count lines. Errors
-    /// on invalid UTF-8 can be suppressed by using the `Lossy` sink instead
-    /// of this one.
+    /// 如果匹配项包含无效的 UTF-8 或搜索器未配置为计数行号，则此实现将返回错误。
+    /// 可以通过使用 `Lossy` 汇聚来抑制无效 UTF-8 上的错误。
     ///
-    /// The closure accepts two parameters: a line number and a UTF-8 string
-    /// containing the matched data. The closure returns a
-    /// `Result<bool, io::Error>`. If the `bool` is `false`, then the search
-    /// stops immediately. Otherwise, searching continues.
+    /// 闭包接受两个参数：行号和包含匹配数据的 UTF-8 字符串。
+    /// 闭包返回一个 `Result<bool, io::Error>`。如果 `bool` 为 `false`，
+    /// 则搜索立即停止。否则，继续搜索。
     ///
-    /// If multi line mode was enabled, the line number refers to the line
-    /// number of the first line in the match.
+    /// 如果启用了多行模式，则行号指的是匹配中第一行的行号。
     #[derive(Clone, Debug)]
     pub struct UTF8<F>(pub F)
     where
@@ -555,7 +497,7 @@ pub mod sinks {
             let line_number = match mat.line_number() {
                 Some(line_number) => line_number,
                 None => {
-                    let msg = "line numbers not enabled";
+                    let msg = "未启用行号";
                     return Err(io::Error::error_message(msg));
                 }
             };
@@ -563,23 +505,18 @@ pub mod sinks {
         }
     }
 
-    /// A sink that provides line numbers and matches as (lossily converted)
-    /// strings while ignoring everything else.
+    /// 一种汇聚，提供了行号和匹配项作为（通过丢失转换）的字符串，并忽略其他内容。
     ///
-    /// This is like `UTF8`, except that if a match contains invalid UTF-8,
-    /// then it will be lossily converted to valid UTF-8 by substituting
-    /// invalid UTF-8 with Unicode replacement characters.
+    /// 这类似于 `UTF8`，但是如果匹配项包含无效的 UTF-8，则会将其转换为有效的 UTF-8，
+    /// 方法是用 Unicode 替换字符替换无效的 UTF-8。
     ///
-    /// This implementation will return an error on the first match if the
-    /// searcher was not configured to count lines.
+    /// 如果匹配项包含无效的 UTF-8 或搜索器未配置为计数行号，则此实现将在第一个匹配处返回错误。
     ///
-    /// The closure accepts two parameters: a line number and a UTF-8 string
-    /// containing the matched data. The closure returns a
-    /// `Result<bool, io::Error>`. If the `bool` is `false`, then the search
-    /// stops immediately. Otherwise, searching continues.
+    /// 闭包接受两个参数：行号和包含匹配数据的 UTF-8 字符串。
+    /// 闭包返回一个 `Result<bool, io::Error>`。如果 `bool` 为 `false`，
+    /// 则搜索立即停止。否则，继续搜索。
     ///
-    /// If multi line mode was enabled, the line number refers to the line
-    /// number of the first line in the match.
+    /// 如果启用了多行模式，则行号指的是匹配中第一行的行号。
     #[derive(Clone, Debug)]
     pub struct Lossy<F>(pub F)
     where
@@ -600,16 +537,14 @@ pub mod sinks {
 
             let matched = match str::from_utf8(mat.bytes()) {
                 Ok(matched) => Cow::Borrowed(matched),
-                // TODO: In theory, it should be possible to amortize
-                // allocation here, but `std` doesn't provide such an API.
-                // Regardless, this only happens on matches with invalid UTF-8,
-                // which should be pretty rare.
+                // TODO: 理论上，可以在此处摊销分配，但是 `std` 没有提供这样的 API。
+                // 不过，这仅在具有无效 UTF-8 的匹配上发生，这应该非常少见。
                 Err(_) => String::from_utf8_lossy(mat.bytes()),
             };
             let line_number = match mat.line_number() {
                 Some(line_number) => line_number,
                 None => {
-                    let msg = "line numbers not enabled";
+                    let msg = "未启用行号";
                     return Err(io::Error::error_message(msg));
                 }
             };
@@ -617,19 +552,15 @@ pub mod sinks {
         }
     }
 
-    /// A sink that provides line numbers and matches as raw bytes while
-    /// ignoring everything else.
+    /// 一种汇聚，提供了行号和匹配项作为原始字节，忽略其他内容。
     ///
-    /// This implementation will return an error on the first match if the
-    /// searcher was not configured to count lines.
+    /// 如果搜索器未配置为计数行号，则此实现将在第一个匹配处返回错误。
     ///
-    /// The closure accepts two parameters: a line number and a raw byte string
-    /// containing the matched data. The closure returns a `Result<bool,
-    /// io::Error>`. If the `bool` is `false`, then the search stops
-    /// immediately. Otherwise, searching continues.
+    /// 闭包接受两个参数：行号和包含匹配数据的原始字节字符串。
+    /// 闭包返回一个 `Result<bool, io::Error>`。如果 `bool` 为 `false`，
+    /// 则搜索立即停止。否则，继续搜索。
     ///
-    /// If multi line mode was enabled, the line number refers to the line
-    /// number of the first line in the match.
+    /// 如果启用了多行模式，则行号指的是匹配中第一行的行号。
     #[derive(Clone, Debug)]
     pub struct Bytes<F>(pub F)
     where
@@ -649,7 +580,7 @@ pub mod sinks {
             let line_number = match mat.line_number() {
                 Some(line_number) => line_number,
                 None => {
-                    let msg = "line numbers not enabled";
+                    let msg = "未启用行号";
                     return Err(io::Error::error_message(msg));
                 }
             };

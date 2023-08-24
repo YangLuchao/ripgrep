@@ -12,17 +12,14 @@ use crate::counter::CounterWriter;
 use crate::jsont;
 use crate::stats::Stats;
 use crate::util::find_iter_at_in_context;
-
-/// The configuration for the JSON printer.
+/// JSON 打印机的配置。
 ///
-/// This is manipulated by the JSONBuilder and then referenced by the actual
-/// implementation. Once a printer is build, the configuration is frozen and
-/// cannot changed.
+/// 这由 JSONBuilder 进行配置，然后由实际实现引用。构建打印机后，配置将被冻结，无法更改。
 #[derive(Debug, Clone)]
 struct Config {
-    pretty: bool,
-    max_matches: Option<u64>,
-    always_begin_end: bool,
+    pretty: bool,             // 是否美化输出
+    max_matches: Option<u64>, // 最大匹配数量
+    always_begin_end: bool,   // 是否总是输出开始和结束信息
 }
 
 impl Default for Config {
@@ -31,30 +28,26 @@ impl Default for Config {
     }
 }
 
-/// A builder for a JSON lines printer.
+/// 用于构建 JSON 行打印机的构建器。
 ///
-/// The builder permits configuring how the printer behaves. The JSON printer
-/// has fewer configuration options than the standard printer because it is
-/// a structured format, and the printer always attempts to find the most
-/// information possible.
+/// 该构建器允许配置打印机的行为。与标准打印机相比，JSON 打印机的配置选项较少，因为它是一种结构化格式，
+/// 打印机总是尝试找到尽可能多的信息。
 ///
-/// Some configuration options, such as whether line numbers are included or
-/// whether contextual lines are shown, are drawn directly from the
-/// `grep_searcher::Searcher`'s configuration.
+/// 某些配置选项（例如是否包括行号或是否显示上下文行）直接从 `grep_searcher::Searcher` 的配置中获取。
 ///
-/// Once a `JSON` printer is built, its configuration cannot be changed.
+/// 一旦构建了 `JSON` 打印机，其配置就无法更改。
 #[derive(Clone, Debug)]
 pub struct JSONBuilder {
     config: Config,
 }
 
 impl JSONBuilder {
-    /// Return a new builder for configuring the JSON printer.
+    /// 返回一个用于配置 JSON 打印机的新构建器。
     pub fn new() -> JSONBuilder {
         JSONBuilder { config: Config::default() }
     }
 
-    /// Create a JSON printer that writes results to the given writer.
+    /// 创建一个将结果写入给定写入器的 JSON 打印机。
     pub fn build<W: io::Write>(&self, wtr: W) -> JSON<W> {
         JSON {
             config: self.config.clone(),
@@ -63,71 +56,57 @@ impl JSONBuilder {
         }
     }
 
-    /// Print JSON in a pretty printed format.
+    /// 以漂亮的格式打印 JSON。
     ///
-    /// Enabling this will no longer produce a "JSON lines" format, in that
-    /// each JSON object printed may span multiple lines.
+    /// 启用此选项将不再产生“JSON 行”格式，因为打印的每个 JSON 对象可能跨多行。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项被禁用。
     pub fn pretty(&mut self, yes: bool) -> &mut JSONBuilder {
         self.config.pretty = yes;
         self
     }
 
-    /// Set the maximum amount of matches that are printed.
+    /// 设置要打印的最大匹配数量。
     ///
-    /// If multi line search is enabled and a match spans multiple lines, then
-    /// that match is counted exactly once for the purposes of enforcing this
-    /// limit, regardless of how many lines it spans.
+    /// 如果启用了多行搜索，并且匹配跨越多行，则为了执行此限制，将仅计数一次该匹配，
+    /// 而不管它跨越多少行。
     pub fn max_matches(&mut self, limit: Option<u64>) -> &mut JSONBuilder {
         self.config.max_matches = limit;
         self
     }
 
-    /// When enabled, the `begin` and `end` messages are always emitted, even
-    /// when no match is found.
+    /// 当启用时，即使没有找到匹配，也始终会发出“begin”和“end”消息。
     ///
-    /// When disabled, the `begin` and `end` messages are only shown if there
-    /// is at least one `match` or `context` message.
+    /// 当禁用时，只有在至少有一个“match”或“context”消息时才会显示“begin”和“end”消息。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项被禁用。
     pub fn always_begin_end(&mut self, yes: bool) -> &mut JSONBuilder {
         self.config.always_begin_end = yes;
         self
     }
 }
-
-/// The JSON printer, which emits results in a JSON lines format.
+/// JSON打印机，以JSON行格式输出结果。
 ///
-/// This type is generic over `W`, which represents any implementation of
-/// the standard library `io::Write` trait.
+/// 此类型是泛型的，基于`W`，表示标准库`io::Write` trait的任何实现。
 ///
-/// # Format
+/// # 格式
 ///
-/// This section describes the JSON format used by this printer.
+/// 本节描述了此打印机使用的JSON格式。
 ///
-/// To skip the rigamarole, take a look at the
-/// [example](#example)
-/// at the end.
+/// 要跳过繁琐的内容，请查看末尾的
+/// [示例](#example)。
 ///
-/// ## Overview
+/// ## 概述
 ///
-/// The format of this printer is the [JSON Lines](https://jsonlines.org/)
-/// format. Specifically, this printer emits a sequence of messages, where
-/// each message is encoded as a single JSON value on a single line. There are
-/// four different types of messages (and this number may expand over time):
+/// 此打印机的格式是[JSON行](https://jsonlines.org/)格式。具体来说，此打印机会发出一系列消息，
+/// 其中每个消息都被编码为单行上的单个JSON值。有四种不同类型的消息（此数量可能随时间扩展）：
 ///
-/// * **begin** - A message that indicates a file is being searched.
-/// * **end** - A message the indicates a file is done being searched. This
-///   message also include summary statistics about the search.
-/// * **match** - A message that indicates a match was found. This includes
-///   the text and offsets of the match.
-/// * **context** - A message that indicates a contextual line was found.
-///   This includes the text of the line, along with any match information if
-///   the search was inverted.
+/// * **begin** - 表示正在搜索文件的消息。
+/// * **end** - 表示文件搜索已完成的消息。此消息还包括有关搜索的摘要统计信息。
+/// * **match** - 表示找到匹配项的消息。这包括匹配的文本和偏移量。
+/// * **context** - 表示找到上下文行的消息。这包括行的文本，以及如果搜索是反转的，则包括任何匹配信息。
 ///
-/// Every message is encoded in the same envelope format, which includes a tag
-/// indicating the message type along with an object for the payload:
+/// 每个消息都以相同的信封格式进行编码，其中包含表示消息类型的标签以及有效载荷的对象：
 ///
 /// ```json
 /// {
@@ -136,31 +115,22 @@ impl JSONBuilder {
 /// }
 /// ```
 ///
-/// The message itself is encoded in the envelope's `data` key.
+/// 消息本身在信封的`data`键中进行编码。
 ///
-/// ## Text encoding
+/// ## 文本编码
 ///
-/// Before describing each message format, we first must briefly discuss text
-/// encoding, since it factors into every type of message. In particular, JSON
-/// may only be encoded in UTF-8, UTF-16 or UTF-32. For the purposes of this
-/// printer, we need only worry about UTF-8. The problem here is that searching
-/// is not limited to UTF-8 exclusively, which in turn implies that matches
-/// may be reported that contain invalid UTF-8. Moreover, this printer may
-/// also print file paths, and the encoding of file paths is itself not
-/// guaranteed to be valid UTF-8. Therefore, this printer must deal with the
-/// presence of invalid UTF-8 somehow. The printer could silently ignore such
-/// things completely, or even lossily transcode invalid UTF-8 to valid UTF-8
-/// by replacing all invalid sequences with the Unicode replacement character.
-/// However, this would prevent consumers of this format from accessing the
-/// original data in a non-lossy way.
+/// 在描述每种消息格式之前，我们首先必须简要讨论文本编码，因为它影响每种消息类型。
+/// 特别地，JSON只能以UTF-8、UTF-16或UTF-32进行编码。对于此打印机，我们只需要考虑UTF-8。
+/// 问题在于搜索不仅限于UTF-8，这又意味着可能报告包含无效UTF-8的匹配项。
+/// 此外，此打印机还可能打印文件路径，文件路径的编码本身不能保证是有效的UTF-8。
+/// 因此，此打印机必须以某种方式处理无效UTF-8的存在。打印机可以完全默默地忽略这种情况，
+/// 或者甚至将无效UTF-8丢失地转码为有效UTF-8，方法是将所有无效序列替换为Unicode替换字符。
+/// 但是，这会阻止此格式的消费者以非丢失的方式访问原始数据。
 ///
-/// Therefore, this printer will emit valid UTF-8 encoded bytes as normal
-/// JSON strings and otherwise base64 encode data that isn't valid UTF-8. To
-/// communicate whether this process occurs or not, strings are keyed by the
-/// name `text` where as arbitrary bytes are keyed by `bytes`.
+/// 因此，此打印机将正常发出有效的UTF-8编码字节作为JSON字符串，否则将以base64编码非有效UTF-8的数据。
+/// 为了传达是否发生此过程，字符串使用`text`键表示有效的UTF-8文本，而任意字节使用`bytes`键表示。
 ///
-/// For example, when a path is included in a message, it is formatted like so,
-/// if and only if the path is valid UTF-8:
+/// 例如，当消息中包含路径时，如果且仅如果路径是有效的UTF-8，则格式如下：
 ///
 /// ```json
 /// {
@@ -170,8 +140,8 @@ impl JSONBuilder {
 /// }
 /// ```
 ///
-/// If instead our path was `/home/ubuntu/lib\xFF.rs`, where the `\xFF` byte
-/// makes it invalid UTF-8, the path would instead be encoded like so:
+/// 如果我们的路径是`/home/ubuntu/lib\xFF.rs`，其中`\xFF`字节使其无效的UTF-8，
+/// 则路径将被编码如下：
 ///
 /// ```json
 /// {
@@ -181,227 +151,166 @@ impl JSONBuilder {
 /// }
 /// ```
 ///
-/// This same representation is used for reporting matches as well.
+/// 此相同的表示法也用于报告匹配项。
 ///
-/// The printer guarantees that the `text` field is used whenever the
-/// underlying bytes are valid UTF-8.
+/// 打印机保证在底层字节为有效UTF-8时使用`text`字段。
 ///
-/// ## Wire format
+/// ## 传输格式
 ///
-/// This section documents the wire format emitted by this printer, starting
-/// with the four types of messages.
+/// 本节记录了此打印机发出的传输格式，从四种消息类型开始。
 ///
-/// Each message has its own format, and is contained inside an envelope that
-/// indicates the type of message. The envelope has these fields:
+/// 每个消息都具有自己的格式，并且包含在指示消息类型的信封中。信封具有以下字段：
 ///
-/// * **type** - A string indicating the type of this message. It may be one
-///   of four possible strings: `begin`, `end`, `match` or `context`. This
-///   list may expand over time.
-/// * **data** - The actual message data. The format of this field depends on
-///   the value of `type`. The possible message formats are
-///   [`begin`](#message-begin),
-///   [`end`](#message-end),
-///   [`match`](#message-match),
-///   [`context`](#message-context).
+/// * **type** - 表示此消息类型的字符串。可能是四种可能字符串之一：`begin`、`end`、`match`或`context`。
+///   此列表可能会随时间扩展。
+/// * **data** - 实际消息数据。此字段的格式取决于`type`的值。可能的消息格式为
+///   [`begin`](#message-begin)、
+///   [`end`](#message-end)、
+///   [`match`](#message-match)、
+///   [`context`](#message-context)。
 ///
-/// #### Message: **begin**
+/// #### 消息：**begin**
 ///
-/// This message indicates that a search has begun. It has these fields:
+/// 此消息表示搜索已经开始。它具有以下字段：
 ///
-/// * **path** - An
-///   [arbitrary data object](#object-arbitrary-data)
-///   representing the file path corresponding to the search, if one is
-///   present. If no file path is available, then this field is `null`.
+/// * **path** - 一个
+///   [任意数据对象](#object-arbitrary-data)
+///   表示与搜索对应的文件路径，如果存在的话。如果没有可用的文件路径，则此字段为`null`。
 ///
-/// #### Message: **end**
+/// #### 消息：**end**
 ///
-/// This message indicates that a search has finished. It has these fields:
+/// 此消息表示搜索已经完成。它具有以下字段：
 ///
-/// * **path** - An
-///   [arbitrary data object](#object-arbitrary-data)
-///   representing the file path corresponding to the search, if one is
-///   present. If no file path is available, then this field is `null`.
-/// * **binary_offset** - The absolute offset in the data searched
-///   corresponding to the place at which binary data was detected. If no
-///   binary data was detected (or if binary detection was disabled), then this
-///   field is `null`.
-/// * **stats** - A [`stats` object](#object-stats) that contains summary
-///   statistics for the previous search.
+/// * **path** - 一个
+///   [任意数据对象](#object-arbitrary-data)
+///   表示与搜索对应的文件路径，如果存在的话。如果没有可用的文件路径，则此字段为`null`。
+/// * **binary_offset** - 数据搜索中检测到二进制数据的位置对应的绝对偏移量。
+///   如果未检测到二进制数据（或者禁用了二进制检测），则此字段为`null`。
+/// * **stats** - 包含先前搜索的摘要统计信息的[`stats`对象](#object-stats)。
 ///
-/// #### Message: **match**
+/// #### 消息：**match**
 ///
-/// This message indicates that a match has been found. A match generally
-/// corresponds to a single line of text, although it may correspond to
-/// multiple lines if the search can emit matches over multiple lines. It
-/// has these fields:
+/// 此消息表示找到了匹配项。匹配项通常对应于一行文本，尽管如果搜索可以在多行上发出匹配项，它也可以对应于多行。它具有以下字段：
 ///
-/// * **path** - An
-///   [arbitrary data object](#object-arbitrary-data)
-///   representing the file path corresponding to the search, if one is
-///   present. If no file path is available, then this field is `null`.
-/// * **lines** - An
-///   [arbitrary data object](#object-arbitrary-data)
-///   representing one or more lines contained in this match.
-/// * **line_number** - If the searcher has been configured to report line
-///   numbers, then this corresponds to the line number of the first line
-///   in `lines`. If no line numbers are available, then this is `null`.
-/// * **absolute_offset** - The absolute byte offset corresponding to the start
-///   of `lines` in the data being searched.
-/// * **submatches** - An array of [`submatch` objects](#object-submatch)
-///   corresponding to matches in `lines`. The offsets included in each
-///   `submatch` correspond to byte offsets into `lines`. (If `lines` is base64
-///   encoded, then the byte offsets correspond to the data after base64
-///   decoding.) The `submatch` objects are guaranteed to be sorted by their
-///   starting offsets. Note that it is possible for this array to be empty,
-///   for example, when searching reports inverted matches.
+/// * **path** - 一个
+///   [任意数据对象](#object-arbitrary-data)
+///   表示与搜索对应的文件路径，如果存在的话。如果没有可用的文件路径，则此字段为`null`。
+/// * **lines** - 一个
+///   [任意数据对象](#object-arbitrary-data)
+///   表示此匹配项中包含的一个或多个行。
+/// * **line_number** - 如果搜索器已配置为报告行号，则对应于`lines`中第一行的行号。如果没有可用的行号，则为`null`。
+/// * **absolute_offset** - 对应于数据搜索中`lines`的开头的绝对字节偏移量。
+/// * **submatches** - 一个包含与`lines`中的匹配项对应的[`submatch`对象](#object-submatch)数组。
+///   包含在每个`submatch`中的偏移量对应于`lines`中的字节偏移量。
+///   （如果`lines`是base64编码的，则字节偏移量对应于base64解码后的数据。）
+///   `submatch`对象保证按其起始偏移量排序。请注意，此数组可能为空，例如在搜索报告反转匹配时。
 ///
-/// #### Message: **context**
+/// #### 消息：**context**
 ///
-/// This message indicates that a contextual line has been found. A contextual
-/// line is a line that doesn't contain a match, but is generally adjacent to
-/// a line that does contain a match. The precise way in which contextual lines
-/// are reported is determined by the searcher. It has these fields, which are
-/// exactly the same fields found in a [`match`](#message-match):
+/// 此消息表示找到了上下文行。上下文行是不包含匹配项的行，但通常与包含匹配项的行相邻。
+/// 上下文行的报告方式由搜索器确定。它具有与[`match`](#message-match)中完全相同字段的字段，
+/// 详细信息见下面的描述：
 ///
-/// * **path** - An
-///   [arbitrary data object](#object-arbitrary-data)
-///   representing the file path corresponding to the search, if one is
-///   present. If no file path is available, then this field is `null`.
-/// * **lines** - An
-///   [arbitrary data object](#object-arbitrary-data)
-///   representing one or more lines contained in this context. This includes
-///   line terminators, if they're present.
-/// * **line_number** - If the searcher has been configured to report line
-///   numbers, then this corresponds to the line number of the first line
-///   in `lines`. If no line numbers are available, then this is `null`.
-/// * **absolute_offset** - The absolute byte offset corresponding to the start
-///   of `lines` in the data being searched.
-/// * **submatches** - An array of [`submatch` objects](#object-submatch)
-///   corresponding to matches in `lines`. The offsets included in each
-///   `submatch` correspond to byte offsets into `lines`. (If `lines` is base64
-///   encoded, then the byte offsets correspond to the data after base64
-///   decoding.) The `submatch` objects are guaranteed to be sorted by
-///   their starting offsets. Note that it is possible for this array to be
-///   non-empty, for example, when searching reports inverted matches such that
-///   the original matcher could match things in the contextual lines.
+/// * **path** - 一个
+///   [任意数据对象](#object-arbitrary-data)
+///   表示与搜索对应的文件路径，如果存在的话。如果没有可用的文件路径，则此字段为`null`。
+/// * **lines** - 一个
+///   [任意数据对象](#object-arbitrary-data)
+///   表示此上下文中包含的一个或多个行。这包括行终止符，如果存在的话。
+/// * **line_number** - 如果搜索器已配置为报告行号，则对应于`lines`中第一行的行号。如果没有可用的行号，则为`null`。
+/// * **absolute_offset** - 对应于数据搜索中`lines`的开头的绝对字节偏移量。
+/// * **submatches** - 一个包含与`lines`中的匹配项对应的[`submatch`对象](#object-submatch)数组。
+///   包含在每个`submatch`中的偏移量对应于`lines`中的字节偏移量。
+///   （如果`lines`是base64编码的，则字节偏移量对应于base64解码后的数据。）
+///   `submatch`对象保证按其起始偏移量排序。请注意，此数组可能是非空的，例如在搜索报告反转匹配时，
+///   原匹配器可以匹配上下文行中的内容。
 ///
-/// #### Object: **submatch**
+/// #### 对象：**submatch**
 ///
-/// This object describes submatches found within `match` or `context`
-/// messages. The `start` and `end` fields indicate the half-open interval on
-/// which the match occurs (`start` is included, but `end` is not). It is
-/// guaranteed that `start <= end`. It has these fields:
+/// 此对象描述在`match`或`context`消息中找到的子匹配项。
+/// `start`和`end`字段指示匹配项在哪个半开区间内发生（`start`包括在内，但`end`不包括在内）。
+/// 保证`start <= end`。它具有以下字段：
 ///
-/// * **match** - An
-///   [arbitrary data object](#object-arbitrary-data)
-///   corresponding to the text in this submatch.
-/// * **start** - A byte offset indicating the start of this match. This offset
-///   is generally reported in terms of the parent object's data. For example,
-///   the `lines` field in the
-///   [`match`](#message-match) or [`context`](#message-context)
-///   messages.
-/// * **end** - A byte offset indicating the end of this match. This offset
-///   is generally reported in terms of the parent object's data. For example,
-///   the `lines` field in the
-///   [`match`](#message-match) or [`context`](#message-context)
-///   messages.
+/// * **match** - 一个
+///   [任意数据对象](#object-arbitrary-data)
+///   对应于此子匹配项中的文本。
+/// * **start** - 表示此匹配项的起始字节偏移量。此偏移量通常是在父对象的数据中报告的。
+///   例如，[`match`](#message-match)或[`context`](#message-context)消息中的`lines`字段。
+/// * **end** - 表示此匹配项的结束字节偏移量。此偏移量通常是在父对象的数据中报告的。
+///   例如，[`match`](#message-match)或[`context`](#message-context)消息中的`lines`字段。
 ///
-/// #### Object: **stats**
+/// #### 对象：**stats**
 ///
-/// This object is included in messages and contains summary statistics about
-/// a search. It has these fields:
+/// 此对象包含在消息中，包含有关搜索的摘要统计信息。
+/// 它具有以下字段：
 ///
-/// * **elapsed** - A [`duration` object](#object-duration) describing the
-///   length of time that elapsed while performing the search.
-/// * **searches** - The number of searches that have run. For this printer,
-///   this value is always `1`. (Implementations may emit additional message
-///   types that use this same `stats` object that represents summary
-///   statistics over multiple searches.)
-/// * **searches_with_match** - The number of searches that have run that have
-///   found at least one match. This is never more than `searches`.
-/// * **bytes_searched** - The total number of bytes that have been searched.
-/// * **bytes_printed** - The total number of bytes that have been printed.
-///   This includes everything emitted by this printer.
-/// * **matched_lines** - The total number of lines that participated in a
-///   match. When matches may contain multiple lines, then this includes every
-///   line that is part of every match.
-/// * **matches** - The total number of matches. There may be multiple matches
-///   per line. When matches may contain multiple lines, each match is counted
-///   only once, regardless of how many lines it spans.
+/// * **elapsed** - 一个描述执行搜索所经过的时间长度的[`duration`对象](#object-duration)。
+/// * **searches** - 运行的搜索数量。对于此打印机，此值始终为`1`。
+///   （实现可能会发出使用相同`stats`对象的其他消息类型，表示多个搜索的摘要统计信息。）
+/// * **searches_with_match** - 运行的已找到至少一个匹配项的搜索数量。永远不会超过`searches`。
+/// * **bytes_searched** - 已搜索的总字节数。
+/// * **bytes_printed** - 已打印的总字节数。包括此打印机发出的所有内容。
+/// * **matched_lines** - 参与匹配项的总行数。当匹配项可能包含多行时，这包括每个匹配项的所有行。
+/// * **matches** - 总匹配项数量。每行可能有多个匹配项。当匹配项可能包含多行时，每个匹配项仅计算一次，
+///   不管它跨越多少行。
 ///
-/// #### Object: **duration**
+/// #### 对象：**duration**
 ///
-/// This object includes a few fields for describing a duration. Two of its
-/// fields, `secs` and `nanos`, can be combined to give nanosecond precision
-/// on systems that support it. It has these fields:
+/// 此对象包括几个字段，用于描述时间长度。其中的`secs`和`nanos`字段可以在支持的系统上组合使用，
+/// 以提供纳秒精度。它具有以下字段：
 ///
-/// * **secs** - A whole number of seconds indicating the length of this
-///   duration.
-/// * **nanos** - A fractional part of this duration represent by nanoseconds.
-///   If nanosecond precision isn't supported, then this is typically rounded
-///   up to the nearest number of nanoseconds.
-/// * **human** - A human readable string describing the length of the
-///   duration. The format of the string is itself unspecified.
+/// * **secs** - 整数秒数，表示此时间长度的长度。
+/// * **nanos** - 由纳秒表示的时间长度的小数部分。如果不支持纳秒精度，则通常会将其四舍五入为最接近的纳秒数。
+/// * **human** - 一个人类可读的字符串，描述时间长度。字符串的格式本身未指定。
 ///
-/// #### Object: **arbitrary data**
+/// #### 对象：**任意数据**
 ///
-/// This object is used whenever arbitrary data needs to be represented as a
-/// JSON value. This object contains two fields, where generally only one of
-/// the fields is present:
+/// 此对象在需要将任意数据表示为JSON值时使用。此对象包含两个字段，通常只有一个字段存在：
 ///
-/// * **text** - A normal JSON string that is UTF-8 encoded. This field is
-///   populated if and only if the underlying data is valid UTF-8.
-/// * **bytes** - A normal JSON string that is a base64 encoding of the
-///   underlying bytes.
+/// * **text** - 一个普通的JSON字符串，UTF-8编码。仅在底层数据为有效UTF-8时填充此字段。
+/// * **bytes** - 一个普通的JSON字符串，是底层字节的base64编码。
 ///
-/// More information on the motivation for this representation can be seen in
-/// the section [text encoding](#text-encoding) above.
+/// 更多关于此表示的动机信息，请参见上面的[文本编码](#text-encoding)部分。
 ///
-/// ## Example
+/// ## 示例
 ///
-/// This section shows a small example that includes all message types.
+/// 本节显示一个包含所有消息类型的小例子。
 ///
-/// Here's the file we want to search, located at `/home/andrew/sherlock`:
+/// 这是我们要搜索的文件，位于`/home/andrew/sherlock`：
 ///
 /// ```text
-/// For the Doctor Watsons of this world, as opposed to the Sherlock
-/// Holmeses, success in the province of detective work must always
-/// be, to a very large extent, the result of luck. Sherlock Holmes
-/// can extract a clew from a wisp of straw or a flake of cigar ash;
-/// but Doctor Watson has to have it taken out for him and dusted,
-/// and exhibited clearly, with a label attached.
+/// 对于这个世界上的华生医生，与福尔摩斯相反，在侦探工作的领域里，成功在很大程度上
+/// 取决于运气。福尔摩斯可以从一根稻草或一片雪茄灰中找出线索；但是华生医生必须让别人替他拿出来，
+/// 擦拭干净，并清楚地展示出来，并附有标签。
 /// ```
 ///
-/// Searching for `Watson` with a `before_context` of `1` with line numbers
-/// enabled shows something like this using the standard printer:
+/// 使用启用了行号的标准打印机搜索`华生`并带有`before_context`为`1`，结果类似于：
 ///
 /// ```text
-/// sherlock:1:For the Doctor Watsons of this world, as opposed to the Sherlock
+/// sherlock:1:对于这个世界上的华生医生，与福尔摩斯相反，在侦探工作的领域里，成功在很大程度上
 /// --
-/// sherlock-4-can extract a clew from a wisp of straw or a flake of cigar ash;
-/// sherlock:5:but Doctor Watson has to have it taken out for him and dusted,
+/// sherlock-4-福尔摩斯可以从一根稻草或一片雪茄灰中找出线索；但是华生医生必须让别人替他拿出来，
+/// sherlock:5:擦拭干净，并清楚地展示出来，并附有标签。
 /// ```
 ///
-/// Here's what the same search looks like using the JSON wire format described
-/// above, where in we show semi-prettified JSON (instead of a strict JSON
-/// Lines format), for illustrative purposes:
+/// 下面是相同搜索使用上述描述的JSON传输格式的结果，我们为了说明的目的显示了半格式化的JSON（而不是严格的JSON行格式）：
 ///
 /// ```json
 /// {
 ///   "type": "begin",
 ///   "data": {
-///     "path": {"text": "/home/andrew/sherlock"}}
+///     "path": {"text": "/home/andrew/sherlock"}
 ///   }
 /// }
 /// {
 ///   "type": "match",
 ///   "data": {
 ///     "path": {"text": "/home/andrew/sherlock"},
-///     "lines": {"text": "For the Doctor Watsons of this world, as opposed to the Sherlock\n"},
+///     "lines": {"text": "对于这个世界上的华生医生，与福尔摩斯相反，在侦探工作的领域里，成功在很大程度上\n"},
 ///     "line_number": 1,
 ///     "absolute_offset": 0,
 ///     "submatches": [
-///       {"match": {"text": "Watson"}, "start": 15, "end": 21}
+///       {"match": {"text": "华生"}, "start": 10, "end": 12}
 ///     ]
 ///   }
 /// }
@@ -409,9 +318,9 @@ impl JSONBuilder {
 ///   "type": "context",
 ///   "data": {
 ///     "path": {"text": "/home/andrew/sherlock"},
-///     "lines": {"text": "can extract a clew from a wisp of straw or a flake of cigar ash;\n"},
+///     "lines": {"text": "福尔摩斯可以从一根稻草或一片雪茄灰中找出线索；但是华生医生必须让别人替他拿出来，\n"},
 ///     "line_number": 4,
-///     "absolute_offset": 193,
+///     "absolute_offset": 185,
 ///     "submatches": []
 ///   }
 /// }
@@ -419,11 +328,11 @@ impl JSONBuilder {
 ///   "type": "match",
 ///   "data": {
 ///     "path": {"text": "/home/andrew/sherlock"},
-///     "lines": {"text": "but Doctor Watson has to have it taken out for him and dusted,\n"},
+///     "lines": {"text": "擦拭干净，并清楚地展示出来，并附有标签。\n"},
 ///     "line_number": 5,
-///     "absolute_offset": 258,
+///     "absolute_offset": 251,
 ///     "submatches": [
-///       {"match": {"text": "Watson"}, "start": 11, "end": 17}
+///       {"match": {"text": "华生"}, "start": 6, "end": 8}
 ///     ]
 ///   }
 /// }
@@ -450,18 +359,15 @@ pub struct JSON<W> {
     wtr: CounterWriter<W>,
     matches: Vec<Match>,
 }
-
 impl<W: io::Write> JSON<W> {
-    /// Return a JSON lines printer with a default configuration that writes
-    /// matches to the given writer.
+    /// 创建一个具有默认配置的 JSON 行打印机，将匹配项写入给定的写入器。
     pub fn new(wtr: W) -> JSON<W> {
         JSONBuilder::new().build(wtr)
     }
 
-    /// Return an implementation of `Sink` for the JSON printer.
+    /// 返回 JSON 打印机的 `Sink` 实现。
     ///
-    /// This does not associate the printer with a file path, which means this
-    /// implementation will never print a file path along with the matches.
+    /// 这不会将打印机与文件路径关联，这意味着此实现永远不会连同匹配项一起打印文件路径。
     pub fn sink<'s, M: Matcher>(
         &'s mut self,
         matcher: M,
@@ -479,10 +385,9 @@ impl<W: io::Write> JSON<W> {
         }
     }
 
-    /// Return an implementation of `Sink` associated with a file path.
+    /// 返回与文件路径关联的 `Sink` 实现。
     ///
-    /// When the printer is associated with a path, then it may, depending on
-    /// its configuration, print the path along with the matches found.
+    /// 当打印机与路径关联时，根据其配置，它可能会打印连同找到的匹配项一起的路径。
     pub fn sink_with_path<'p, 's, M, P>(
         &'s mut self,
         matcher: M,
@@ -505,8 +410,7 @@ impl<W: io::Write> JSON<W> {
         }
     }
 
-    /// Write the given message followed by a new line. The new line is
-    /// determined from the configuration of the given searcher.
+    /// 写入给定消息，后面跟一个换行符。换行符的确定是从给定搜索器的配置中获取的。
     fn write_message(
         &mut self,
         message: &jsont::Message<'_>,
@@ -522,38 +426,31 @@ impl<W: io::Write> JSON<W> {
 }
 
 impl<W> JSON<W> {
-    /// Returns true if and only if this printer has written at least one byte
-    /// to the underlying writer during any of the previous searches.
+    /// 如果且仅如果此打印机在以前的任何搜索期间向底层写入器写入了至少一个字节，
+    /// 则返回 true。
     pub fn has_written(&self) -> bool {
         self.wtr.total_count() > 0
     }
 
-    /// Return a mutable reference to the underlying writer.
+    /// 返回对底层写入器的可变引用。
     pub fn get_mut(&mut self) -> &mut W {
         self.wtr.get_mut()
     }
 
-    /// Consume this printer and return back ownership of the underlying
-    /// writer.
+    /// 消耗此打印机并返回底层写入器的所有权。
     pub fn into_inner(self) -> W {
         self.wtr.into_inner()
     }
 }
 
-/// An implementation of `Sink` associated with a matcher and an optional file
-/// path for the JSON printer.
+/// 与 JSON 打印机关联的 `Sink` 的实现，关联了匹配器和可选的 JSON 打印机的文件路径。
 ///
-/// This type is generic over a few type parameters:
+/// 此类型是对一些类型参数的泛型：
 ///
-/// * `'p` refers to the lifetime of the file path, if one is provided. When
-///   no file path is given, then this is `'static`.
-/// * `'s` refers to the lifetime of the
-///   [`JSON`](struct.JSON.html)
-///   printer that this type borrows.
-/// * `M` refers to the type of matcher used by
-///   `grep_searcher::Searcher` that is reporting results to this sink.
-/// * `W` refers to the underlying writer that this printer is writing its
-///   output to.
+/// * `'p` 指的是文件路径的生命周期，如果提供了文件路径的话。当没有提供文件路径时，这将是 `'static`。
+/// * `'s` 指的是此类型借用的 [`JSON`](struct.JSON.html) 打印机的生命周期。
+/// * `M` 是由 `grep_searcher::Searcher` 使用的报告结果给此 sink 的匹配器的类型。
+/// * `W` 是此打印机正在将其输出写入的底层写入器的类型。
 #[derive(Debug)]
 pub struct JSONSink<'p, 's, M: Matcher, W> {
     matcher: M,
@@ -568,44 +465,36 @@ pub struct JSONSink<'p, 's, M: Matcher, W> {
 }
 
 impl<'p, 's, M: Matcher, W: io::Write> JSONSink<'p, 's, M, W> {
-    /// Returns true if and only if this printer received a match in the
-    /// previous search.
+    /// 如果且仅如果此打印机在先前的搜索中收到匹配项，则返回 true。
     ///
-    /// This is unaffected by the result of searches before the previous
-    /// search.
+    /// 这不受先前搜索结果影响。
     pub fn has_match(&self) -> bool {
         self.match_count > 0
     }
 
-    /// Return the total number of matches reported to this sink.
+    /// 返回向此 sink 报告的匹配总数。
     ///
-    /// This corresponds to the number of times `Sink::matched` is called.
+    /// 这对应于调用 `Sink::matched` 的次数。
     pub fn match_count(&self) -> u64 {
         self.match_count
     }
 
-    /// If binary data was found in the previous search, this returns the
-    /// offset at which the binary data was first detected.
+    /// 如果在先前搜索中找到了二进制数据，则返回二进制数据首次检测到的偏移量。
     ///
-    /// The offset returned is an absolute offset relative to the entire
-    /// set of bytes searched.
+    /// 返回的偏移量是相对于整个搜索的绝对偏移量。
     ///
-    /// This is unaffected by the result of searches before the previous
-    /// search. e.g., If the search prior to the previous search found binary
-    /// data but the previous search found no binary data, then this will
-    /// return `None`.
+    /// 这不受先前搜索结果影响。例如，如果前一次搜索发现了二进制数据，
+    /// 而上一次搜索未发现二进制数据，则返回 `None`。
     pub fn binary_byte_offset(&self) -> Option<u64> {
         self.binary_byte_offset
     }
 
-    /// Return a reference to the stats produced by the printer for all
-    /// searches executed on this sink.
+    /// 返回对打印机为此 sink 执行的所有搜索生成的统计信息的引用。
     pub fn stats(&self) -> &Stats {
         &self.stats
     }
 
-    /// Execute the matcher over the given bytes and record the match
-    /// locations if the current configuration demands match granularity.
+    /// 在给定字节上执行匹配器并记录匹配项位置，如果当前配置要求匹配粒度的话。
     fn record_matches(
         &mut self,
         searcher: &Searcher,
@@ -613,12 +502,9 @@ impl<'p, 's, M: Matcher, W: io::Write> JSONSink<'p, 's, M, W> {
         range: std::ops::Range<usize>,
     ) -> io::Result<()> {
         self.json.matches.clear();
-        // If printing requires knowing the location of each individual match,
-        // then compute and stored those right now for use later. While this
-        // adds an extra copy for storing the matches, we do amortize the
-        // allocation for it and this greatly simplifies the printing logic to
-        // the extent that it's easy to ensure that we never do more than
-        // one search to find the matches.
+        // 如果打印需要知道每个单独匹配项的位置，则现在计算并存储这些位置以备后用。
+        // 虽然这会为匹配项存储添加额外的副本，但我们对其进行了分摊分配，
+        // 并且这极大地简化了打印逻辑，以至于可以确保我们不会多次搜索以查找匹配项。
         let matches = &mut self.json.matches;
         find_iter_at_in_context(
             searcher,
@@ -631,7 +517,7 @@ impl<'p, 's, M: Matcher, W: io::Write> JSONSink<'p, 's, M, W> {
                 true
             },
         )?;
-        // Don't report empty matches appearing at the end of the bytes.
+        // 不要报告出现在字节末尾的空匹配项。
         if !matches.is_empty()
             && matches.last().unwrap().is_empty()
             && matches.last().unwrap().start() >= bytes.len()
@@ -641,11 +527,10 @@ impl<'p, 's, M: Matcher, W: io::Write> JSONSink<'p, 's, M, W> {
         Ok(())
     }
 
-    /// Returns true if this printer should quit.
+    /// 如果此打印机应退出，则返回 true。
     ///
-    /// This implements the logic for handling quitting after seeing a certain
-    /// amount of matches. In most cases, the logic is simple, but we must
-    /// permit all "after" contextual lines to print after reaching the limit.
+    /// 这实现了在达到一定数量的匹配项后退出的逻辑。
+    /// 在大多数情况下，逻辑是简单的，但我们必须允许在达到限制后继续打印所有“after”上下文行。
     fn should_quit(&self) -> bool {
         let limit = match self.json.config.max_matches {
             None => return false,
@@ -657,8 +542,8 @@ impl<'p, 's, M: Matcher, W: io::Write> JSONSink<'p, 's, M, W> {
         self.after_context_remaining == 0
     }
 
-    /// Returns whether the current match count exceeds the configured limit.
-    /// If there is no limit, then this always returns false.
+    /// 返回当前匹配计数是否超过配置的限制。
+    /// 如果没有限制，这将始终返回 false。
     fn match_more_than_limit(&self) -> bool {
         let limit = match self.json.config.max_matches {
             None => return false,
@@ -667,7 +552,7 @@ impl<'p, 's, M: Matcher, W: io::Write> JSONSink<'p, 's, M, W> {
         self.match_count > limit
     }
 
-    /// Write the "begin" message.
+    /// 写入“begin”消息。
     fn write_begin_message(&mut self) -> io::Result<()> {
         if self.begin_printed {
             return Ok(());
@@ -678,10 +563,10 @@ impl<'p, 's, M: Matcher, W: io::Write> JSONSink<'p, 's, M, W> {
         Ok(())
     }
 }
-
 impl<'p, 's, M: Matcher, W: io::Write> Sink for JSONSink<'p, 's, M, W> {
     type Error = io::Error;
 
+    // 当匹配项被找到时调用，用于处理匹配项的输出
     fn matched(
         &mut self,
         searcher: &Searcher,
@@ -690,13 +575,10 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for JSONSink<'p, 's, M, W> {
         self.write_begin_message()?;
 
         self.match_count += 1;
-        // When we've exceeded our match count, then the remaining context
-        // lines should not be reset, but instead, decremented. This avoids a
-        // bug where we display more matches than a configured limit. The main
-        // idea here is that 'matched' might be called again while printing
-        // an after-context line. In that case, we should treat this as a
-        // contextual line rather than a matching line for the purposes of
-        // termination.
+        // 当匹配计数超过限制时，剩余上下文行的数量不应该重置，而是减少。
+        // 这避免了一个 bug，该 bug 会显示多于配置限制的匹配项。
+        // 主要思想是，在打印 after 上下文行时，可能会再次调用 'matched'。
+        // 在这种情况下，我们应该将其视为上下文行，而不是匹配行，用于终止。
         if self.match_more_than_limit() {
             self.after_context_remaining =
                 self.after_context_remaining.saturating_sub(1);
@@ -724,6 +606,7 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for JSONSink<'p, 's, M, W> {
         Ok(!self.should_quit())
     }
 
+    // 当上下文被找到时调用，用于处理上下文的输出
     fn context(
         &mut self,
         searcher: &Searcher,
@@ -753,6 +636,7 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for JSONSink<'p, 's, M, W> {
         Ok(!self.should_quit())
     }
 
+    // 当搜索开始时调用，用于初始化计数和配置
     fn begin(&mut self, _searcher: &Searcher) -> Result<bool, io::Error> {
         self.json.wtr.reset_count();
         self.start_time = Instant::now();
@@ -770,6 +654,7 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for JSONSink<'p, 's, M, W> {
         Ok(true)
     }
 
+    // 当搜索结束时调用，用于输出搜索统计信息和结束消息
     fn finish(
         &mut self,
         _searcher: &Searcher,
@@ -798,11 +683,10 @@ impl<'p, 's, M: Matcher, W: io::Write> Sink for JSONSink<'p, 's, M, W> {
     }
 }
 
-/// SubMatches represents a set of matches in a contiguous range of bytes.
-///
-/// A simpler representation for this would just simply be `Vec<SubMatch>`,
-/// but the common case is exactly one match per range of bytes, which we
-/// specialize here using a fixed size array without any allocation.
+// SubMatches 表示一系列在连续字节范围内的匹配项。
+//
+// 一个更简单的表示方法只是简单地 `Vec<SubMatch>`，但常见情况是每个字节范围只有一个匹配项，
+// 我们在这里使用一个固定大小的数组来进行优化，而不需要任何分配。
 enum SubMatches<'a> {
     Empty,
     Small([jsont::SubMatch<'a>; 1]),
@@ -810,8 +694,7 @@ enum SubMatches<'a> {
 }
 
 impl<'a> SubMatches<'a> {
-    /// Create a new set of match ranges from a set of matches and the
-    /// corresponding bytes that those matches apply to.
+    /// 从一组匹配项和这些匹配项应用的对应字节创建一组新的匹配范围。
     fn new(bytes: &'a [u8], matches: &[Match]) -> SubMatches<'a> {
         if matches.len() == 1 {
             let mat = matches[0];
@@ -833,12 +716,12 @@ impl<'a> SubMatches<'a> {
         }
     }
 
-    /// Create an empty set of match ranges.
+    /// 创建一个空的匹配范围集合。
     fn empty() -> SubMatches<'static> {
         SubMatches::Empty
     }
 
-    /// Return this set of match ranges as a slice.
+    /// 将此匹配范围集合作为切片返回。
     fn as_slice(&self) -> &[jsont::SubMatch<'_>] {
         match *self {
             SubMatches::Empty => &[],
@@ -847,7 +730,6 @@ impl<'a> SubMatches<'a> {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use grep_matcher::LineTerminator;
@@ -856,40 +738,48 @@ mod tests {
 
     use super::{JSONBuilder, JSON};
 
+    // 常量：福尔摩斯短文本
     const SHERLOCK: &'static [u8] = b"\
-For the Doctor Watsons of this world, as opposed to the Sherlock
+    For the Doctor Watsons of this world, as opposed to the Sherlock
 Holmeses, success in the province of detective work must always
 be, to a very large extent, the result of luck. Sherlock Holmes
 can extract a clew from a wisp of straw or a flake of cigar ash;
 but Doctor Watson has to have it taken out for him and dusted,
 and exhibited clearly, with a label attached.
-";
+    ";
 
+    // 获取打印机内容的辅助函数
     fn printer_contents(printer: &mut JSON<Vec<u8>>) -> String {
         String::from_utf8(printer.get_mut().to_owned()).unwrap()
     }
 
+    // 测试：二进制数据检测
     #[test]
     fn binary_detection() {
         use grep_searcher::BinaryDetection;
 
+        // 二进制文本
         const BINARY: &'static [u8] = b"\
-For the Doctor Watsons of this world, as opposed to the Sherlock
+       For the Doctor Watsons of this world, as opposed to the Sherlock
 Holmeses, success in the province of detective work must always
 be, to a very large extent, the result of luck. Sherlock Holmes
 can extract a clew \x00 from a wisp of straw or a flake of cigar ash;
 but Doctor Watson has to have it taken out for him and dusted,
 and exhibited clearly, with a label attached.\
-";
+        ";
 
+        // 正则匹配器
         let matcher = RegexMatcher::new(r"Watson").unwrap();
+        // 构建 JSON 打印机
         let mut printer = JSONBuilder::new().build(vec![]);
+        // 创建搜索器
         SearcherBuilder::new()
             .binary_detection(BinaryDetection::quit(b'\x00'))
             .heap_limit(Some(80))
             .build()
             .search_reader(&matcher, BINARY, printer.sink(&matcher))
             .unwrap();
+        // 获取打印机输出内容
         let got = printer_contents(&mut printer);
 
         assert_eq!(got.lines().count(), 3);
@@ -897,6 +787,7 @@ and exhibited clearly, with a label attached.\
         assert!(last.contains(r#""binary_offset":212,"#));
     }
 
+    // 测试：最大匹配项数限制
     #[test]
     fn max_matches() {
         let matcher = RegexMatcher::new(r"Watson").unwrap();
@@ -911,21 +802,22 @@ and exhibited clearly, with a label attached.\
         assert_eq!(got.lines().count(), 3);
     }
 
+    // 测试：最大匹配项数限制（包含上下文）
     #[test]
     fn max_matches_after_context() {
         let haystack = "\
-a
-b
-c
-d
-e
-d
-e
-d
-e
-d
-e
-";
+        a
+        b
+        c
+        d
+        e
+        d
+        e
+        d
+        e
+        d
+        e
+        ";
         let matcher = RegexMatcher::new(r"d").unwrap();
         let mut printer =
             JSONBuilder::new().max_matches(Some(1)).build(vec![]);
@@ -943,6 +835,7 @@ e
         assert_eq!(got.lines().count(), 5);
     }
 
+    // 测试：无匹配项
     #[test]
     fn no_match() {
         let matcher = RegexMatcher::new(r"DOES NOT MATCH").unwrap();
@@ -956,6 +849,7 @@ e
         assert!(got.is_empty());
     }
 
+    // 测试：总是输出起始和结束信息（无匹配项）
     #[test]
     fn always_begin_end_no_match() {
         let matcher = RegexMatcher::new(r"DOES NOT MATCH").unwrap();
@@ -971,6 +865,7 @@ e
         assert!(got.contains("begin") && got.contains("end"));
     }
 
+    // 测试：缺少 CRLF
     #[test]
     fn missing_crlf() {
         let haystack = "test\r\n".as_bytes();

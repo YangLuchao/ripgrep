@@ -1,11 +1,10 @@
 use std::error;
 use std::fmt;
 
-/// An error that can occur in this crate.
+/// 可能在此 crate 中出现的错误。
 ///
-/// Generally, this error corresponds to problems building a regular
-/// expression, whether it's in parsing, compilation or a problem with
-/// guaranteeing a configured optimization.
+/// 通常，此错误对应于构建正则表达式时可能出现的问题，
+/// 无论是在解析、编译还是配置优化方面出现的问题。
 #[derive(Clone, Debug)]
 pub struct Error {
     kind: ErrorKind,
@@ -16,26 +15,24 @@ impl Error {
         Error { kind: ErrorKind::Regex(err.to_string()) }
     }
 
-    /// Return the kind of this error.
+    /// 返回此错误的类型。
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }
 }
 
-/// The kind of an error that can occur.
+/// 可能发生的错误类型。
 #[derive(Clone, Debug)]
 pub enum ErrorKind {
-    /// An error that occurred as a result of parsing a regular expression.
-    /// This can be a syntax error or an error that results from attempting to
-    /// compile a regular expression that is too big.
+    /// 由于解析正则表达式而引发的错误。
+    /// 这可能是语法错误，也可能是尝试编译过大的正则表达式而引发的错误。
     ///
-    /// The string here is the underlying error converted to a string.
+    /// 此处的字符串是将底层错误转换为字符串。
     Regex(String),
-    /// Hints that destructuring should not be exhaustive.
+    /// 提示不应该详尽地解构此类型。
     ///
-    /// This enum may grow additional variants, so this makes sure clients
-    /// don't count on exhaustive matching. (Otherwise, adding a new variant
-    /// could break existing code.)
+    /// 此枚举可能会增加其他变体，因此这会确保客户端不依赖于详尽匹配。
+    /// （否则，添加新变体可能会破坏现有代码。）
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -43,7 +40,7 @@ pub enum ErrorKind {
 impl error::Error for Error {
     fn description(&self) -> &str {
         match self.kind {
-            ErrorKind::Regex(_) => "regex error",
+            ErrorKind::Regex(_) => "正则表达式错误",
             ErrorKind::__Nonexhaustive => unreachable!(),
         }
     }

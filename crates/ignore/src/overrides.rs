@@ -1,7 +1,5 @@
 /*!
-The overrides module provides a way to specify a set of override globs.
-This provides functionality similar to `--include` or `--exclude` in command
-line tools.
+覆盖模块提供了一种指定一组覆盖通配符的方法。这提供了类似于命令行工具中的 `--include` 或 `--exclude` 的功能。
 */
 
 use std::path::Path;
@@ -9,25 +7,21 @@ use std::path::Path;
 use crate::gitignore::{self, Gitignore, GitignoreBuilder};
 use crate::{Error, Match};
 
-/// Glob represents a single glob in an override matcher.
+/// Glob 表示覆盖匹配器中的单个通配符。
 ///
-/// This is used to report information about the highest precedent glob
-/// that matched.
+/// 这用于报告最高优先级匹配的有关信息。
 ///
-/// Note that not all matches necessarily correspond to a specific glob. For
-/// example, if there are one or more whitelist globs and a file path doesn't
-/// match any glob in the set, then the file path is considered to be ignored.
+/// 请注意，并非所有匹配必然对应于特定的通配符。例如，如果有一个或多个白名单通配符，并且文件路径不匹配集合中的任何通配符，则文件路径被视为已被忽略。
 ///
-/// The lifetime `'a` refers to the lifetime of the matcher that produced
-/// this glob.
+/// 生命周期 `'a` 引用了生成此通配符的匹配器的生命周期。
 #[derive(Clone, Debug)]
 pub struct Glob<'a>(GlobInner<'a>);
 
 #[derive(Clone, Debug)]
 enum GlobInner<'a> {
-    /// No glob matched, but the file path should still be ignored.
+    /// 没有匹配的通配符，但文件路径仍应被忽略。
     UnmatchedIgnore,
-    /// A glob matched.
+    /// 有匹配的通配符。
     Matched(&'a gitignore::Glob),
 }
 
@@ -37,58 +31,49 @@ impl<'a> Glob<'a> {
     }
 }
 
-/// Manages a set of overrides provided explicitly by the end user.
+/// 管理由最终用户显式提供的一组覆盖通配符。
 #[derive(Clone, Debug)]
 pub struct Override(Gitignore);
 
 impl Override {
-    /// Returns an empty matcher that never matches any file path.
+    /// 返回一个永远不会匹配任何文件路径的空匹配器。
     pub fn empty() -> Override {
         Override(Gitignore::empty())
     }
 
-    /// Returns the directory of this override set.
+    /// 返回此覆盖集的目录。
     ///
-    /// All matches are done relative to this path.
+    /// 所有匹配都是相对于此路径进行的。
     pub fn path(&self) -> &Path {
         self.0.path()
     }
 
-    /// Returns true if and only if this matcher is empty.
+    /// 仅当此匹配器为空时返回 true。
     ///
-    /// When a matcher is empty, it will never match any file path.
+    /// 当匹配器为空时，它永远不会匹配任何文件路径。
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    /// Returns the total number of ignore globs.
+    /// 返回忽略通配符的总数。
     pub fn num_ignores(&self) -> u64 {
         self.0.num_whitelists()
     }
 
-    /// Returns the total number of whitelisted globs.
+    /// 返回白名单通配符的总数。
     pub fn num_whitelists(&self) -> u64 {
         self.0.num_ignores()
     }
 
-    /// Returns whether the given file path matched a pattern in this override
-    /// matcher.
+    /// 返回给定文件路径是否在此覆盖匹配器的模式中匹配。
     ///
-    /// `is_dir` should be true if the path refers to a directory and false
-    /// otherwise.
+    /// 如果 `is_dir` 为 true，则表示路径引用目录；否则为文件。
     ///
-    /// If there are no overrides, then this always returns `Match::None`.
+    /// 如果没有覆盖通配符，则始终返回 `Match::None`。
     ///
-    /// If there is at least one whitelist override and `is_dir` is false, then
-    /// this never returns `Match::None`, since non-matches are interpreted as
-    /// ignored.
+    /// 如果至少有一个白名单覆盖并且 `is_dir` 为 false，则永远不会返回 `Match::None`，因为非匹配被解释为已被忽略。
     ///
-    /// The given path is matched to the globs relative to the path given
-    /// when building the override matcher. Specifically, before matching
-    /// `path`, its prefix (as determined by a common suffix of the directory
-    /// given) is stripped. If there is no common suffix/prefix overlap, then
-    /// `path` is assumed to reside in the same directory as the root path for
-    /// this set of overrides.
+    /// 给定的路径与相对于构建覆盖匹配器时给定的路径进行匹配。具体来说，在匹配 `path` 之前，将去除其前缀（由给定目录的公共后缀确定）。如果没有公共后缀/前缀重叠，则假定 `path` 位于覆盖集的根路径相同的目录中。
     pub fn matched<'a, P: AsRef<Path>>(
         &'a self,
         path: P,
@@ -105,43 +90,40 @@ impl Override {
     }
 }
 
-/// Builds a matcher for a set of glob overrides.
+/// 构建一组覆盖通配符的匹配器。
 #[derive(Clone, Debug)]
 pub struct OverrideBuilder {
     builder: GitignoreBuilder,
 }
 
 impl OverrideBuilder {
-    /// Create a new override builder.
+    /// 创建一个新的覆盖匹配器构建器。
     ///
-    /// Matching is done relative to the directory path provided.
+    /// 匹配相对于提供的目录路径进行。
     pub fn new<P: AsRef<Path>>(path: P) -> OverrideBuilder {
         OverrideBuilder { builder: GitignoreBuilder::new(path) }
     }
 
-    /// Builds a new override matcher from the globs added so far.
+    /// 从迄今为止添加的通配符构建一个新的覆盖匹配器。
     ///
-    /// Once a matcher is built, no new globs can be added to it.
+    /// 一旦构建了匹配器，就不能再向其中添加新的通配符。
     pub fn build(&self) -> Result<Override, Error> {
         Ok(Override(self.builder.build()?))
     }
 
-    /// Add a glob to the set of overrides.
+    /// 向覆盖集中添加一个通配符。
     ///
-    /// Globs provided here have precisely the same semantics as a single
-    /// line in a `gitignore` file, where the meaning of `!` is inverted:
-    /// namely, `!` at the beginning of a glob will ignore a file. Without `!`,
-    /// all matches of the glob provided are treated as whitelist matches.
+    /// 此处添加的通配符与 `gitignore` 文件中的单行完全相同，`!` 的含义被倒置：也就是说，以 `!` 开头的通配符将会被忽略。没有 `!`，则通配符的所有匹配都被视为白名单匹配。
     pub fn add(&mut self, glob: &str) -> Result<&mut OverrideBuilder, Error> {
         self.builder.add_line(None, glob)?;
         Ok(self)
     }
 
-    /// Toggle whether the globs should be matched case insensitively or not.
+    /// 切换通配符是否应该进行不区分大小写的匹配。
     ///
-    /// When this option is changed, only globs added after the change will be affected.
+    /// 更改此选项后，只有在更改后添加的通配符才会受到影响。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项被禁用。
     pub fn case_insensitive(
         &mut self,
         yes: bool,

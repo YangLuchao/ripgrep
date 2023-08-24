@@ -3,13 +3,12 @@ use std::path::Path;
 
 use memmap::Mmap;
 
-/// Controls the strategy used for determining when to use memory maps.
+/// 控制内存映射使用的策略。
 ///
-/// If a searcher is called in circumstances where it is possible to use memory
-/// maps, and memory maps are enabled, then it will attempt to do so if it
-/// believes it will make the search faster.
+/// 如果在可以使用内存映射的情况下调用搜索器，并且启用了内存映射，
+/// 则搜索器将尝试使用内存映射，如果它认为这样做会加快搜索速度。
 ///
-/// By default, memory maps are disabled.
+/// 默认情况下，内存映射是禁用的。
 #[derive(Clone, Debug)]
 pub struct MmapChoice(MmapChoiceImpl);
 
@@ -26,43 +25,36 @@ impl Default for MmapChoice {
 }
 
 impl MmapChoice {
-    /// Use memory maps when they are believed to be advantageous.
+    /// 在认为有利的情况下使用内存映射。
     ///
-    /// The heuristics used to determine whether to use a memory map or not
-    /// may depend on many things, including but not limited to, file size
-    /// and platform.
+    /// 用于确定是否使用内存映射的启发式方法可能依赖于许多因素，
+    /// 包括但不限于文件大小和平台。
     ///
-    /// If memory maps are unavailable or cannot be used for a specific input,
-    /// then normal OS read calls are used instead.
+    /// 如果特定输入不支持内存映射，或者无法使用内存映射，
+    /// 则会改为使用正常的操作系统读取调用。
     ///
-    /// # Safety
+    /// # 安全性
     ///
-    /// This constructor is not safe because there is no obvious way to
-    /// encapsulate the safety of file backed memory maps on all platforms
-    /// without simultaneously negating some or all of their benefits.
+    /// 这个构造函数是不安全的，因为没有明显的方法来在所有平台上
+    /// 封装文件支持的内存映射的安全性，同时不会抵消部分或全部它们的好处。
     ///
-    /// The specific contract the caller is required to uphold isn't precise,
-    /// but it basically amounts to something like, "the caller guarantees that
-    /// the underlying file won't be mutated." This, of course, isn't feasible
-    /// in many environments. However, command line tools may still decide to
-    /// take the risk of, say, a `SIGBUS` occurring while attempting to read a
-    /// memory map.
+    /// 调用者需要保证底层文件不会被修改，
+    /// 这在许多环境中是不可行的。然而，命令行工具仍然可以决定
+    /// 承担读取内存映射时发生 `SIGBUS` 等风险。
     pub unsafe fn auto() -> MmapChoice {
         MmapChoice(MmapChoiceImpl::Auto)
     }
 
-    /// Never use memory maps, no matter what. This is the default.
+    /// 永不使用内存映射，无论何时。这是默认设置。
     pub fn never() -> MmapChoice {
         MmapChoice(MmapChoiceImpl::Never)
     }
 
-    /// Return a memory map if memory maps are enabled and if creating a
-    /// memory from the given file succeeded and if memory maps are believed
-    /// to be advantageous for performance.
+    /// 如果启用了内存映射，并且从给定文件创建内存映射成功，
+    /// 并且认为内存映射有利于性能，那么返回一个内存映射。
     ///
-    /// If this does attempt to open a memory map and it fails, then `None`
-    /// is returned and the corresponding error (along with the file path, if
-    /// present) is logged at the debug level.
+    /// 如果尝试打开内存映射失败，则返回 `None`，
+    /// 并在调试级别上记录相应的错误（以及文件路径，如果存在）。
     pub(crate) fn open(
         &self,
         file: &File,
@@ -72,31 +64,30 @@ impl MmapChoice {
             return None;
         }
         if cfg!(target_os = "macos") {
-            // I guess memory maps on macOS aren't great. Should re-evaluate.
+            // 我们认为 macOS 上的内存映射不是很好用，需要重新评估。
             return None;
         }
-        // SAFETY: This is acceptable because the only way `MmapChoiceImpl` can
-        // be `Auto` is if the caller invoked the `auto` constructor, which
-        // is itself not safe. Thus, this is a propagation of the caller's
-        // assertion that using memory maps is safe.
+        // 安全性：这是可以接受的，因为只有当调用者调用了 `auto` 构造函数时，
+        // `MmapChoiceImpl` 才会为 `Auto`，而这本身是不安全的。
+        // 因此，这是调用者断言使用内存映射是安全的传播。
         match unsafe { Mmap::map(file) } {
             Ok(mmap) => Some(mmap),
             Err(err) => {
                 if let Some(path) = path {
                     log::debug!(
-                        "{}: failed to open memory map: {}",
+                        "{}: 打开内存映射失败: {}",
                         path.display(),
                         err
                     );
                 } else {
-                    log::debug!("failed to open memory map: {}", err);
+                    log::debug!("打开内存映射失败: {}", err);
                 }
                 None
             }
         }
     }
 
-    /// Whether this strategy may employ memory maps or not.
+    /// 是否启用了使用内存映射的策略。
     pub(crate) fn is_enabled(&self) -> bool {
         match self.0 {
             MmapChoiceImpl::Auto => true,

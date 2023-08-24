@@ -2,8 +2,7 @@ use std::io::{self, Write};
 
 use termcolor::{ColorSpec, WriteColor};
 
-/// A writer that counts the number of bytes that have been successfully
-/// written.
+/// 一个写入器，用于统计写入成功的字节数。
 #[derive(Clone, Debug)]
 pub struct CounterWriter<W> {
     wtr: W,
@@ -18,27 +17,25 @@ impl<W: Write> CounterWriter<W> {
 }
 
 impl<W> CounterWriter<W> {
-    /// Returns the total number of bytes written since construction or the
-    /// last time `reset` was called.
+    /// 返回自创建以来或上次调用 `reset` 以来写入的总字节数。
     pub fn count(&self) -> u64 {
         self.count
     }
 
-    /// Returns the total number of bytes written since construction.
+    /// 返回自创建以来写入的总字节数。
     pub fn total_count(&self) -> u64 {
         self.total_count + self.count
     }
 
-    /// Resets the number of bytes written to `0`.
+    /// 将写入的字节数重置为 `0`。
     pub fn reset_count(&mut self) {
         self.total_count += self.count;
         self.count = 0;
     }
 
-    /// Clear resets all counting related state for this writer.
+    /// clear 方法重置该写入器的所有计数相关状态。
     ///
-    /// After this call, the total count of bytes written to the underlying
-    /// writer is erased and reset.
+    /// 在此调用之后，写入到底层写入器的总字节数将被擦除并重置。
     #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.count = 0;

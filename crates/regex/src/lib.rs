@@ -1,5 +1,5 @@
 /*!
-An implementation of `grep-matcher`'s `Matcher` trait for Rust's regex engine.
+' grep-matcher '的' Matcher '特性在Rust的regex引擎中的实现。
 */
 #![deny(missing_docs)]
 

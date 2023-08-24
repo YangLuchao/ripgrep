@@ -6,24 +6,22 @@ use {
     },
 };
 
-/// Return a confirmed set of non-matching bytes from the given expression.
+/// 从给定的表达式中返回一个确认的非匹配字节集合。
 pub(crate) fn non_matching_bytes(expr: &Hir) -> ByteSet {
     let mut set = ByteSet::full();
     remove_matching_bytes(expr, &mut set);
     set
 }
 
-/// Remove any bytes from the given set that can occur in a matched produced by
-/// the given expression.
+/// 从给定的集合中移除在给定表达式所产生的匹配中可能出现的字节。
 fn remove_matching_bytes(expr: &Hir, set: &mut ByteSet) {
     match *expr.kind() {
         HirKind::Empty
         | HirKind::Look(Look::WordAscii | Look::WordAsciiNegate)
         | HirKind::Look(Look::WordUnicode | Look::WordUnicodeNegate) => {}
         HirKind::Look(Look::Start | Look::End) => {
-            // FIXME: This is wrong, but not doing this leads to incorrect
-            // results because of how anchored searches are implemented in
-            // the 'grep-searcher' crate.
+            // FIXME: 这是不正确的，但不这样做会因为 'grep-searcher' crate 中实现的锚定搜索
+            // 而导致结果不正确。
             set.remove(b'\n');
         }
         HirKind::Look(Look::StartLF | Look::EndLF) => {
@@ -40,8 +38,7 @@ fn remove_matching_bytes(expr: &Hir, set: &mut ByteSet) {
         }
         HirKind::Class(hir::Class::Unicode(ref cls)) => {
             for range in cls.iter() {
-                // This is presumably faster than encoding every codepoint
-                // to UTF-8 and then removing those bytes from the set.
+                // 这可能比将每个码点编码为 UTF-8，然后从集合中移除这些字节更快。
                 for seq in Utf8Sequences::new(range.start(), range.end()) {
                     for byte_range in seq.as_slice() {
                         set.remove_all(byte_range.start, byte_range.end);
@@ -140,8 +137,7 @@ mod tests {
 
     #[test]
     fn anchor() {
-        // FIXME: The first four tests below should correspond to a full set
-        // of bytes for the non-matching bytes I think.
+        // FIXME: 下面的前四个测试应该对应于非匹配字节的完整集合，我认为。
         assert_eq!(sparse(&extract(r"^")), sparse_except(&[b'\n']));
         assert_eq!(sparse(&extract(r"$")), sparse_except(&[b'\n']));
         assert_eq!(sparse(&extract(r"\A")), sparse_except(&[b'\n']));

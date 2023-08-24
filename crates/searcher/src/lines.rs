@@ -1,14 +1,17 @@
 /*!
-用于执行对行进行操作的一系列例程。
+对行执行操作的一组例程。
 */
 
+// 使用 bstr 库中的 ByteSlice trait。
 use bstr::ByteSlice;
+// 使用 bytecount 库进行字节计数。
 use bytecount;
+// 使用 grep_matcher 库中的 LineTerminator 和 Match 结构体。
 use grep_matcher::{LineTerminator, Match};
 
-/// 一个在特定字节切片中迭代行的迭代器。
+/// 在特定字节切片上的行迭代器。
 ///
-/// 行终止符被视为终止它们的行的一部分。迭代器产生的所有行都保证是非空的。
+/// 行终止符被视为终止它们的行的一部分。迭代器产生的所有行都保证非空。
 ///
 /// `'b` 表示底层字节的生命周期。
 #[derive(Debug)]
@@ -18,7 +21,7 @@ pub struct LineIter<'b> {
 }
 
 impl<'b> LineIter<'b> {
-    /// 创建一个新的行迭代器，该迭代器在给定的字节中产生由 `line_term` 终止的行。
+    /// 创建一个新的行迭代器，在给定的字节中产生由 `line_term` 终止的行。
     pub fn new(line_term: u8, bytes: &'b [u8]) -> LineIter<'b> {
         LineIter {
             bytes: bytes,
@@ -35,12 +38,12 @@ impl<'b> Iterator for LineIter<'b> {
     }
 }
 
-/// 一个显式的迭代器，在特定字节切片中迭代行。
+/// 在特定字节切片上的显式行迭代器。
 ///
-/// 这个迭代器避免了直接借用字节本身，而是要求在通过迭代器移动时显式地提供字节。
-/// 虽然不太符合惯例，但这提供了一种在迭代行时不需要借用切片本身的简单方法，这可能很方便。
+/// 此迭代器避免借用字节本身，而是在移动迭代器时要求调用者显式提供字节。
+/// 虽然不太符合惯例，但这提供了一种在不需要借用切片本身的情况下迭代行的简单方式，这可能很方便。
 ///
-/// 行终止符被视为终止它们的行的一部分。迭代器产生的所有行都保证是非空的。
+/// 行终止符被视为终止它们的行的一部分。迭代器产生的所有行都保证非空。
 #[derive(Debug)]
 pub struct LineStep {
     line_term: u8,
@@ -49,20 +52,20 @@ pub struct LineStep {
 }
 
 impl LineStep {
-    /// 使用给定的行终止符在给定字节范围内创建一个新的行迭代器。
+    /// 使用给定的行终止符在给定字节范围内创建新的行迭代器。
     ///
-    /// 调用者应该为每次调用 `next` 提供实际的字节。每次调用都必须提供相同的切片。
+    /// 在每次调用 `next` 时，调用者应提供实际的字节。必须为每次调用提供相同的切片。
     ///
-    /// 如果 `start` 不小于或等于 `end`，则会发生 panic。
+    /// 如果 `start` 不小于或等于 `end`，则会 panic。
     pub fn new(line_term: u8, start: usize, end: usize) -> LineStep {
         LineStep { line_term, pos: start, end: end }
     }
 
     /// 返回给定字节中下一行的起始和结束位置。
     ///
-    /// 调用者必须为每次调用 `next` 提供确切的字节切片。
+    /// 调用者必须为每次调用 `next` 提供完全相同的字节切片。
     ///
-    /// 返回的范围包括行终止符。范围始终是非空的。
+    /// 返回的范围包括行终止符。范围始终非空。
     pub fn next(&mut self, bytes: &[u8]) -> Option<(usize, usize)> {
         self.next_impl(bytes)
     }
@@ -99,12 +102,12 @@ impl LineStep {
     }
 }
 
-/// 计算 `bytes` 中 `line_term` 出现的次数。
+/// 计算 `bytes` 中 `line_term` 的出现次数。
 pub fn count(bytes: &[u8], line_term: u8) -> u64 {
     bytecount::count(bytes, line_term) as u64
 }
 
-/// 给定可能以终止符结束的行，返回不包含终止符的行。
+/// 给定可能以终止符结尾的行，返回不包含终止符的行。
 #[inline(always)]
 pub fn without_terminator(bytes: &[u8], line_term: LineTerminator) -> &[u8] {
     let line_term = line_term.as_bytes();
@@ -133,7 +136,7 @@ pub fn locate(bytes: &[u8], line_term: u8, range: Match) -> Match {
     Match::new(line_start, line_end)
 }
 
-/// 返回在 `bytes` 的最后一行之前 `count` 行之前可能出现的行的最小起始偏移量。
+/// 返回在 `bytes` 的最后一行之前 `count` 行之前出现的行的最小起始偏移量。
 ///
 /// 行由 `line_term` 终止。如果 `count` 为零，则返回 `bytes` 中最后一行的起始偏移量。
 ///
@@ -142,14 +145,12 @@ pub fn preceding(bytes: &[u8], line_term: u8, count: usize) -> usize {
     preceding_by_pos(bytes, bytes.len(), line_term, count)
 }
 
-/// 返回在包含 `pos` 的行之前 `count` 行之前可能出现的行的最小起始偏移量。
-/// 行由 `line_term` 终止。如果 `
-
-/// 如果 `count` 为零，则返回包含 `pos` 的行的起始偏移量。
+/// 返回在包含 `pos` 的行之前 `count` 行之前出现的行的最小起始偏移量。
+/// 行由 `line_term` 终止。如果 `count` 为零，则返回包含 `pos` 的行的起始偏移量。
 ///
-/// 如果 `pos` 恰好指向行终止符之后，那么它被视为终止它的行的一部分。例如，给定 `bytes =
-/// b"abc\nxyz\n"` 和 `pos = 7`，`preceding(bytes, pos, b'\n', 0)` 返回 `4`
-///（与 `pos = 8` 一样），而 `preceding(bytes, pos, b'\n', 1)` 返回 `0`。
+/// 如果 `pos` 指向行终止符之后，它将被视为终止该行的一部分。
+/// 例如，对于 `bytes = b"abc\nxyz\n"` 和 `pos = 7`，`preceding(bytes, pos, b'\n', 0)` 返回 `4`
+///（与 `pos = 8` 相同），`preceding(bytes, pos, `b'\n', 1)` 返回 `0`。
 fn preceding_by_pos(
     bytes: &[u8],
     mut pos: usize,
@@ -178,6 +179,7 @@ fn preceding_by_pos(
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

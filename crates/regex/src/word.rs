@@ -16,33 +16,30 @@ use crate::{config::ConfiguredHIR, error::Error, matcher::RegexCaptures};
 
 type PoolFn =
     Box<dyn Fn() -> Captures + Send + Sync + UnwindSafe + RefUnwindSafe>;
-
-/// 用于实现 "单词匹配" 语义的匹配器。
+/// 实现“单词匹配”语义的匹配器。
 #[derive(Debug)]
 pub(crate) struct WordMatcher {
-    /// 大致为 `(?:^|\W)(<原始模式>)(?:$|\W)` 的正则表达式。
+    /// 大致匹配正则表达式，即 `(?:^|\W)(<原始模式>)(?:$|\W)`。
     regex: Regex,
-    /// 生成上述正则表达式的 HIR。我们不保留原始 `original` 正则表达式的 HIR。
+    /// 生成上述正则表达式的 HIR。我们不保留 `original` 正则表达式的 HIR。
     ///
-    /// 我们将其放在一个 `Arc` 中，因为在到达这里时，它不会改变。
-    /// 并且由于 `Hir` 具有深层递归表示，克隆和删除 `Hir` 的开销相对较大。
+    /// 我们将其放入 `Arc` 中，因为在它到达这里时，不会再更改。
+    /// 并且由于其深度递归表示，克隆和丢弃 `Hir` 相对较昂贵。
     chir: Arc<ConfiguredHIR>,
-    /// 用户提供的原始正则表达式，在快速路径中使用，尝试在转向较慢的引擎之前检测匹配。
+    /// 用户提供的原始正则表达式，我们在快速路径中使用它来尝试检测匹配，然后再退回到较慢的引擎。
     original: Regex,
     /// 从捕获组名称到捕获组索引的映射。
     names: HashMap<String, usize>,
-    /// 用于在内部组内查找匹配偏移量的可重用缓冲区的线程安全池。
+    /// 用于查找内部组的匹配偏移量的可重用缓冲区的线程安全池。
     caps: Arc<Pool<Captures, PoolFn>>,
 }
 
 impl Clone for WordMatcher {
     fn clone(&self) -> WordMatcher {
-        // We implement Clone manually so that we get a fresh Pool such that it
-        // can set its own thread owner. This permits each thread usings `caps`
-        // to hit the fast path.
+        // 我们手动实现 Clone，以便获得一个新的 Pool，以便它可以设置自己的线程所有者。
+        // 这允许每个使用 `caps` 的线程进入快速路径。
         //
-        // Note that cloning a regex is "cheap" since it uses reference
-        // counting internally.
+        // 请注意，克隆正则表达式是“便宜”的，因为它在内部使用引用计数。
         let re = self.regex.clone();
         WordMatcher {
             regex: self.regex.clone(),
@@ -55,11 +52,9 @@ impl Clone for WordMatcher {
 }
 
 impl WordMatcher {
-    /// Create a new matcher from the given pattern that only produces matches
-    /// that are considered "words."
+    /// 从给定的模式创建一个新的匹配器，该匹配器仅生成被视为“单词”的匹配项。
     ///
-    /// The given options are used to construct the regular expression
-    /// internally.
+    /// 给定的选项用于在内部构建正则表达式。
     pub(crate) fn new(chir: ConfiguredHIR) -> Result<WordMatcher, Error> {
         let original = chir.clone().into_anchored().to_regex()?;
         let chir = Arc::new(chir.into_word()?);
@@ -79,54 +74,46 @@ impl WordMatcher {
         Ok(WordMatcher { regex, chir, original, names, caps })
     }
 
-    /// Return the underlying regex used to match at word boundaries.
+    /// 返回用于在词边界进行匹配的基础正则表达式。
     ///
-    /// The original regex is in the capture group at index 1.
+    /// 原始正则表达式位于索引为 1 的捕获组中。
     pub(crate) fn regex(&self) -> &Regex {
         &self.regex
     }
 
-    /// Return the underlying HIR for the regex used to match at word
-    /// boundaries.
+    /// 返回用于在词边界进行匹配的基础 HIR。
     pub(crate) fn chir(&self) -> &ConfiguredHIR {
         &self.chir
     }
 
-    /// Attempt to do a fast confirmation of a word match that covers a subset
-    /// (but hopefully a big subset) of most cases. Ok(Some(..)) is returned
-    /// when a match is found. Ok(None) is returned when there is definitively
-    /// no match. Err(()) is returned when this routine could not detect
-    /// whether there was a match or not.
+    /// 尝试对一部分（但希望是大部分）常见情况进行快速匹配确认。
+    /// 当找到匹配时返回 Ok(Some(..))。当确定没有匹配时返回 Ok(None)。
+    /// 当无法检测到是否存在匹配时返回 Err(())。
     fn fast_find(
         &self,
         haystack: &[u8],
         at: usize,
     ) -> Result<Option<Match>, ()> {
-        // This is a bit hairy. The whole point here is to avoid running a
-        // slower regex engine to extract capture groups. Remember, our word
-        // regex looks like this:
+        // 这有点复杂。整体上的目标是避免运行更慢的正则表达式引擎来提取捕获组。
+        // 请记住，我们的单词正则表达式如下所示：
         //
-        //     (^|\W)(<original regex>)(\W|$)
+        //     (^|\W)(<原始正则表达式>)(\W|$)
         //
-        // What we want are the match offsets of <original regex>. So in the
-        // easy/common case, the original regex will be sandwiched between
-        // two codepoints that are in the \W class. So our approach here is to
-        // look for a match of the overall word regexp, strip the \W ends and
-        // then check whether the original regex matches what's left. If so,
-        // then we are guaranteed a correct match.
+        // 我们想要的是 <原始正则表达式> 的匹配偏移量。因此，在易于常见情况下，
+        // 原始正则表达式将位于两个在 \W 类中的代码点之间。
+        // 因此，我们在这里的方法是查找整体单词正则表达式的匹配，
+        // 剥离掉两端的 \W 并检查原始正则表达式是否匹配剩余部分。
+        // 如果匹配，我们将确保获得正确的匹配。
         //
-        // This only works though if we know that the match is sandwiched
-        // between two \W codepoints. This only occurs when neither ^ nor $
-        // match. This in turn only occurs when the match is at either the
-        // beginning or end of the haystack. In either of those cases, we
-        // declare defeat and defer to the slower implementation.
+        // 这仅在我们知道匹配位于两个 \W 代码点之间时才有效。
+        // 这仅在既没有 ^ 也没有 $ 匹配时发生。
+        // 这又仅在匹配位于文本开头或末尾时发生。在这两种情况下，我们宣布失败，
+        // 并退回到较慢的实现。
         //
-        // The reason why we cannot handle the ^/$ cases here is because we
-        // can't assume anything about the original pattern. (Try commenting
-        // out the checks for ^/$ below and run the tests to see examples.)
+        // 我们不能在此处处理 ^/$ 的原因是我们无法对原始模式做出任何假设。
+        // （尝试取消注释下面的 ^/$ 检查，然后运行测试以查看示例。）
         //
-        // NOTE(2023-07-31): After fixing #2574, this logic honestly still
-        // doesn't seem correct. Regex composition is hard.
+        // 注（2023-07-31）：在修复 #2574 之后，此逻辑似乎仍然不正确。正则表达式的组合很困难。
         let input = Input::new(haystack).span(at..haystack.len());
         let mut cand = match self.regex.find(input) {
             None => return Ok(None),
@@ -135,9 +122,9 @@ impl WordMatcher {
         if cand.start() == 0 || cand.end() == haystack.len() {
             return Err(());
         }
-        // We decode the chars on either side of the match. If either char is
-        // a word character, then that means the ^/$ matched and not \W. In
-        // that case, we defer to the slower engine.
+        // 我们解码匹配前后的字符。
+        // 如果任一字符是单词字符，那么意味着 ^/$ 匹配而不是 \W。
+        // 在这种情况下，我们退回到较慢的引擎。
         let (ch, slen) = bstr::decode_utf8(&haystack[cand]);
         if ch.map_or(true, regex_syntax::is_word_character) {
             return Err(());
@@ -148,9 +135,8 @@ impl WordMatcher {
         }
         let new_start = cand.start() + slen;
         let new_end = cand.end() - elen;
-        // This occurs the original regex can match the empty string. In this
-        // case, just bail instead of trying to get it right here since it's
-        // likely a pathological case.
+        // 这发生在原始正则表达式可以匹配空字符串的情况下。
+        // 在这种情况下，只需放弃，而不是尝试在这里正确处理它，因为它可能是病态情况。
         if new_start > new_end {
             return Err(());
         }
@@ -167,22 +153,19 @@ impl Matcher for WordMatcher {
     type Captures = RegexCaptures;
     type Error = NoError;
 
+    // 在给定位置尝试查找匹配项。
     fn find_at(
         &self,
         haystack: &[u8],
         at: usize,
     ) -> Result<Option<Match>, NoError> {
-        // To make this easy to get right, we extract captures here instead of
-        // calling `find_at`. The actual match is at capture group `1` instead
-        // of `0`. We *could* use `find_at` here and then trim the match after
-        // the fact, but that's a bit harder to get right, and it's not clear
-        // if it's worth it.
+        // 为了确保易于正确实现，我们在这里提取捕获组，而不是调用 `find_at`。
+        // 实际匹配位于捕获组 `1` 而不是 `0`。我们*可以*在这里使用 `find_at`，
+        // 然后在事后修剪匹配项，但那会更难以正确实现，并且不清楚是否值得。
         //
-        // OK, well, it turns out that it is worth it! But it is quite tricky.
-        // See `fast_find` for details. Effectively, this lets us skip running
-        // a slower regex engine to extract capture groups in the vast majority
-        // of cases. However, the slower engine is I believe required for full
-        // correctness.
+        // 好吧，事实证明确实值得！但它非常棘手。请参见 `fast_find` 的详细信息。
+        // 实际上，这让我们能够在绝大多数情况下跳过运行较慢的正则表达式引擎来提取捕获组。
+        // 然而，我认为完全正确需要较慢的引擎。
         match self.fast_find(haystack, at) {
             Ok(Some(m)) => return Ok(Some(m)),
             Ok(None) => return Ok(None),
@@ -195,18 +178,22 @@ impl Matcher for WordMatcher {
         Ok(caps.get_group(1).map(|sp| Match::new(sp.start, sp.end)))
     }
 
+    // 创建一个新的捕获组实例。
     fn new_captures(&self) -> Result<RegexCaptures, NoError> {
         Ok(RegexCaptures::with_offset(self.regex.create_captures(), 1))
     }
 
+    // 返回捕获组的数量。
     fn capture_count(&self) -> usize {
         self.regex.captures_len().checked_sub(1).unwrap()
     }
 
+    // 返回给定名称的捕获组索引。
     fn capture_index(&self, name: &str) -> Option<usize> {
         self.names.get(name).map(|i| *i)
     }
 
+    // 在给定位置尝试获取捕获结果，更新到提供的捕获组实例中。
     fn captures_at(
         &self,
         haystack: &[u8],
@@ -219,9 +206,8 @@ impl Matcher for WordMatcher {
         Ok(caps.is_match())
     }
 
-    // We specifically do not implement other methods like find_iter or
-    // captures_iter. Namely, the iter methods are guaranteed to be correct
-    // by virtue of implementing find_at and captures_at above.
+    // 我们故意不实现其他方法，如 find_iter 或 captures_iter。
+    // 实际上，通过实现上述的 find_at 和 captures_at 方法，保证了这些迭代器方法的正确性。
 }
 
 #[cfg(test)]

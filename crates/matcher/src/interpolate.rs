@@ -1,17 +1,11 @@
 use std::str;
 
 use memchr::memchr;
-
-/// Interpolate capture references in `replacement` and write the interpolation
-/// result to `dst`. References in `replacement` take the form of $N or $name,
-/// where `N` is a capture group index and `name` is a capture group name. The
-/// function provided, `name_to_index`, maps capture group names to indices.
+/// 在`replacement`中插入捕获引用，并将插入结果写入`dst`。`replacement`中的引用采用$N或$name的形式，
+/// 其中`N`是捕获组索引，`name`是捕获组名称。提供的函数`name_to_index`将捕获组名称映射到索引。
 ///
-/// The `append` function given is responsible for writing the replacement
-/// to the `dst` buffer. That is, it is called with the capture group index
-/// of a capture group reference and is expected to resolve the index to its
-/// corresponding matched text. If no such match exists, then `append` should
-/// not write anything to its given buffer.
+/// 给定的`append`函数负责将替换写入`dst`缓冲区。也就是说，它会接收捕获组索引，并将其解析为相应的匹配文本。
+/// 如果不存在这样的匹配文本，则`append`不应向其给定的缓冲区写入任何内容。
 pub fn interpolate<A, N>(
     mut replacement: &[u8],
     mut append: A,
@@ -56,20 +50,18 @@ pub fn interpolate<A, N>(
     dst.extend(replacement);
 }
 
-/// `CaptureRef` represents a reference to a capture group inside some text.
-/// The reference is either a capture group name or a number.
+/// `CaptureRef` 表示文本中的捕获组引用。引用可以是捕获组名称或数字。
 ///
-/// It is also tagged with the position in the text immediately proceeding the
-/// capture reference.
+/// 它还带有紧随捕获引用的文本位置标记。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct CaptureRef<'a> {
     cap: Ref<'a>,
     end: usize,
 }
 
-/// A reference to a capture group in some text.
+/// 文本中捕获组的引用。
 ///
-/// e.g., `$2`, `$foo`, `${foo}`.
+/// 例如，`$2`、`$foo`、`${foo}`。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Ref<'a> {
     Named(&'a str),
@@ -88,10 +80,9 @@ impl From<usize> for Ref<'static> {
     }
 }
 
-/// Parses a possible reference to a capture group name in the given text,
-/// starting at the beginning of `replacement`.
+/// 在给定文本中解析可能的捕获组名称引用，从 `replacement` 的开头开始。
 ///
-/// If no such valid reference could be found, None is returned.
+/// 如果找不到有效的引用，将返回 None。
 fn find_cap_ref(replacement: &[u8]) -> Option<CaptureRef<'_>> {
     let mut i = 0;
     if replacement.len() <= 1 || replacement[0] != b'$' {
@@ -110,10 +101,8 @@ fn find_cap_ref(replacement: &[u8]) -> Option<CaptureRef<'_>> {
     if cap_end == i {
         return None;
     }
-    // We just verified that the range 0..cap_end is valid ASCII, so it must
-    // therefore be valid UTF-8. If we really cared, we could avoid this UTF-8
-    // check with an unchecked conversion or by parsing the number straight
-    // from &[u8].
+    // 我们刚刚验证了范围 0..cap_end 是有效的 ASCII，因此它必须是有效的 UTF-8。
+    // 如果我们真的关心的话，我们可以使用未检查的转换或直接从 &[u8] 解析数字来避免此 UTF-8 检查。
     let cap = str::from_utf8(&replacement[i..cap_end])
         .expect("valid UTF-8 capture name");
     if brace {
@@ -131,7 +120,7 @@ fn find_cap_ref(replacement: &[u8]) -> Option<CaptureRef<'_>> {
     })
 }
 
-/// Returns true if and only if the given byte is allowed in a capture name.
+/// 仅当给定字节在捕获名称中允许时返回 true。
 fn is_valid_cap_letter(b: &u8) -> bool {
     match *b {
         b'0'..=b'9' | b'a'..=b'z' | b'A'..=b'Z' | b'_' => true,

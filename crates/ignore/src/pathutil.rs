@@ -3,11 +3,11 @@ use std::path::Path;
 
 use crate::walk::DirEntry;
 
-/// Returns true if and only if this entry is considered to be hidden.
+/// 当且仅当该条目被视为隐藏时，返回 true。
 ///
-/// This only returns true if the base name of the path starts with a `.`.
+/// 这只在路径的基本名称以 `.` 开头时返回 true。
 ///
-/// On Unix, this implements a more optimized check.
+/// 在 Unix 上，这实现了更优化的检查。
 #[cfg(unix)]
 pub fn is_hidden(dent: &DirEntry) -> bool {
     use std::os::unix::ffi::OsStrExt;
@@ -19,20 +19,18 @@ pub fn is_hidden(dent: &DirEntry) -> bool {
     }
 }
 
-/// Returns true if and only if this entry is considered to be hidden.
+/// 当且仅当该条目被视为隐藏时，返回 true。
 ///
-/// On Windows, this returns true if one of the following is true:
+/// 在 Windows 上，如果满足以下条件之一，则返回 true：
 ///
-/// * The base name of the path starts with a `.`.
-/// * The file attributes have the `HIDDEN` property set.
+/// * 路径的基本名称以 `.` 开头。
+/// * 文件属性具有 `HIDDEN` 属性设置。
 #[cfg(windows)]
 pub fn is_hidden(dent: &DirEntry) -> bool {
     use std::os::windows::fs::MetadataExt;
     use winapi_util::file;
 
-    // This looks like we're doing an extra stat call, but on Windows, the
-    // directory traverser reuses the metadata retrieved from each directory
-    // entry and stores it on the DirEntry itself. So this is "free."
+    // 这看起来像是我们正在进行额外的 stat 调用，但在 Windows 上，目录遍历器会重用从每个目录条目检索的元数据，并将其存储在 DirEntry 本身上。因此，这是“免费”的。
     if let Ok(md) = dent.metadata() {
         if file::is_hidden(md.file_attributes() as u64) {
             return true;
@@ -45,9 +43,9 @@ pub fn is_hidden(dent: &DirEntry) -> bool {
     }
 }
 
-/// Returns true if and only if this entry is considered to be hidden.
+/// 当且仅当该条目被视为隐藏时，返回 true。
 ///
-/// This only returns true if the base name of the path starts with a `.`.
+/// 这只在路径的基本名称以 `.` 开头时返回 true。
 #[cfg(not(any(unix, windows)))]
 pub fn is_hidden(dent: &DirEntry) -> bool {
     if let Some(name) = file_name(dent.path()) {
@@ -57,9 +55,9 @@ pub fn is_hidden(dent: &DirEntry) -> bool {
     }
 }
 
-/// Strip `prefix` from the `path` and return the remainder.
+/// 从 `path` 中剥离 `prefix` 并返回剩余部分。
 ///
-/// If `path` doesn't have a prefix `prefix`, then return `None`.
+/// 如果 `path` 没有前缀 `prefix`，则返回 `None`。
 #[cfg(unix)]
 pub fn strip_prefix<'a, P: AsRef<Path> + ?Sized>(
     prefix: &'a P,
@@ -76,9 +74,9 @@ pub fn strip_prefix<'a, P: AsRef<Path> + ?Sized>(
     }
 }
 
-/// Strip `prefix` from the `path` and return the remainder.
+/// 从 `path` 中剥离 `prefix` 并返回剩余部分。
 ///
-/// If `path` doesn't have a prefix `prefix`, then return `None`.
+/// 如果 `path` 没有前缀 `prefix`，则返回 `None`。
 #[cfg(not(unix))]
 pub fn strip_prefix<'a, P: AsRef<Path> + ?Sized>(
     prefix: &'a P,
@@ -87,8 +85,7 @@ pub fn strip_prefix<'a, P: AsRef<Path> + ?Sized>(
     path.strip_prefix(prefix).ok()
 }
 
-/// Returns true if this file path is just a file name. i.e., Its parent is
-/// the empty string.
+/// 如果此文件路径仅为文件名，则返回 true。即，其父目录为空字符串。
 #[cfg(unix)]
 pub fn is_file_name<P: AsRef<Path>>(path: P) -> bool {
     use memchr::memchr;
@@ -98,17 +95,15 @@ pub fn is_file_name<P: AsRef<Path>>(path: P) -> bool {
     memchr(b'/', path).is_none()
 }
 
-/// Returns true if this file path is just a file name. i.e., Its parent is
-/// the empty string.
+/// 如果此文件路径仅为文件名，则返回 true。即，其父目录为空字符串。
 #[cfg(not(unix))]
 pub fn is_file_name<P: AsRef<Path>>(path: P) -> bool {
     path.as_ref().parent().map(|p| p.as_os_str().is_empty()).unwrap_or(false)
 }
 
-/// The final component of the path, if it is a normal file.
+/// 路径的最终组件，如果它是正常文件的话。
 ///
-/// If the path terminates in ., .., or consists solely of a root of prefix,
-/// file_name will return None.
+/// 如果路径以 .、.. 结尾，或仅由前缀的根组成，file_name 将返回 None。
 #[cfg(unix)]
 pub fn file_name<'a, P: AsRef<Path> + ?Sized>(
     path: &'a P,
@@ -130,10 +125,9 @@ pub fn file_name<'a, P: AsRef<Path> + ?Sized>(
     Some(OsStr::from_bytes(&path[last_slash..]))
 }
 
-/// The final component of the path, if it is a normal file.
+/// 路径的最终组件，如果它是正常文件的话。
 ///
-/// If the path terminates in ., .., or consists solely of a root of prefix,
-/// file_name will return None.
+/// 如果路径以 .、.. 结尾，或仅由前缀的根组成，file_name 将返回 None。
 #[cfg(not(unix))]
 pub fn file_name<'a, P: AsRef<Path> + ?Sized>(
     path: &'a P,

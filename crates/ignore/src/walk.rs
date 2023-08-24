@@ -110,17 +110,15 @@ impl DirEntry {
         DirEntry { dent: DirEntryInner::Raw(dent), err: err }
     }
 }
-
-/// DirEntryInner is the implementation of DirEntry.
+/// `DirEntryInner` 是 `DirEntry` 的实现。
 ///
-/// It specifically represents three distinct sources of directory entries:
+/// 它特别表示目录条目的三个不同来源：
 ///
-/// 1. From the walkdir crate.
-/// 2. Special entries that represent things like stdin.
-/// 3. From a path.
+/// 1. 来自 `walkdir` crate。
+/// 2. 表示诸如 `stdin` 之类的特殊条目。
+/// 3. 来自路径。
 ///
-/// Specifically, (3) has to essentially re-create the DirEntry implementation
-/// from WalkDir.
+/// 具体来说，（3）必须从根本上重新创建 `DirEntry` 来自 `WalkDir` 的实现。
 #[derive(Clone, Debug)]
 enum DirEntryInner {
     Stdin,
@@ -129,6 +127,7 @@ enum DirEntryInner {
 }
 
 impl DirEntryInner {
+    /// 返回条目的路径。
     fn path(&self) -> &Path {
         use self::DirEntryInner::*;
         match *self {
@@ -138,6 +137,7 @@ impl DirEntryInner {
         }
     }
 
+    /// 将条目转换为路径。
     fn into_path(self) -> PathBuf {
         use self::DirEntryInner::*;
         match self {
@@ -147,6 +147,7 @@ impl DirEntryInner {
         }
     }
 
+    /// 检查条目的路径是否为符号链接。
     fn path_is_symlink(&self) -> bool {
         use self::DirEntryInner::*;
         match *self {
@@ -156,6 +157,7 @@ impl DirEntryInner {
         }
     }
 
+    /// 检查条目是否为 `stdin`。
     fn is_stdin(&self) -> bool {
         match *self {
             DirEntryInner::Stdin => true,
@@ -163,13 +165,14 @@ impl DirEntryInner {
         }
     }
 
+    /// 获取条目的元数据。
     fn metadata(&self) -> Result<Metadata, Error> {
         use self::DirEntryInner::*;
         match *self {
             Stdin => {
                 let err = Error::Io(io::Error::new(
                     io::ErrorKind::Other,
-                    "<stdin> has no metadata",
+                    "<stdin> 没有元数据",
                 ));
                 Err(err.with_path("<stdin>"))
             }
@@ -180,6 +183,7 @@ impl DirEntryInner {
         }
     }
 
+    /// 获取条目的文件类型。
     fn file_type(&self) -> Option<FileType> {
         use self::DirEntryInner::*;
         match *self {
@@ -189,6 +193,7 @@ impl DirEntryInner {
         }
     }
 
+    /// 获取条目的文件名。
     fn file_name(&self) -> &OsStr {
         use self::DirEntryInner::*;
         match *self {
@@ -198,6 +203,7 @@ impl DirEntryInner {
         }
     }
 
+    /// 获取条目的深度。
     fn depth(&self) -> usize {
         use self::DirEntryInner::*;
         match *self {
@@ -208,6 +214,7 @@ impl DirEntryInner {
     }
 
     #[cfg(unix)]
+    /// 获取 inode 编号。
     fn ino(&self) -> Option<u64> {
         use self::DirEntryInner::*;
         use walkdir::DirEntryExt;
@@ -218,40 +225,34 @@ impl DirEntryInner {
         }
     }
 
-    /// Returns true if and only if this entry points to a directory.
+    /// 返回 true 当且仅当此条目指向一个目录。
     fn is_dir(&self) -> bool {
         self.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
     }
 }
-
-/// DirEntryRaw is essentially copied from the walkdir crate so that we can
-/// build `DirEntry`s from whole cloth in the parallel iterator.
+/// `DirEntryRaw` 从 `walkdir` crate 复制而来，以便我们可以在并行迭代器中从头构建 `DirEntry`。
 #[derive(Clone)]
 struct DirEntryRaw {
-    /// The path as reported by the `fs::ReadDir` iterator (even if it's a
-    /// symbolic link).
+    /// 路径，由 `fs::ReadDir` 迭代器报告（即使它是符号链接）。
     path: PathBuf,
-    /// The file type. Necessary for recursive iteration, so store it.
+    /// 文件类型。对于递归迭代是必要的，因此将其存储起来。
     ty: FileType,
-    /// Is set when this entry was created from a symbolic link and the user
-    /// expects the iterator to follow symbolic links.
+    /// 当该条目是从符号链接创建的且用户希望迭代器跟随符号链接时设置。
     follow_link: bool,
-    /// The depth at which this entry was generated relative to the root.
+    /// 生成此条目的相对于根的深度。
     depth: usize,
-    /// The underlying inode number (Unix only).
+    /// 基础 inode 编号（仅适用于 Unix）。
     #[cfg(unix)]
     ino: u64,
-    /// The underlying metadata (Windows only). We store this on Windows
-    /// because this comes for free while reading a directory.
+    /// 基础元数据（仅适用于 Windows）。我们在 Windows 上存储这个，因为在读取目录时这是免费的。
     #[cfg(windows)]
     metadata: fs::Metadata,
 }
 
 impl fmt::Debug for DirEntryRaw {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Leaving out FileType because it doesn't have a debug impl
-        // in Rust 1.9. We could add it if we really wanted to by manually
-        // querying each possibly file type. Meh. ---AG
+        // 不包括 FileType，因为在 Rust 1.9 中它没有 Debug 实现。
+        // 如果我们真的想要的话，可以通过手动查询每个可能的文件类型来添加它。---AG
         f.debug_struct("DirEntryRaw")
             .field("path", &self.path)
             .field("follow_link", &self.follow_link)
@@ -261,18 +262,22 @@ impl fmt::Debug for DirEntryRaw {
 }
 
 impl DirEntryRaw {
+    /// 获取路径。
     fn path(&self) -> &Path {
         &self.path
     }
 
+    /// 将条目转换为路径。
     fn into_path(self) -> PathBuf {
         self.path
     }
 
+    /// 检查路径是否为符号链接。
     fn path_is_symlink(&self) -> bool {
         self.ty.is_symlink() || self.follow_link
     }
 
+    /// 获取元数据。
     fn metadata(&self) -> Result<Metadata, Error> {
         self.metadata_internal()
     }
@@ -297,14 +302,17 @@ impl DirEntryRaw {
         .map_err(|err| Error::Io(io::Error::from(err)).with_path(&self.path))
     }
 
+    /// 获取文件类型。
     fn file_type(&self) -> FileType {
         self.ty
     }
 
+    /// 获取文件名。
     fn file_name(&self) -> &OsStr {
         self.path.file_name().unwrap_or_else(|| self.path.as_os_str())
     }
 
+    /// 获取深度。
     fn depth(&self) -> usize {
         self.depth
     }
@@ -361,18 +369,14 @@ impl DirEntryRaw {
         })
     }
 
-    // Placeholder implementation to allow compiling on non-standard platforms
-    // (e.g. wasm32).
+    // 占位实现，允许在非标准平台（例如 wasm32）上编译。
     #[cfg(not(any(windows, unix)))]
     fn from_entry_os(
         depth: usize,
         ent: &fs::DirEntry,
         ty: fs::FileType,
     ) -> Result<DirEntryRaw, Error> {
-        Err(Error::Io(io::Error::new(
-            io::ErrorKind::Other,
-            "unsupported platform",
-        )))
+        Err(Error::Io(io::Error::new(io::ErrorKind::Other, "不支持的平台")))
     }
 
     #[cfg(windows)]
@@ -411,20 +415,17 @@ impl DirEntryRaw {
         })
     }
 
-    // Placeholder implementation to allow compiling on non-standard platforms
-    // (e.g. wasm32).
+    // 占位实现，允许在非标准平台（例如 wasm32）上编译。
     #[cfg(not(any(windows, unix)))]
     fn from_path(
         depth: usize,
         pb: PathBuf,
         link: bool,
     ) -> Result<DirEntryRaw, Error> {
-        Err(Error::Io(io::Error::new(
-            io::ErrorKind::Other,
-            "unsupported platform",
-        )))
+        Err(Error::Io(io::Error::new(io::ErrorKind::Other, "不支持的平台")))
     }
 }
+
 /// `WalkBuilder` 构建递归目录迭代器。
 ///
 /// 该构建器支持大量可配置的选项。这包括特定的 glob 覆盖、文件类型匹配、切换是否忽略隐藏文件，当然还包括支持遵循 gitignore 文件。
@@ -490,12 +491,9 @@ impl fmt::Debug for WalkBuilder {
 }
 
 impl WalkBuilder {
-    /// Create a new builder for a recursive directory iterator for the
-    /// directory given.
+    /// 为给定的目录创建一个递归目录迭代器的新建器。
     ///
-    /// Note that if you want to traverse multiple different directories, it
-    /// is better to call `add` on this builder than to create multiple
-    /// `Walk` values.
+    /// 注意，如果要遍历多个不同的目录，最好在该建造者上调用 `add` 而不是创建多个 `Walk` 值。
     pub fn new<P: AsRef<Path>>(path: P) -> WalkBuilder {
         WalkBuilder {
             paths: vec![path.as_ref().to_path_buf()],
@@ -511,7 +509,7 @@ impl WalkBuilder {
         }
     }
 
-    /// Build a new `Walk` iterator.
+    /// 构建一个新的 `Walk` 迭代器。
     pub fn build(&self) -> Walk {
         let follow_links = self.follow_links;
         let max_depth = self.max_depth;
@@ -560,11 +558,11 @@ impl WalkBuilder {
         }
     }
 
-    /// Build a new `WalkParallel` iterator.
+    /// 构建一个新的 `WalkParallel` 迭代器。
     ///
-    /// Note that this *doesn't* return something that implements `Iterator`.
-    /// Instead, the returned value must be run with a closure. e.g.,
-    /// `builder.build_parallel().run(|| |path| println!("{:?}", path))`.
+    /// 请注意，这个函数不会返回实现 `Iterator` 的东西。
+    /// 相反，返回的值必须与闭包一起运行，例如：
+    /// `builder.build_parallel().run(|| |path| println!("{:?}", path))`。
     pub fn build_parallel(&self) -> WalkParallel {
         WalkParallel {
             paths: self.paths.clone().into_iter(),
@@ -578,56 +576,49 @@ impl WalkBuilder {
             filter: self.filter.clone(),
         }
     }
-
-    /// Add a file path to the iterator.
+    /// 向迭代器中添加文件路径。
     ///
-    /// Each additional file path added is traversed recursively. This should
-    /// be preferred over building multiple `Walk` iterators since this
-    /// enables reusing resources across iteration.
+    /// 添加额外的文件路径将进行递归遍历。这应该优先于构建多个 `Walk` 迭代器，因为这样可以在迭代过程中重用资源。
     pub fn add<P: AsRef<Path>>(&mut self, path: P) -> &mut WalkBuilder {
         self.paths.push(path.as_ref().to_path_buf());
         self
     }
 
-    /// The maximum depth to recurse.
+    /// 递归的最大深度。
     ///
-    /// The default, `None`, imposes no depth restriction.
+    /// 默认值为 `None`，表示没有深度限制。
     pub fn max_depth(&mut self, depth: Option<usize>) -> &mut WalkBuilder {
         self.max_depth = depth;
         self
     }
 
-    /// Whether to follow symbolic links or not.
+    /// 是否跟踪符号链接。
     pub fn follow_links(&mut self, yes: bool) -> &mut WalkBuilder {
         self.follow_links = yes;
         self
     }
 
-    /// Whether to ignore files above the specified limit.
+    /// 是否忽略大小超过指定限制的文件。
     pub fn max_filesize(&mut self, filesize: Option<u64>) -> &mut WalkBuilder {
         self.max_filesize = filesize;
         self
     }
 
-    /// The number of threads to use for traversal.
+    /// 用于遍历的线程数。
     ///
-    /// Note that this only has an effect when using `build_parallel`.
+    /// 请注意，仅在使用 `build_parallel` 时才会产生影响。
     ///
-    /// The default setting is `0`, which chooses the number of threads
-    /// automatically using heuristics.
+    /// 默认设置为 `0`，会自动使用启发式算法选择线程数。
     pub fn threads(&mut self, n: usize) -> &mut WalkBuilder {
         self.threads = n;
         self
     }
 
-    /// Add a global ignore file to the matcher.
+    /// 向匹配器添加全局忽略文件。
     ///
-    /// This has lower precedence than all other sources of ignore rules.
+    /// 这比所有其他忽略规则的优先级都低。
     ///
-    /// If there was a problem adding the ignore file, then an error is
-    /// returned. Note that the error may indicate *partial* failure. For
-    /// example, if an ignore file contains an invalid glob, all other globs
-    /// are still applied.
+    /// 如果添加忽略文件时出现问题，则会返回一个错误。请注意，错误可能会指示*部分*失败。例如，如果一个忽略文件包含无效的通配符，仍然会应用所有其他通配符。
     pub fn add_ignore<P: AsRef<Path>>(&mut self, path: P) -> Option<Error> {
         let mut builder = GitignoreBuilder::new("");
         let mut errs = PartialErrorBuilder::default();
@@ -643,12 +634,11 @@ impl WalkBuilder {
         errs.into_error_option()
     }
 
-    /// Add a custom ignore file name
+    /// 添加自定义的忽略文件名
     ///
-    /// These ignore files have higher precedence than all other ignore files.
+    /// 这些忽略文件的优先级高于所有其他忽略文件。
     ///
-    /// When specifying multiple names, earlier names have lower precedence than
-    /// later names.
+    /// 当指定多个名称时，较早的名称的优先级低于较后的名称。
     pub fn add_custom_ignore_filename<S: AsRef<OsStr>>(
         &mut self,
         file_name: S,
@@ -657,29 +647,29 @@ impl WalkBuilder {
         self
     }
 
-    /// Add an override matcher.
+    /// 添加一个覆盖匹配器。
     ///
-    /// By default, no override matcher is used.
+    /// 默认情况下，不使用任何覆盖匹配器。
     ///
-    /// This overrides any previous setting.
+    /// 这会覆盖任何先前的设置。
     pub fn overrides(&mut self, overrides: Override) -> &mut WalkBuilder {
         self.ig_builder.overrides(overrides);
         self
     }
 
-    /// Add a file type matcher.
+    /// 添加一个文件类型匹配器。
     ///
-    /// By default, no file type matcher is used.
+    /// 默认情况下，不使用任何文件类型匹配器。
     ///
-    /// This overrides any previous setting.
+    /// 这会覆盖任何先前的设置。
     pub fn types(&mut self, types: Types) -> &mut WalkBuilder {
         self.ig_builder.types(types);
         self
     }
 
-    /// Enables all the standard ignore filters.
+    /// 启用所有标准的忽略过滤器。
     ///
-    /// This toggles, as a group, all the filters that are enabled by default:
+    /// 这会一组一组地切换所有默认情况下启用的过滤器：
     ///
     /// - [hidden()](#method.hidden)
     /// - [parents()](#method.parents)
@@ -688,9 +678,9 @@ impl WalkBuilder {
     /// - [git_global()](#method.git_global)
     /// - [git_exclude()](#method.git_exclude)
     ///
-    /// They may still be toggled individually after calling this function.
+    /// 调用此函数后，仍然可以单独切换每个过滤器。
     ///
-    /// This is (by definition) enabled by default.
+    /// 默认情况下已启用（根据定义）。
     pub fn standard_filters(&mut self, yes: bool) -> &mut WalkBuilder {
         self.hidden(yes)
             .parents(yes)
@@ -699,105 +689,89 @@ impl WalkBuilder {
             .git_global(yes)
             .git_exclude(yes)
     }
-
-    /// Enables ignoring hidden files.
+    /// 启用对隐藏文件的忽略。
     ///
-    /// This is enabled by default.
+    /// 默认情况下，此选项已启用。
     pub fn hidden(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.hidden(yes);
         self
     }
 
-    /// Enables reading ignore files from parent directories.
+    /// 启用从父目录中读取忽略文件的功能。
     ///
-    /// If this is enabled, then .gitignore files in parent directories of each
-    /// file path given are respected. Otherwise, they are ignored.
+    /// 如果启用此选项，则会尊重每个给定文件路径的父目录中的 `.gitignore` 文件。否则，它们将被忽略。
     ///
-    /// This is enabled by default.
+    /// 默认情况下，此选项已启用。
     pub fn parents(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.parents(yes);
         self
     }
 
-    /// Enables reading `.ignore` files.
+    /// 启用读取 `.ignore` 文件的功能。
     ///
-    /// `.ignore` files have the same semantics as `gitignore` files and are
-    /// supported by search tools such as ripgrep and The Silver Searcher.
+    /// `.ignore` 文件的语义与 `gitignore` 文件相同，并且受到诸如 ripgrep 和 The Silver Searcher 等搜索工具的支持。
     ///
-    /// This is enabled by default.
+    /// 默认情况下，此选项已启用。
     pub fn ignore(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.ignore(yes);
         self
     }
 
-    /// Enables reading a global gitignore file, whose path is specified in
-    /// git's `core.excludesFile` config option.
+    /// 启用读取全局 gitignore 文件的功能，其路径在 git 的 `core.excludesFile` 配置选项中指定。
     ///
-    /// Git's config file location is `$HOME/.gitconfig`. If `$HOME/.gitconfig`
-    /// does not exist or does not specify `core.excludesFile`, then
-    /// `$XDG_CONFIG_HOME/git/ignore` is read. If `$XDG_CONFIG_HOME` is not
-    /// set or is empty, then `$HOME/.config/git/ignore` is used instead.
+    /// git 的配置文件位置为 `$HOME/.gitconfig`。如果 `$HOME/.gitconfig` 不存在或未指定 `core.excludesFile`，则会读取 `$XDG_CONFIG_HOME/git/ignore`。如果未设置 `$XDG_CONFIG_HOME` 或为空，则会使用 `$HOME/.config/git/ignore`。
     ///
-    /// This is enabled by default.
+    /// 默认情况下，此选项已启用。
     pub fn git_global(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.git_global(yes);
         self
     }
 
-    /// Enables reading `.gitignore` files.
+    /// 启用读取 `.gitignore` 文件的功能。
     ///
-    /// `.gitignore` files have match semantics as described in the `gitignore`
-    /// man page.
+    /// `.gitignore` 文件的匹配语义如 `gitignore` 手册中所述。
     ///
-    /// This is enabled by default.
+    /// 默认情况下，此选项已启用。
     pub fn git_ignore(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.git_ignore(yes);
         self
     }
 
-    /// Enables reading `.git/info/exclude` files.
+    /// 启用读取 `.git/info/exclude` 文件的功能。
     ///
-    /// `.git/info/exclude` files have match semantics as described in the
-    /// `gitignore` man page.
+    /// `.git/info/exclude` 文件的匹配语义如 `gitignore` 手册中所述。
     ///
-    /// This is enabled by default.
+    /// 默认情况下，此选项已启用。
     pub fn git_exclude(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.git_exclude(yes);
         self
     }
 
-    /// Whether a git repository is required to apply git-related ignore
-    /// rules (global rules, .gitignore and local exclude rules).
+    /// 是否需要 git 仓库来应用与 git 相关的忽略规则（全局规则、.gitignore 和本地排除规则）。
     ///
-    /// When disabled, git-related ignore rules are applied even when searching
-    /// outside a git repository.
+    /// 当禁用时，即使在 git 仓库之外进行搜索，也会应用与 git 相关的忽略规则。
     pub fn require_git(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.require_git(yes);
         self
     }
 
-    /// Process ignore files case insensitively
+    /// 处理忽略文件时是否不区分大小写。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项已禁用。
     pub fn ignore_case_insensitive(&mut self, yes: bool) -> &mut WalkBuilder {
         self.ig_builder.ignore_case_insensitive(yes);
         self
     }
 
-    /// Set a function for sorting directory entries by their path.
+    /// 设置一个函数，用于按照路径对目录条目进行排序。
     ///
-    /// If a compare function is set, the resulting iterator will return all
-    /// paths in sorted order. The compare function will be called to compare
-    /// entries from the same directory.
+    /// 如果设置了比较函数，生成的迭代器将按照排序顺序返回所有路径。比较函数将用于比较来自同一目录的条目。
     ///
-    /// This is like `sort_by_file_name`, except the comparator accepts
-    /// a `&Path` instead of the base file name, which permits it to sort by
-    /// more criteria.
+    /// 这类似于 `sort_by_file_name`，但比较器接受 `&Path` 而不是基本文件名，允许按照更多标准进行排序。
     ///
-    /// This method will override any previous sorter set by this method or
-    /// by `sort_by_file_name`.
+    /// 此方法将覆盖此方法或 `sort_by_file_name` 设置的任何先前排序器。
     ///
-    /// Note that this is not used in the parallel iterator.
+    /// 请注意，这不会在并行迭代器中使用。
     pub fn sort_by_file_path<F>(&mut self, cmp: F) -> &mut WalkBuilder
     where
         F: Fn(&Path, &Path) -> cmp::Ordering + Send + Sync + 'static,
@@ -806,17 +780,13 @@ impl WalkBuilder {
         self
     }
 
-    /// Set a function for sorting directory entries by file name.
+    /// 设置一个按文件名对目录条目进行排序的函数。
     ///
-    /// If a compare function is set, the resulting iterator will return all
-    /// paths in sorted order. The compare function will be called to compare
-    /// names from entries from the same directory using only the name of the
-    /// entry.
+    /// 如果设置了比较函数，生成的迭代器将按照排序顺序返回所有路径。比较函数将用于仅使用条目的名称比较来自同一目录的条目。
     ///
-    /// This method will override any previous sorter set by this method or
-    /// by `sort_by_file_path`.
+    /// 此方法将覆盖此方法或 `sort_by_file_path` 设置的任何先前排序器。
     ///
-    /// Note that this is not used in the parallel iterator.
+    /// 请注意，这不会在并行迭代器中使用。
     pub fn sort_by_file_name<F>(&mut self, cmp: F) -> &mut WalkBuilder
     where
         F: Fn(&OsStr, &OsStr) -> cmp::Ordering + Send + Sync + 'static,
@@ -825,30 +795,21 @@ impl WalkBuilder {
         self
     }
 
-    /// Do not cross file system boundaries.
+    /// 不要跨越文件系统边界。
     ///
-    /// When this option is enabled, directory traversal will not descend into
-    /// directories that are on a different file system from the root path.
+    /// 启用此选项时，目录遍历将不会进入与根路径不同文件系统的目录。
     ///
-    /// Currently, this option is only supported on Unix and Windows. If this
-    /// option is used on an unsupported platform, then directory traversal
-    /// will immediately return an error and will not yield any entries.
+    /// 目前，此选项仅在 Unix 和 Windows 上受支持。如果在不受支持的平台上使用此选项，目录遍历将立即返回错误，不会产生任何条目。
     pub fn same_file_system(&mut self, yes: bool) -> &mut WalkBuilder {
         self.same_file_system = yes;
         self
     }
 
-    /// Do not yield directory entries that are believed to correspond to
-    /// stdout.
+    /// 不要生成据信对应于标准输出的目录条目。
     ///
-    /// This is useful when a command is invoked via shell redirection to a
-    /// file that is also being read. For example, `grep -r foo ./ > results`
-    /// might end up trying to search `results` even though it is also writing
-    /// to it, which could cause an unbounded feedback loop. Setting this
-    /// option prevents this from happening by skipping over the `results`
-    /// file.
+    /// 当通过 shell 重定向调用命令到同时正在读取的文件时，这很有用。例如，`grep -r foo ./ > results` 可能会尝试搜索 `results`，即使它也在将内容写入其中，这可能会导致无限反馈循环。设置此选项可通过跳过 `results` 文件来防止发生这种情况。
     ///
-    /// This is disabled by default.
+    /// 默认情况下，此选项已禁用。
     pub fn skip_stdout(&mut self, yes: bool) -> &mut WalkBuilder {
         if yes {
             self.skip = stdout_handle().map(Arc::new);
@@ -858,15 +819,11 @@ impl WalkBuilder {
         self
     }
 
-    /// Yields only entries which satisfy the given predicate and skips
-    /// descending into directories that do not satisfy the given predicate.
+    /// 仅生成满足给定谓词的条目，并跳过不满足给定谓词的目录。
     ///
-    /// The predicate is applied to all entries. If the predicate is
-    /// true, iteration carries on as normal. If the predicate is false, the
-    /// entry is ignored and if it is a directory, it is not descended into.
+    /// 谓词应用于所有条目。如果谓词为真，则迭代会像正常一样继续进行。如果谓词为假，则将忽略条目，如果它是一个目录，则不会进入其中。
     ///
-    /// Note that the errors for reading entries that may not satisfy the
-    /// predicate will still be yielded.
+    /// 请注意，仍将生成可能不满足谓词的条目的错误。
     pub fn filter_entry<P>(&mut self, filter: P) -> &mut WalkBuilder
     where
         P: Fn(&DirEntry) -> bool + Send + Sync + 'static,
@@ -876,12 +833,9 @@ impl WalkBuilder {
     }
 }
 
-/// Walk is a recursive directory iterator over file paths in one or more
-/// directories.
+/// `Walk` 是一个在一个或多个目录中递归遍历文件路径的迭代器。
 ///
-/// Only file and directory paths matching the rules are returned. By default,
-/// ignore files like `.gitignore` are respected. The precise matching rules
-/// and precedence is explained in the documentation for `WalkBuilder`.
+/// 只有与规则匹配的文件和目录路径会被返回。默认情况下，将尊重类似 `.gitignore` 的忽略文件。关于精确的匹配规则和优先级，请参阅 `WalkBuilder` 的文档。
 pub struct Walk {
     its: vec::IntoIter<(PathBuf, Option<WalkEventIter>)>,
     it: Option<WalkEventIter>,
@@ -893,11 +847,9 @@ pub struct Walk {
 }
 
 impl Walk {
-    /// Creates a new recursive directory iterator for the file path given.
+    /// 创建一个新的递归目录迭代器，用于给定的文件路径。
     ///
-    /// Note that this uses default settings, which include respecting
-    /// `.gitignore` files. To configure the iterator, use `WalkBuilder`
-    /// instead.
+    /// 请注意，这使用默认设置，其中包括尊重 `.gitignore` 文件。要配置迭代器，请改用 `WalkBuilder`。
     pub fn new<P: AsRef<Path>>(path: P) -> Walk {
         WalkBuilder::new(path).build()
     }
@@ -906,15 +858,7 @@ impl Walk {
         if ent.depth() == 0 {
             return Ok(false);
         }
-        // We ensure that trivial skipping is done before any other potentially
-        // expensive operations (stat, filesystem other) are done. This seems
-        // like an obvious optimization but becomes critical when filesystem
-        // operations even as simple as stat can result in significant
-        // overheads; an example of this was a bespoke filesystem layer in
-        // Windows that hosted files remotely and would download them on-demand
-        // when particular filesystem operations occurred. Users of this system
-        // who ensured correct file-type filters were being used could still
-        // get unnecessary file access resulting in large downloads.
+        // 在执行任何其他可能的昂贵操作（如 stat、文件系统操作）之前，我们确保先进行简单的跳过。这似乎是一个显而易见的优化，但在文件系统操作甚至是像 stat 这样的简单操作可能导致显著的开销时，这变得至关重要。例如，在 Windows 中，有一个专门的文件系统层，用于远程托管文件，并且在发生特定的文件系统操作时按需下载它们。使用此系统的用户，如果确保使用正确的文件类型过滤器，则仍可能会获得不必要的文件访问，导致大量下载。
         if should_skip_entry(&self.ig, ent) {
             return Ok(true);
         }
@@ -984,9 +928,8 @@ impl Iterator for Walk {
                     };
                     if should_skip {
                         self.it.as_mut().unwrap().it.skip_current_dir();
-                        // Still need to push this on the stack because
-                        // we'll get a WalkEvent::Exit event for this dir.
-                        // We don't care if it errors though.
+                        // 仍需要将此推入堆栈，因为我们将为此目录获得 WalkEvent::Exit 事件。
+                        // 我们不关心它是否出错。
                         let (igtmp, _) = self.ig.add_child(ent.path());
                         self.ig = igtmp;
                         continue;
@@ -1011,11 +954,8 @@ impl Iterator for Walk {
         }
     }
 }
-
-/// WalkEventIter transforms a WalkDir iterator into an iterator that more
-/// accurately describes the directory tree. Namely, it emits events that are
-/// one of three types: directory, file or "exit." An "exit" event means that
-/// the entire contents of a directory have been enumerated.
+/// `WalkEventIter` 将 `WalkDir` 迭代器转换为一个更准确描述目录树的迭代器。
+/// 具体来说，它发出三种类型的事件之一：目录、文件或“退出”事件。 "退出" 事件表示整个目录的内容已枚举完毕。
 struct WalkEventIter {
     depth: usize,
     it: walkdir::IntoIter,
@@ -1067,21 +1007,16 @@ impl Iterator for WalkEventIter {
     }
 }
 
-/// WalkState is used in the parallel recursive directory iterator to indicate
-/// whether walking should continue as normal, skip descending into a
-/// particular directory or quit the walk entirely.
+/// `WalkState` 用于并行递归目录迭代器，指示是否应该继续正常遍历、跳过不遍历特定目录或完全退出遍历。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WalkState {
-    /// Continue walking as normal.
+    /// 继续正常遍历。
     Continue,
-    /// If the directory entry given is a directory, don't descend into it.
-    /// In all other cases, this has no effect.
+    /// 如果给定的目录条目是目录，则不进入其中。在所有其他情况下，这无效。
     Skip,
-    /// Quit the entire iterator as soon as possible.
+    /// 尽快退出整个迭代器。
     ///
-    /// Note that this is an inherently asynchronous action. It is possible
-    /// for more entries to be yielded even after instructing the iterator
-    /// to quit.
+    /// 请注意，这是一种本质上是异步操作。在指示迭代器退出后，仍然有可能产生更多的条目。
     Quit,
 }
 
@@ -1095,12 +1030,10 @@ impl WalkState {
     }
 }
 
-/// A builder for constructing a visitor when using
-/// [`WalkParallel::visit`](struct.WalkParallel.html#method.visit). The builder
-/// will be called for each thread started by `WalkParallel`. The visitor
-/// returned from each builder is then called for every directory entry.
+/// 用于使用 [`WalkParallel::visit`](struct.WalkParallel.html#method.visit) 时构建访问者的构建器。
+/// 该构建器将为 `WalkParallel` 启动的每个线程调用一次。每个构建器返回的访问者随后在每个访问的目录条目上被调用。
 pub trait ParallelVisitorBuilder<'s> {
-    /// Create per-thread `ParallelVisitor`s for `WalkParallel`.
+    /// 为 `WalkParallel` 创建每个线程的 `ParallelVisitor`。
     fn build(&mut self) -> Box<dyn ParallelVisitor + 's>;
 }
 
@@ -1112,15 +1045,12 @@ impl<'a, 's, P: ParallelVisitorBuilder<'s>> ParallelVisitorBuilder<'s>
     }
 }
 
-/// Receives files and directories for the current thread.
+/// 接收当前线程的文件和目录。
 ///
-/// Setup for the traversal can be implemented as part of
-/// [`ParallelVisitorBuilder::build`](trait.ParallelVisitorBuilder.html#tymethod.build).
-/// Teardown when traversal finishes can be implemented by implementing the
-/// `Drop` trait on your traversal type.
+/// 遍历的设置可以作为 [`ParallelVisitorBuilder::build`](trait.ParallelVisitorBuilder.html#tymethod.build) 的一部分实现。
+/// 当遍历完成时，可以通过在您的遍历类型上实现 `Drop` 特性来实现拆卸。
 pub trait ParallelVisitor: Send {
-    /// Receives files and directories for the current thread. This is called
-    /// once for every directory entry visited by traversal.
+    /// 接收当前线程的文件和目录。这将在遍历访问的每个目录条目上调用一次。
     fn visit(&mut self, entry: Result<DirEntry, Error>) -> WalkState;
 }
 
@@ -1150,14 +1080,11 @@ impl<'s> ParallelVisitor for FnVisitorImp<'s> {
     }
 }
 
-/// WalkParallel is a parallel recursive directory iterator over files paths
-/// in one or more directories.
+/// `WalkParallel` 是一个并行递归目录迭代器，用于一个或多个目录中的文件路径。
 ///
-/// Only file and directory paths matching the rules are returned. By default,
-/// ignore files like `.gitignore` are respected. The precise matching rules
-/// and precedence is explained in the documentation for `WalkBuilder`.
+/// 只有与规则匹配的文件和目录路径会被返回。默认情况下，将尊重类似 `.gitignore` 的忽略文件。关于精确的匹配规则和优先级，请参阅 `WalkBuilder` 的文档。
 ///
-/// Unlike `Walk`, this uses multiple threads for traversing a directory.
+/// 与 `Walk` 不同，这使用多个线程来遍历目录。
 pub struct WalkParallel {
     paths: vec::IntoIter<PathBuf>,
     ig_root: Ignore,
@@ -1171,9 +1098,8 @@ pub struct WalkParallel {
 }
 
 impl WalkParallel {
-    /// Execute the parallel recursive directory iterator. `mkf` is called
-    /// for each thread used for iteration. The function produced by `mkf`
-    /// is then in turn called for each visited file path.
+    /// 执行并行递归目录迭代器。 `mkf` 将为每个用于迭代的线程调用。
+    /// `mkf` 生成的函数随后将为每个访问的文件路径调用。
     pub fn run<'s, F>(self, mkf: F)
     where
         F: FnMut() -> FnVisitor<'s>,
@@ -1181,23 +1107,13 @@ impl WalkParallel {
         self.visit(&mut FnBuilder { builder: mkf })
     }
 
-    /// Execute the parallel recursive directory iterator using a custom
-    /// visitor.
+    /// 使用自定义访问者执行并行递归目录迭代器。
     ///
-    /// The builder given is used to construct a visitor for every thread
-    /// used by this traversal. The visitor returned from each builder is then
-    /// called for every directory entry seen by that thread.
+    /// 给定的构建器用于为此遍历使用的每个线程构建一个访问者。每个构建器返回的访问者随后对每个线程看到的每个目录条目进行调用。
     ///
-    /// Typically, creating a custom visitor is useful if you need to perform
-    /// some kind of cleanup once traversal is finished. This can be achieved
-    /// by implementing `Drop` for your builder (or for your visitor, if you
-    /// want to execute cleanup for every thread that is launched).
+    /// 通常，创建自定义访问者对于在遍历结束时执行某些清理操作非常有用。可以通过为您的构建器实现 `Drop`（或者为您的访问者实现 `Drop`，如果您希望为启动的每个线程执行清理操作）来实现此目的。
     ///
-    /// For example, each visitor might build up a data structure of results
-    /// corresponding to the directory entries seen for each thread. Since each
-    /// visitor runs on only one thread, this build-up can be done without
-    /// synchronization. Then, once traversal is complete, all of the results
-    /// can be merged together into a single data structure.
+    /// 例如，每个访问者可能会构建一个结果数据结构，该数据结构对应于每个线程看到的目录条目。由于每个访问者仅在一个线程上运行，因此可以在不进行同步的情况下执行此构建。然后，一旦遍历完成，所有结果都可以合并到一个数据结构中。
     pub fn visit(mut self, builder: &mut dyn ParallelVisitorBuilder<'_>) {
         let threads = self.threads();
         let stack = Arc::new(Mutex::new(vec![]));
@@ -1206,9 +1122,7 @@ impl WalkParallel {
             let mut visitor = builder.build();
             let mut paths = Vec::new().into_iter();
             std::mem::swap(&mut paths, &mut self.paths);
-            // Send the initial set of root paths to the pool of workers. Note
-            // that we only send directories. For files, we send to them the
-            // callback directly.
+            // 将初始的根路径集发送到工作池。请注意，我们只发送目录。对于文件，我们直接发送给回调函数。
             for path in paths {
                 let (dent, root_device) = if path == Path::new("-") {
                     (DirEntry::new_stdin(), None)
@@ -1245,12 +1159,12 @@ impl WalkParallel {
                     root_device: root_device,
                 }));
             }
-            // ... but there's no need to start workers if we don't need them.
+            // ... 但是如果我们不需要它们，就无需启动工作线程。
             if stack.is_empty() {
                 return;
             }
         }
-        // Create the workers and then wait for them to finish.
+        // 创建工作线程，然后等待它们完成。
         let quit_now = Arc::new(AtomicBool::new(false));
         let num_pending =
             Arc::new(AtomicUsize::new(stack.lock().unwrap().len()));
@@ -1284,64 +1198,53 @@ impl WalkParallel {
         }
     }
 }
-
-/// Message is the set of instructions that a worker knows how to process.
+/// `Message` 是工作指令集，一个工作线程知道如何处理这些指令。
 enum Message {
-    /// A work item corresponds to a directory that should be descended into.
-    /// Work items for entries that should be skipped or ignored should not
-    /// be produced.
+    /// 工作项对应应该进入的目录。应该跳过或忽略的条目的工作项不应产生。
     Work(Work),
-    /// This instruction indicates that the worker should quit.
+    /// 此指令指示工作线程退出。
     Quit,
 }
 
-/// A unit of work for each worker to process.
+/// 每个工作线程要处理的工作单元。
 ///
-/// Each unit of work corresponds to a directory that should be descended
-/// into.
+/// 每个工作单元对应应该进入的目录。
 struct Work {
-    /// The directory entry.
+    /// 目录条目。
     dent: DirEntry,
-    /// Any ignore matchers that have been built for this directory's parents.
+    /// 为此目录的父目录构建的任何忽略匹配器。
     ignore: Ignore,
-    /// The root device number. When present, only files with the same device
-    /// number should be considered.
+    /// 根设备号。当存在时，只应考虑具有相同设备号的文件。
     root_device: Option<u64>,
 }
 
 impl Work {
-    /// Returns true if and only if this work item is a directory.
+    /// 仅当此工作项为目录时返回 `true`。
     fn is_dir(&self) -> bool {
         self.dent.is_dir()
     }
 
-    /// Returns true if and only if this work item is a symlink.
+    /// 仅当此工作项为符号链接时返回 `true`。
     fn is_symlink(&self) -> bool {
         self.dent.file_type().map_or(false, |ft| ft.is_symlink())
     }
 
-    /// Adds ignore rules for parent directories.
+    /// 为父目录添加忽略规则。
     ///
-    /// Note that this only applies to entries at depth 0. On all other
-    /// entries, this is a no-op.
+    /// 请注意，这仅适用于深度为 0 的条目。对于所有其他条目，这是一个空操作。
     fn add_parents(&mut self) -> Option<Error> {
         if self.dent.depth() > 0 {
             return None;
         }
-        // At depth 0, the path of this entry is a root path, so we can
-        // use it directly to add parent ignore rules.
+        // 在深度为 0 时，此条目的路径是根路径，因此我们可以直接使用它来添加父级忽略规则。
         let (ig, err) = self.ignore.add_parents(self.dent.path());
         self.ignore = ig;
         err
     }
 
-    /// Reads the directory contents of this work item and adds ignore
-    /// rules for this directory.
+    /// 读取此工作项的目录内容，并为此目录添加忽略规则。
     ///
-    /// If there was a problem with reading the directory contents, then
-    /// an error is returned. If there was a problem reading the ignore
-    /// rules for this directory, then the error is attached to this
-    /// work item's directory entry.
+    /// 如果读取目录内容时出现问题，则返回错误。如果读取此目录的忽略规则时出现问题，则将错误附加到此工作项的目录条目上。
     fn read_dir(&mut self) -> Result<fs::ReadDir, Error> {
         let readdir = match fs::read_dir(self.dent.path()) {
             Ok(readdir) => readdir,
@@ -1359,48 +1262,36 @@ impl Work {
     }
 }
 
-/// A worker is responsible for descending into directories, updating the
-/// ignore matchers, producing new work and invoking the caller's callback.
+/// 工作线程负责进入目录、更新忽略匹配器、生成新工作并调用调用者的回调。
 ///
-/// Note that a worker is *both* a producer and a consumer.
+/// 请注意，工作线程既是生产者又是消费者。
 struct Worker<'s> {
-    /// The caller's callback.
+    /// 调用者的回调。
     visitor: Box<dyn ParallelVisitor + 's>,
-    /// A stack of work to do.
+    /// 要处理的工作堆栈。
     ///
-    /// We use a stack instead of a channel because a stack lets us visit
-    /// directories in depth first order. This can substantially reduce peak
-    /// memory usage by keeping both the number of files path and gitignore
-    /// matchers in memory lower.
+    /// 我们使用堆栈而不是通道，因为堆栈可以使我们以深度优先顺序访问目录。这可以通过将文件路径数和 gitignore 匹配器的内存占用保持较低来显著降低内存使用峰值。
     stack: Arc<Mutex<Vec<Message>>>,
-    /// Whether all workers should terminate at the next opportunity. Note
-    /// that we need this because we don't want other `Work` to be done after
-    /// we quit. We wouldn't need this if have a priority channel.
+    /// 是否所有工作线程都应在下一个机会终止。请注意，我们需要这个因为我们不希望在我们退出后继续完成其他 `Work`。如果有一个优先级通道，我们就不需要这个了。
     quit_now: Arc<AtomicBool>,
-    /// The number of outstanding work items.
+    /// 未完成工作项的数量。
     num_pending: Arc<AtomicUsize>,
-    /// The maximum depth of directories to descend. A value of `0` means no
-    /// descension at all.
+    /// 目录的最大深度下降。值为 `0` 表示根本不下降。
     max_depth: Option<usize>,
-    /// The maximum size a searched file can be (in bytes). If a file exceeds
-    /// this size it will be skipped.
+    /// 搜索文件的最大大小（以字节为单位）。如果文件超过此大小，将跳过它。
     max_filesize: Option<u64>,
-    /// Whether to follow symbolic links or not. When this is enabled, loop
-    /// detection is performed.
+    /// 是否要跟随符号链接。启用此选项时，将执行循环检测。
     follow_links: bool,
-    /// A file handle to skip, currently is either `None` or stdout, if it's
-    /// a file and it has been requested to skip files identical to stdout.
+    /// 要跳过的文件句柄，当前为 `None` 或者是 stdout，如果请求跳过与 stdout 相同的文件。
     skip: Option<Arc<Handle>>,
-    /// A predicate applied to dir entries. If true, the entry and all
-    /// children will be skipped.
+    /// 适用于目录条目的谓词。如果为真，则将跳过该条目及其所有子项。
     filter: Option<Filter>,
 }
 
 impl<'s> Worker<'s> {
-    /// Runs this worker until there is no more work left to do.
+    /// 运行该工作线程，直到没有更多工作要做为止。
     ///
-    /// The worker will call the caller's callback for all entries that aren't
-    /// skipped by the ignore matcher.
+    /// 该工作线程将对所有未被忽略匹配器跳过的条目调用调用者的回调。
     fn run(mut self) {
         while let Some(work) = self.get_work() {
             if let WalkState::Quit = self.run_one(work) {
@@ -1411,8 +1302,7 @@ impl<'s> Worker<'s> {
     }
 
     fn run_one(&mut self, mut work: Work) -> WalkState {
-        // If the work is not a directory, then we can just execute the
-        // caller's callback immediately and move on.
+        // 如果工作项不是目录，则可以立即执行调用者的回调并继续。
         if work.is_symlink() || !work.is_dir() {
             return self.visitor.visit(Ok(work.dent));
         }
@@ -1439,12 +1329,9 @@ impl<'s> Worker<'s> {
             true
         };
 
-        // Try to read the directory first before we transfer ownership
-        // to the provided closure. Do not unwrap it immediately, though,
-        // as we may receive an `Err` value e.g. in the case when we do not
-        // have sufficient read permissions to list the directory.
-        // In that case we still want to provide the closure with a valid
-        // entry before passing the error value.
+        // 尝试首先读取目录，然后再将所有权转移到提供的闭包。
+        // 但不要立即解包，因为我们可能会在没有足够读取权限来列出目录的情况下收到 `Err` 值。
+        // 在这种情况下，我们仍然希望在传递错误值之前向闭包提供一个有效的条目。
         let readdir = work.read_dir();
         let depth = work.dent.depth();
         let state = self.visitor.visit(Ok(work.dent));
@@ -1479,19 +1366,14 @@ impl<'s> Worker<'s> {
         WalkState::Continue
     }
 
-    /// Decides whether to submit the given directory entry as a file to
-    /// search.
+    /// 决定是否将给定目录条目作为要搜索的文件提交。
     ///
-    /// If the entry is a path that should be ignored, then this is a no-op.
-    /// Otherwise, the entry is pushed on to the queue. (The actual execution
-    /// of the callback happens in `run_one`.)
+    /// 如果条目是应该被忽略的路径，则这是一个空操作。
+    /// 否则，将条目推送到队列中。（实际的回调执行发生在 `run_one` 中。）
     ///
-    /// If an error occurs while reading the entry, then it is sent to the
-    /// caller's callback.
+    /// 如果在读取条目时发生错误，则将其发送到调用者的回调。
     ///
-    /// `ig` is the `Ignore` matcher for the parent directory. `depth` should
-    /// be the depth of this entry. `result` should be the item yielded by
-    /// a directory iterator.
+    /// `ig` 是父目录的 `Ignore` 匹配器。`depth` 应该是此条目的深度。`result` 应该是目录迭代器产生的项。
     fn generate_work(
         &mut self,
         ig: &Ignore,
@@ -1528,8 +1410,7 @@ impl<'s> Worker<'s> {
                 }
             }
         }
-        // N.B. See analogous call in the single-threaded implementation about
-        // why it's important for this to come before the checks below.
+        // N.B. 见单线程实现中的类似调用，了解为什么这在下面的检查之前很重要。
         if should_skip_entry(ig, &dent) {
             return WalkState::Continue;
         }
@@ -1564,15 +1445,13 @@ impl<'s> Worker<'s> {
         WalkState::Continue
     }
 
-    /// Returns the next directory to descend into.
+    /// 获取下一个要进入的目录。
     ///
-    /// If all work has been exhausted, then this returns None. The worker
-    /// should then subsequently quit.
+    /// 如果所有工作都已用尽，则返回 None。然后工作线程应随后退出。
     fn get_work(&mut self) -> Option<Work> {
         let mut value = self.recv();
         loop {
-            // Simulate a priority channel: If quit_now flag is set, we can
-            // receive only quit messages.
+            // 模拟优先级通道：如果设置了 quit_now 标志，我们只能接收退出消息。
             if self.is_quit_now() {
                 value = Some(Message::Quit)
             }
@@ -1581,37 +1460,32 @@ impl<'s> Worker<'s> {
                     return Some(work);
                 }
                 Some(Message::Quit) => {
-                    // Repeat quit message to wake up sleeping threads, if
-                    // any. The domino effect will ensure that every thread
-                    // will quit.
+                    // 重复退出消息以唤醒正在休眠的线程（如果有的话）。
+                    // 骨牌效应将确保每个线程都会退出。
                     self.send_quit();
                     return None;
                 }
                 None => {
-                    // Once num_pending reaches 0, it is impossible for it to
-                    // ever increase again. Namely, it only reaches 0 once
-                    // all jobs have run such that no jobs have produced more
-                    // work. We have this guarantee because num_pending is
-                    // always incremented before each job is submitted and only
-                    // decremented once each job is completely finished.
-                    // Therefore, if this reaches zero, then there can be no
-                    // other job running.
+                    // 一旦 num_pending 达到 0，它就不可能再增加了。
+                    // 也就是说，它只有在所有工作都已运行，以便没有工作生成更多工作时才会达到 0。
+                    // 我们之所以有这个保证，是因为在每个作业提交之前，num_pending 总是会递增，
+                    // 并且只有在每个作业完全完成后才会递减一次。
+                    // 因此，如果这个值达到零，那么就不可能有其他作业在运行。
                     if self.num_pending() == 0 {
-                        // Every other thread is blocked at the next recv().
-                        // Send the initial quit message and quit.
+                        // 每个其他线程都会在下一个 recv() 处于阻塞状态。
+                        // 发送初始退出消息并退出。
                         self.send_quit();
                         return None;
                     }
-                    // Wait for next `Work` or `Quit` message.
+                    // 等待下一个 `Work` 或 `Quit` 消息。
                     loop {
                         if let Some(v) = self.recv() {
                             value = Some(v);
                             break;
                         }
-                        // Our stack isn't blocking. Instead of burning the
-                        // CPU waiting, we let the thread sleep for a bit. In
-                        // general, this tends to only occur once the search is
-                        // approaching termination.
+                        // 我们的堆栈不是阻塞的。
+                        // 而不是烧毁 CPU 等待，我们让线程休眠一会儿。
+                        // 一般来说，这通常只会在搜索接近终止时发生。
                         thread::sleep(Duration::from_millis(1));
                     }
                 }
@@ -1619,41 +1493,41 @@ impl<'s> Worker<'s> {
         }
     }
 
-    /// Indicates that all workers should quit immediately.
+    /// 指示所有工作线程立即退出。
     fn quit_now(&self) {
         self.quit_now.store(true, Ordering::SeqCst);
     }
 
-    /// Returns true if this worker should quit immediately.
+    /// 如果该工作线程应立即退出，则返回 true。
     fn is_quit_now(&self) -> bool {
         self.quit_now.load(Ordering::SeqCst)
     }
 
-    /// Returns the number of pending jobs.
+    /// 返回未完成的作业数量。
     fn num_pending(&self) -> usize {
         self.num_pending.load(Ordering::SeqCst)
     }
 
-    /// Send work.
+    /// 发送工作。
     fn send(&self, work: Work) {
         self.num_pending.fetch_add(1, Ordering::SeqCst);
         let mut stack = self.stack.lock().unwrap();
         stack.push(Message::Work(work));
     }
 
-    /// Send a quit message.
+    /// 发送退出消息。
     fn send_quit(&self) {
         let mut stack = self.stack.lock().unwrap();
         stack.push(Message::Quit);
     }
 
-    /// Receive work.
+    /// 接收工作。
     fn recv(&self) -> Option<Message> {
         let mut stack = self.stack.lock().unwrap();
         stack.pop()
     }
 
-    /// Signal that work has been finished.
+    /// 表示工作已完成。
     fn work_done(&self) {
         self.num_pending.fetch_sub(1, Ordering::SeqCst);
     }
@@ -1681,9 +1555,7 @@ fn check_symlink_loop(
     }
     Ok(())
 }
-
-// Before calling this function, make sure that you ensure that is really
-// necessary as the arguments imply a file stat.
+// 在调用此函数之前，请确保您已确保这是必要的，因为参数意味着一个文件状态。
 fn skip_filesize(
     max_filesize: u64,
     path: &Path,
@@ -1696,7 +1568,7 @@ fn skip_filesize(
 
     if let Some(fs) = filesize {
         if fs > max_filesize {
-            log::debug!("ignoring {}: {} bytes", path.display(), fs);
+            log::debug!("忽略文件：{}，大小：{} 字节", path.display(), fs);
             true
         } else {
             false
@@ -1709,23 +1581,22 @@ fn skip_filesize(
 fn should_skip_entry(ig: &Ignore, dent: &DirEntry) -> bool {
     let m = ig.matched_dir_entry(dent);
     if m.is_ignore() {
-        log::debug!("ignoring {}: {:?}", dent.path().display(), m);
+        log::debug!("忽略：{}，匹配器：{:?}", dent.path().display(), m);
         true
     } else if m.is_whitelist() {
-        log::debug!("whitelisting {}: {:?}", dent.path().display(), m);
+        log::debug!("加入白名单：{}，匹配器：{:?}", dent.path().display(), m);
         false
     } else {
         false
     }
 }
 
-/// Returns a handle to stdout for filtering search.
+/// 返回用于过滤搜索的 stdout 句柄。
 ///
-/// A handle is returned if and only if stdout is being redirected to a file.
-/// The handle returned corresponds to that file.
+/// 仅当标准输出被重定向到文件时才返回句柄。
+/// 返回的句柄对应于该文件。
 ///
-/// This can be used to ensure that we do not attempt to search a file that we
-/// may also be writing to.
+/// 这可以用于确保我们不会尝试搜索我们可能也正在写入的文件。
 fn stdout_handle() -> Option<Handle> {
     let h = match Handle::stdout() {
         Err(_) => return None,
@@ -1741,9 +1612,8 @@ fn stdout_handle() -> Option<Handle> {
     Some(h)
 }
 
-/// Returns true if and only if the given directory entry is believed to be
-/// equivalent to the given handle. If there was a problem querying the path
-/// for information to determine equality, then that error is returned.
+/// 当且仅当给定的目录条目被认为等同于给定句柄时，返回 true。
+/// 如果在查询路径信息以确定等同性时发生问题，则返回该错误。
 fn path_equals(dent: &DirEntry, handle: &Handle) -> Result<bool, Error> {
     #[cfg(unix)]
     fn never_equal(dent: &DirEntry, handle: &Handle) -> bool {
@@ -1755,8 +1625,7 @@ fn path_equals(dent: &DirEntry, handle: &Handle) -> Result<bool, Error> {
         false
     }
 
-    // If we know for sure that these two things aren't equal, then avoid
-    // the costly extra stat call to determine equality.
+    // 如果我们确定这两个事物肯定不相等，则避免昂贵的额外状态调用以确定等同性。
     if dent.is_stdin() || never_equal(dent, handle) {
         return Ok(false);
     }
@@ -1765,14 +1634,12 @@ fn path_equals(dent: &DirEntry, handle: &Handle) -> Result<bool, Error> {
         .map_err(|err| Error::Io(err).with_path(dent.path()))
 }
 
-/// Returns true if the given walkdir entry corresponds to a directory.
+/// 当且仅当给定的 walkdir 条目对应于目录时，返回 true。
 ///
-/// This is normally just `dent.file_type().is_dir()`, but when we aren't
-/// following symlinks, the root directory entry may be a symlink to a
-/// directory that we *do* follow---by virtue of it being specified by the user
-/// explicitly. In that case, we need to follow the symlink and query whether
-/// it's a directory or not. But we only do this for root entries to avoid an
-/// additional stat check in most cases.
+/// 这通常只是 `dent.file_type().is_dir()`，但当我们不
+/// 跟随符号链接时，根目录条目可能是链接到目录的符号链接---通过用户显式指定。
+/// 在这种情况下，我们需要跟随符号链接并查询它是否是目录。
+/// 但我们只对根条目执行此操作，以避免在大多数情况下进行额外的状态检查。
 fn walkdir_is_dir(dent: &walkdir::DirEntry) -> bool {
     if dent.file_type().is_dir() {
         return true;
@@ -1783,8 +1650,7 @@ fn walkdir_is_dir(dent: &walkdir::DirEntry) -> bool {
     dent.path().metadata().ok().map_or(false, |md| md.file_type().is_dir())
 }
 
-/// Returns true if and only if the given path is on the same device as the
-/// given root device.
+/// 当且仅当给定的路径与给定的根设备相同设备时，返回 true。
 fn is_same_file_system(root_device: u64, path: &Path) -> Result<bool, Error> {
     let dent_device =
         device_num(path).map_err(|err| Error::Io(err).with_path(path))?;
@@ -1810,7 +1676,7 @@ fn device_num<P: AsRef<Path>>(path: P) -> io::Result<u64> {
 fn device_num<P: AsRef<Path>>(_: P) -> io::Result<u64> {
     Err(io::Error::new(
         io::ErrorKind::Other,
-        "walkdir: same_file_system option not supported on this platform",
+        "walkdir: 在此平台上不支持 same_file_system 选项",
     ))
 }
 
@@ -1914,9 +1780,9 @@ mod tests {
 
     fn assert_paths(prefix: &Path, builder: &WalkBuilder, expected: &[&str]) {
         let got = walk_collect(prefix, builder);
-        assert_eq!(got, mkpaths(expected), "single threaded");
+        assert_eq!(got, mkpaths(expected), "单线程");
         let got = walk_collect_parallel(prefix, builder);
-        assert_eq!(got, mkpaths(expected), "parallel");
+        assert_eq!(got, mkpaths(expected), "并行");
     }
 
     #[test]
@@ -2112,8 +1978,7 @@ mod tests {
             &["a", "a/b", "a/b/foo", "z", "z/foo"],
         );
     }
-
-    #[cfg(unix)] // because symlinks on windows are weird
+    #[cfg(unix)] // 因为 Windows 上的符号链接很奇怪
     #[test]
     fn first_path_not_symlink() {
         let td = tmpdir();
@@ -2134,7 +1999,7 @@ mod tests {
         assert!(!dents[0].path_is_symlink());
     }
 
-    #[cfg(unix)] // because symlinks on windows are weird
+    #[cfg(unix)] // 因为 Windows 上的符号链接很奇怪
     #[test]
     fn symlink_loop() {
         let td = tmpdir();
@@ -2146,23 +2011,19 @@ mod tests {
         assert_paths(td.path(), &builder.follow_links(true), &["a", "a/b"]);
     }
 
-    // It's a little tricky to test the 'same_file_system' option since
-    // we need an environment with more than one file system. We adopt a
-    // heuristic where /sys is typically a distinct volume on Linux and roll
-    // with that.
+    // 测试 'same_file_system' 选项有点棘手，因为我们需要一个多于一个文件系统的环境。
+    // 我们采用了一个启发式方法，即 /sys 在 Linux 上通常是一个不同的卷，并采用此方法。
     #[test]
     #[cfg(target_os = "linux")]
     fn same_file_system() {
         use super::device_num;
 
-        // If for some reason /sys doesn't exist or isn't a directory, just
-        // skip this test.
+        // 如果由于某种原因 /sys 不存在或不是目录，只需跳过此测试。
         if !Path::new("/sys").is_dir() {
             return;
         }
 
-        // If our test directory actually isn't a different volume from /sys,
-        // then this test is meaningless and we shouldn't run it.
+        // 如果我们的测试目录实际上不是与 /sys 不同的卷，那么此测试是没有意义的，我们不应该运行它。
         let td = tmpdir();
         if device_num(td.path()).unwrap() == device_num("/sys").unwrap() {
             return;
@@ -2171,10 +2032,8 @@ mod tests {
         mkdirp(td.path().join("same_file"));
         symlink("/sys", td.path().join("same_file").join("alink"));
 
-        // Create a symlink to sys and enable following symlinks. If the
-        // same_file_system option doesn't work, then this probably will hit a
-        // permission error. Otherwise, it should just skip over the symlink
-        // completely.
+        // 创建到 sys 的符号链接并启用跟随符号链接。如果 same_file_system 选项不起作用，
+        // 那么这可能会遇到权限错误。否则，它应该完全跳过符号链接。
         let mut builder = WalkBuilder::new(td.path());
         builder.follow_links(true).same_file_system(true);
         assert_paths(td.path(), &builder, &["same_file", "same_file/alink"]);
@@ -2185,16 +2044,16 @@ mod tests {
     fn no_read_permissions() {
         let dir_path = Path::new("/root");
 
-        // There's no /etc/sudoers.d, skip the test.
+        // 没有 /etc/sudoers.d，跳过测试。
         if !dir_path.is_dir() {
             return;
         }
-        // We're the root, so the test won't check what we want it to.
+        // 我们是 root，所以测试不会检查我们想要的内容。
         if fs::read_dir(&dir_path).is_ok() {
             return;
         }
 
-        // Check that we can't descend but get an entry for the parent dir.
+        // 检查我们是否无法下降但可以获取父目录的条目。
         let builder = WalkBuilder::new(&dir_path);
         assert_paths(dir_path.parent().unwrap(), &builder, &["root"]);
     }

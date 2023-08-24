@@ -15,13 +15,14 @@ pub struct ReadByLine<'s, M, R, S> {
     core: Core<'s, M, S>,
     rdr: LineBufferReader<'s, R>,
 }
-
+/// `ReadByLine` 结构体的实现，实现了逐行读取并进行匹配的功能。
 impl<'s, M, R, S> ReadByLine<'s, M, R, S>
 where
     M: Matcher,
     R: io::Read,
     S: Sink,
 {
+    /// 创建一个新的 `ReadByLine` 实例。
     pub fn new(
         searcher: &'s Searcher,
         matcher: M,
@@ -37,17 +38,22 @@ where
         }
     }
 
+    /// 执行匹配过程，逐行读取并进行匹配。
     pub fn run(mut self) -> Result<(), S::Error> {
+        // 开始匹配过程，检查是否可以继续。
         if self.core.begin()? {
+            // 逐行处理输入数据，直到没有数据可读。
             while self.fill()? && self.core.match_by_line(self.rdr.buffer())? {
             }
         }
+        // 结束匹配过程，将剩余数据下沉到输出。
         self.core.finish(
             self.rdr.absolute_byte_offset(),
             self.rdr.binary_byte_offset(),
         )
     }
 
+    /// 填充输入缓冲区，返回是否成功填充数据。
     fn fill(&mut self) -> Result<bool, S::Error> {
         assert!(self.rdr.buffer()[self.core.pos()..].is_empty());
 
@@ -69,10 +75,9 @@ where
         if !didread || self.should_binary_quit() {
             return Ok(false);
         }
-        // If rolling the buffer didn't result in consuming anything and if
-        // re-filling the buffer didn't add any bytes, then the only thing in
-        // our buffer is leftover context, which we no longer need since there
-        // is nothing left to search. So forcefully quit.
+        // 如果滚动缓冲区未导致任何数据被消耗，
+        // 并且重新填充缓冲区也没有添加任何字节，则缓冲区中仅剩余上下文数据，
+        // 而此时没有数据可供搜索，所以强制退出。
         if consumed == 0 && old_buf_len == self.rdr.buffer().len() {
             self.rdr.consume(old_buf_len);
             return Ok(false);
@@ -80,12 +85,14 @@ where
         Ok(true)
     }
 
+    /// 判断是否应该在二进制匹配模式下退出匹配过程。
     fn should_binary_quit(&self) -> bool {
         self.rdr.binary_byte_offset().is_some()
             && self.config.binary.quit_byte().is_some()
     }
 }
 
+/// `SliceByLine` 结构体的实现，实现了对给定切片进行逐行匹配的功能。
 #[derive(Debug)]
 pub struct SliceByLine<'s, M, S> {
     core: Core<'s, M, S>,
@@ -93,6 +100,7 @@ pub struct SliceByLine<'s, M, S> {
 }
 
 impl<'s, M: Matcher, S: Sink> SliceByLine<'s, M, S> {
+    /// 创建一个新的 `SliceByLine` 实例。
     pub fn new(
         searcher: &'s Searcher,
         matcher: M,
@@ -107,8 +115,11 @@ impl<'s, M: Matcher, S: Sink> SliceByLine<'s, M, S> {
         }
     }
 
+    /// 执行匹配过程，对给定切片进行逐行匹配。
     pub fn run(mut self) -> Result<(), S::Error> {
+        // 开始匹配过程，检查是否可以继续。
         if self.core.begin()? {
+            // 首先尝试检测是否为二进制数据，如果不是则逐行匹配。
             let binary_upto =
                 cmp::min(self.slice.len(), DEFAULT_BUFFER_CAPACITY);
             let binary_range = Range::new(0, binary_upto);
@@ -118,11 +129,13 @@ impl<'s, M: Matcher, S: Sink> SliceByLine<'s, M, S> {
                 {}
             }
         }
+        // 结束匹配过程，将剩余数据下沉到输出。
         let byte_count = self.byte_count();
         let binary_byte_offset = self.core.binary_byte_offset();
         self.core.finish(byte_count, binary_byte_offset)
     }
 
+    /// 计算要下沉的字节数。
     fn byte_count(&mut self) -> u64 {
         match self.core.binary_byte_offset() {
             Some(offset) if offset < self.core.pos() as u64 => offset,
@@ -131,6 +144,7 @@ impl<'s, M: Matcher, S: Sink> SliceByLine<'s, M, S> {
     }
 }
 
+/// `MultiLine` 结构体的实现，实现了多行匹配的功能。
 #[derive(Debug)]
 pub struct MultiLine<'s, M, S> {
     config: &'s Config,
@@ -139,7 +153,9 @@ pub struct MultiLine<'s, M, S> {
     last_match: Option<Range>,
 }
 
+/// `MultiLine` 结构体的实现，实现了多行匹配的功能。
 impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
+    /// 创建一个新的 `MultiLine` 实例。
     pub fn new(
         searcher: &'s Searcher,
         matcher: M,
@@ -156,8 +172,11 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
         }
     }
 
+    /// 执行多行匹配过程。
     pub fn run(mut self) -> Result<(), S::Error> {
+        // 开始匹配过程，检查是否可以继续。
         if self.core.begin()? {
+            // 首先尝试检测是否为二进制数据，如果不是则进行多行匹配。
             let binary_upto =
                 cmp::min(self.slice.len(), DEFAULT_BUFFER_CAPACITY);
             let binary_range = Range::new(0, binary_upto);
@@ -177,7 +196,7 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
                         }
                     };
                 }
-                // Take care of any remaining context after the last match.
+                // 处理最后一个匹配后的剩余上下文。
                 if keepgoing {
                     if self.config.passthru {
                         self.core.other_context_by_line(
@@ -193,11 +212,13 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
                 }
             }
         }
+        // 结束匹配过程，将剩余数据下沉到输出。
         let byte_count = self.byte_count();
         let binary_byte_offset = self.core.binary_byte_offset();
         self.core.finish(byte_count, binary_byte_offset)
     }
 
+    /// 处理匹配的下沉过程。
     fn sink(&mut self) -> Result<bool, S::Error> {
         if self.config.invert_match {
             return self.sink_matched_inverted();
@@ -213,29 +234,26 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
 
         let line =
             lines::locate(self.slice, self.config.line_term.as_byte(), mat);
-        // We delay sinking the match to make sure we group adjacent matches
-        // together in a single sink. Adjacent matches are distinct matches
-        // that start and end on the same line, respectively. This guarantees
-        // that a single line is never sinked more than once.
+        // 为了确保相邻匹配能够合并到一起，我们会延迟下沉匹配结果。
+        // 相邻匹配是指在同一行上开始和结束的不同匹配。
+        // 这确保了每一行最多只会下沉一次。
         match self.last_match.take() {
             None => {
                 self.last_match = Some(line);
                 Ok(true)
             }
             Some(last_match) => {
-                // If the lines in the previous match overlap with the lines
-                // in this match, then simply grow the match and move on. This
-                // happens when the next match begins on the same line that the
-                // last match ends on.
+                // 如果前一个匹配的行与当前匹配的行有重叠部分，
+                // 则只需要扩展匹配范围并继续匹配。
+                // 这种情况发生在下一个匹配从上一个匹配的结束行开始。
                 //
-                // Note that we do not technically require strict overlap here.
-                // Instead, we only require that the lines are adjacent. This
-                // provides larger blocks of lines to the printer, and results
-                // in overall better behavior with respect to how replacements
-                // are handled.
+                // 需要注意的是，严格的重叠在此并不是必要的。
+                // 我们只需要确保两行是相邻的即可。
+                // 这样做能够为打印机提供更大的文本块，
+                // 并且在处理替换时会表现更好。
                 //
-                // See: https://github.com/BurntSushi/ripgrep/issues/1311
-                // And also the associated commit fixing #1311.
+                // 参考：https://github.com/BurntSushi/ripgrep/issues/1311
+                // 以及解决 #1311 的提交记录。
                 if last_match.end() >= line.start() {
                     self.last_match = Some(last_match.with_end(line.end()));
                     Ok(true)
@@ -250,6 +268,7 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
         }
     }
 
+    /// 处理反转匹配下沉过程。
     fn sink_matched_inverted(&mut self) -> Result<bool, S::Error> {
         assert!(self.config.invert_match);
 
@@ -289,18 +308,18 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
         Ok(true)
     }
 
+    /// 处理匹配下沉过程。
     fn sink_matched(&mut self, range: &Range) -> Result<bool, S::Error> {
         if range.is_empty() {
-            // The only way we can produce an empty line for a match is if we
-            // match the position immediately following the last byte that we
-            // search, and where that last byte is also the line terminator. We
-            // never want to report that match, and we know we're done at that
-            // point anyway, so stop the search.
+            // 如果匹配结果是空行，说明我们匹配的是刚好在搜索末尾的位置，
+            // 而且这个位置也是行终止符的位置。
+            // 我们不想报告这样的匹配，而且此时搜索已经结束，停止继续搜索。
             return Ok(false);
         }
         self.core.matched(self.slice, range)
     }
 
+    /// 处理上下文下沉过程。
     fn sink_context(&mut self, range: &Range) -> Result<bool, S::Error> {
         if self.config.passthru {
             if !self.core.other_context_by_line(self.slice, range.start())? {
@@ -317,6 +336,7 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
         Ok(true)
     }
 
+    /// 查找下一个匹配的位置。
     fn find(&mut self) -> Result<Option<Range>, S::Error> {
         match self.core.matcher().find(&self.slice[self.core.pos()..]) {
             Err(err) => Err(S::Error::error_message(err)),
@@ -325,10 +345,9 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
         }
     }
 
-    /// Advance the search position based on the previous match.
+    /// 根据上一个匹配的范围调整搜索位置。
     ///
-    /// If the previous match is zero width, then this advances the search
-    /// position one byte past the end of the match.
+    /// 如果上一个匹配是零宽度的，将搜索位置调整到匹配结束的下一个字节位置。
     fn advance(&mut self, range: &Range) {
         self.core.set_pos(range.end());
         if range.is_empty() && self.core.pos() < self.slice.len() {
@@ -337,6 +356,7 @@ impl<'s, M: Matcher, S: Sink> MultiLine<'s, M, S> {
         }
     }
 
+    /// 计算输出的字节总数。
     fn byte_count(&mut self) -> u64 {
         match self.core.binary_byte_offset() {
             Some(offset) if offset < self.core.pos() as u64 => offset,

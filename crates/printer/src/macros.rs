@@ -1,4 +1,4 @@
-/// Like assert_eq, but nicer output for long strings.
+/// 类似assert_eq，但是对于长字符串输出更好。
 #[cfg(test)]
 #[macro_export]
 macro_rules! assert_eq_printed {
